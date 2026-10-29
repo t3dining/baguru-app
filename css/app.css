@@ -312,7 +312,8 @@ main { padding: 0 16px; }
 .summary .sum b { font-size: 20px; color: var(--brown); }
 .pay-note { margin: 10px 2px 0; font-size: 13px; color: var(--sub); }
 
-.days { display: flex; gap: 8px; }
+.days { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }   /* 1か月分は横に動かして選ぶ */
+.days .chip { flex: 0 0 64px; scroll-snap-align: start; }
 .chip { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 8px 4px; border-radius: 12px; background: var(--paper); border: 1.5px solid var(--line); font-weight: 700; }
 .chip small { color: var(--sub); font-weight: 500; }
 .chip.on { border-color: var(--pink); background: var(--pink-soft); color: var(--pink); }
@@ -717,3 +718,53 @@ button.link-card { width: 100%; text-align: left; }
   .order-only .app { padding-left: 0; }
   .order-only .cartbar, .order-only .toast { left: 50%; }
 }
+
+/* ---------------------------------------------------------------------
+ *  アレルギー（商品を選ぶ画面・メニューの「アレルギーについて」。中身は data.js の ALLERGY）
+ * --------------------------------------------------------------------- */
+.link-line { display: block; margin: 4px 2px 0; padding: 6px 0; background: none; color: var(--pink); font-weight: 700; font-size: 13px; text-align: left; }
+.g-allergy { margin: 14px 0 4px; }
+.allergy { padding: 12px 14px; border-radius: 12px; background: var(--cream); border: 1px solid var(--line); }
+.allergy > b { font-size: 13px; }
+.allergy small { display: block; margin-top: 6px; color: var(--sub); font-size: 11px; line-height: 1.5; }
+.al-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.al { padding: 2px 8px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); font-size: 12px; }
+.al-major { font-weight: 800; border-color: var(--pink); color: var(--pink); }
+.al-none { color: var(--sub); }
+.al-ask { margin: 8px 0 0; font-size: 12px; font-weight: 600; color: var(--red); }
+.allergy-ask { display: flex; gap: 8px; align-items: flex-start; margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--cream); font-size: 13px; color: var(--sub); }
+.allergy-ask svg { flex: none; width: 18px; height: 18px; color: var(--gold); }
+.allergy-ask a { display: inline-block; margin-left: 4px; font-weight: 700; color: var(--pink); }
+.sheet-title { margin: 30px 0 4px; font-size: 20px; }
+.al-table { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.al-table li { padding: 10px 12px; border-radius: 12px; background: var(--paper); border: 1px solid var(--line); }
+.al-table b { font-size: 14px; }
+
+/* ---------------------------------------------------------------------
+ *  ネット予約（js/reserve.js）
+ * --------------------------------------------------------------------- */
+.r-people, .r-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.r-chip { position: relative; }
+.r-chip input, .r-day input { position: absolute; opacity: 0; pointer-events: none; }
+.r-chip span { display: inline-flex; align-items: center; gap: 4px; min-width: 54px; justify-content: center; padding: 9px 12px; border-radius: 12px; background: var(--paper); border: 1.5px solid var(--line); font-weight: 700; }
+.r-chip input:checked + span { border-color: var(--pink); background: var(--pink-soft); color: var(--pink); }
+.r-chip input:disabled + span { opacity: .4; }
+.r-chip i { font-style: normal; font-size: 12px; color: var(--sub); }
+.r-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.r-wd { text-align: center; font-size: 12px; font-weight: 700; color: var(--sub); }
+.r-wd.sun, .r-day.sun b { color: var(--red); }
+.r-wd.sat, .r-day.sat b { color: #2f6db3; }
+.r-day { position: relative; }
+.r-day span { display: flex; flex-direction: column; align-items: center; padding: 6px 0; border-radius: 10px; background: var(--paper); border: 1.5px solid var(--line); }
+.r-day b { font-size: 13px; font-variant-numeric: tabular-nums; }
+.r-day i { font-style: normal; font-size: 12px; font-weight: 700; color: var(--green); }
+.r-day.is-few i { color: var(--gold); }
+.r-day.is-full i, .r-day.is-closed i { color: var(--sub); }
+.r-day.is-full span, .r-day.is-closed span { background: transparent; opacity: .55; }
+.r-day input:checked + span { border-color: var(--pink); background: var(--pink-soft); }
+.r-times { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.r-time span { width: 100%; min-width: 0; padding: 9px 4px; font-variant-numeric: tabular-nums; }
+.r-check { display: flex; align-items: center; gap: 8px; margin: 0 2px 12px; font-weight: 600; }
+.r-check input { width: 20px; height: 20px; accent-color: var(--pink); }
+.r-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+#rsv .ticket .t-no { font-size: 26px; white-space: nowrap; }   /* 予約の受付番号（1103-01）は、注文番号より長い */

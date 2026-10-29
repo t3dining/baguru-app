@@ -42,10 +42,10 @@ const saveCart = () => DB.set('cart', cart);
 
 const ROUTES = {
   home: viewHome, menu: viewMenu, cart: viewCart, checkout: viewCheckout, request: viewRequest,
-  order: viewOrder, stamp: viewStamp, shop: viewShop, me: viewMe,
+  order: viewOrder, stamp: viewStamp, shop: viewShop, me: viewMe, reserve: viewReserve,
 };
 // 入力の途中で消えないよう、ほかのタブの書き換えでは描き直さない画面
-const NO_LIVE = ['checkout', 'request', 'me'];
+const NO_LIVE = ['checkout', 'request', 'me', 'reserve'];
 
 const routeName = () => location.hash.replace(/^#/, '').split('/')[0] || (ORDER_ONLY ? 'menu' : 'home');
 
@@ -59,6 +59,7 @@ function render(keepScroll = false) {
   $('#back').hidden = !v.back;
   $('#back').dataset.to = v.back || '';
   view.innerHTML = v.html;
+  v.after?.();   // 描いたあとに中身を読みに行く画面（ネット予約の空き状況）
   view.dataset.route = name || 'home';     // ヨコ画面のとき、メニューだけ横に広げる（app.css の最後）
   $$('.tabs a').forEach(a => a.classList.toggle('on', a.dataset.tab === v.tab));
   drawCart();
@@ -120,6 +121,7 @@ function viewHome() {
         <a class="quick-btn q-stamp" href="#stamp">${ICON.card}<b>スタンプカード</b><small>${ME.registeredAt ? `<em>${stampOnCard(s.total)}</em> / ${STAMP.goal}${coupons ? `・特典${coupons}枚` : ''}` : '登録で1ポイント＋アイス'}</small></a>
       </div>
       ${callBtn()}
+      <a class="link-card" href="#reserve">${ICON.cal}<span><b>ネット予約（席のご予約）</b><small>空いている日と時間を選んで、リクエストを送れます。お店が確かめて、確定をメールでお知らせします</small></span></a>
       <a class="link-card" href="#request">${ICON.truck}<span><b>配達・大量注文の申請</b><small>配達は${TAKEOUT.deliveryFreeMin}食以上で無料（原則${TAKEOUT.deliveryKm}km圏内）・${TAKEOUT.deliveryFreeMin}食未満は要相談。大量注文は${TAKEOUT.bulkMin}食以上。お店が確認してから確定します</small></span></a>
       ${installCard()}
       <h2 class="sec">お知らせ</h2>
@@ -179,6 +181,7 @@ function viewMenu() {
       ${ORDER_ONLY ? myOrders().filter(o => ACTIVE.includes(o.status)).map(orderBanner).join('') : ''}
       ${accepting ? '' : '<p class="notice warn">ただいま、アプリからの注文の受付を止めています。お急ぎの方はお電話でどうぞ。</p>'}
       <p class="notice">${ICON.clock}<span>一番早い受け取り：<b>${first}</b><small>最短の受け取りは、${leadRuleText()}（ハンバーグBOX・定食の数）。${esc(TAKEOUT.payNote)}</small></span></p>
+      <button class="link-line" data-act="allergy">アレルギーについて ›</button>
       ${CATEGORIES.map(c => `
         <section class="cat-sec" id="cat-${c.id}">
           <h2 class="sec">${esc(c.name)}</h2>
@@ -246,9 +249,11 @@ function openItem(id) {
     </div>
     ${item.groups.map(groupHtml).join('')}
     <div class="g g-qty"><b>数量</b>${stepper('qty', 1, 50)}</div>
+    <div class="g-allergy" id="allergyBox"></div>
     <div class="sheet-foot"><button class="btn btn-main btn-block" data-s="add"></button></div>`);
 
   const refresh = () => {
+    $('#allergyBox', sheetBody).innerHTML = allergyHtml(item, sel);
     const { unit, missing } = priceOf(item, sel);
     const btn = $('[data-s="add"]', sheetBody);
     btn.disabled = !!missing;
@@ -312,6 +317,62 @@ function openItem(id) {
 }
 
 /* ---------------------------------------------------------------------
+ *  アレルギー（data.js の ALLERGY。お店に確かめた中身があるときだけ出す）
+ * --------------------------------------------------------------------- */
+
+const ALLERGY_ALL = [...ALLERGY.major, ...ALLERGY.others];
+const allergyKnown = item => !!ALLERGY.checked && Array.isArray(ALLERGY.items[item.id]);
+const allergyAsk = () => `<p class="allergy-ask">${ICON.phone}<span>アレルギーについては、ご注文の前にお電話でお問い合わせください。<a href="tel:${SHOP.tel.replace(/-/g, '')}">${esc(SHOP.tel)}</a></span></p>`;
+
+/** その商品に入っているもの（sel があれば、選んだソース・トッピングなどの分も足す）。並びは ALLERGY の順。
+ *  unknown … 選んだもののうち、お店がまだ確かめていないもの（その分は「お問い合わせください」と出す） */
+function allergensOf(item, sel = null) {
+  const has = new Set(ALLERGY.items[item.id] || []);
+  const unknown = [];
+  if (sel) {
+    item.groups.filter(g => ALLERGY.groups.includes(g.id)).forEach(g => {
+      const v = sel[g.id];
+      const picked = g.type === 'one' ? [v] : g.type === 'many' ? (v || []) : [];
+      picked.map(i => g.choices[i]).filter(c => c && !c.plain).forEach(c => {
+        if (Array.isArray(ALLERGY.choices[c.n])) ALLERGY.choices[c.n].forEach(a => has.add(a));
+        else unknown.push(c.n);
+      });
+    });
+  }
+  return { list: ALLERGY_ALL.filter(a => has.has(a)), unknown };
+}
+
+const allergyTags = list => list.length
+  ? list.map(a => `<span class="al ${ALLERGY.major.includes(a) ? 'al-major' : ''}">${esc(a)}</span>`).join('')
+  : '<span class="al al-none">入っていません</span>';
+
+function allergyHtml(item, sel) {
+  if (!allergyKnown(item)) return allergyAsk();
+  const { list, unknown } = allergensOf(item, sel);
+  return `<div class="allergy">
+      <b>アレルギー（${ALLERGY_ALL.length}品目のうち）</b>
+      <div class="al-list">${unknown.length && !list.length ? '' : allergyTags(list)}</div>
+      ${unknown.length ? `<p class="al-ask">選んだ「${esc(unknown.join('」「'))}」の分は、お電話でお問い合わせください（<a href="tel:${SHOP.tel.replace(/-/g, '')}">${esc(SHOP.tel)}</a>）。</p>` : ''}
+      <small>${ALLERGY.note ? esc(ALLERGY.note) + '　' : ''}${ALLERGY.checked.replace(/-/g, '/')} 時点。太字は表示が義務の${ALLERGY.major.length}品目です。${unknown.length ? '' : '選んだソースやトッピングの分も入っています。'}</small>
+    </div>`;
+}
+
+/** メニューの全部のアレルギー（メニューの上の「アレルギーの一覧」から） */
+function openAllergyList() {
+  const choices = Object.entries(ALLERGY.choices).filter(([, list]) => list.length);
+  openSheet(`
+    <button class="sheet-x" data-s="close" aria-label="閉じる">×</button>
+    <h2 class="sheet-title">アレルギーの一覧</h2>
+    ${ALLERGY.checked ? `<p class="hint">${ALLERGY_ALL.length}品目のうち、入っているもの（${ALLERGY.checked.replace(/-/g, '/')} 時点）。太字は表示が義務の${ALLERGY.major.length}品目です。${esc(ALLERGY.note)}</p>
+      <ul class="al-table">${ITEMS.map(i => `<li><b>${esc(i.full || i.name)}</b><div class="al-list">${allergyKnown(i) ? allergyTags(allergensOf(i).list) : '<span class="al al-none">お問い合わせください</span>'}</div></li>`).join('')}</ul>
+      ${choices.length ? `<h3 class="sec">選んだときに足されるもの</h3>
+        <ul class="al-table">${choices.map(([n, list]) => `<li><b>${esc(n)}</b><div class="al-list">${allergyTags(ALLERGY_ALL.filter(a => list.includes(a)))}</div></li>`).join('')}</ul>` : ''}`
+      : allergyAsk()}`);
+  sheetBody.onchange = null;
+  sheetBody.onclick = e => { if (e.target.closest('[data-s="close"]')) closeSheet(); };
+}
+
+/* ---------------------------------------------------------------------
  *  カート
  * --------------------------------------------------------------------- */
 
@@ -353,7 +414,7 @@ function viewCart() {
  * --------------------------------------------------------------------- */
 
 const checkoutLead = () => leadFor(cartMeals());
-const checkoutDays = () => pickupDays(new Date(), checkoutLead());
+const checkoutDays = () => takeoutDays(new Date(), checkoutLead());
 
 function viewCheckout() {
   if (!cart.length) { location.replace('#cart'); return null; }
@@ -374,13 +435,14 @@ function viewCheckout() {
         <button class="mode ${pick.mode === 'asap' ? 'on' : ''}" data-act="mode" data-arg="asap" ${asap ? '' : 'disabled'}>
           <b>できしだい</b><small>${asap ? `今日 ${hhmm(asap)}頃（約${lead}分後）` : '今日はもう受け取れません'}</small></button>
         <button class="mode ${pick.mode === 'time' ? 'on' : ''}" data-act="mode" data-arg="time">
-          <b>時間を指定</b><small>${TAKEOUT.daysAhead}日先まで・${TAKEOUT.stepMinutes}分ごと</small></button>
+          <b>時間を指定</b><small>${TAKEOUT.monthsAhead}か月先まで・${TAKEOUT.stepMinutes}分ごと</small></button>
       </div>
       <p class="hint">${meals ? `${meals}食の` : ''}ご注文は、一番早くて${lead}分後に受け取れます（${leadRuleText()}）。</p>
       <div id="timePick" ${pick.mode === 'time' ? '' : 'hidden'}>
         <div class="days">${days.map((d, i) => `
           <button class="chip ${i === pick.day ? 'on' : ''}" data-act="day" data-arg="${i}">${['今日', '明日'].includes(dayLabel(d.date)) ? dayLabel(d.date) : WEEK[d.date.getDay()] + '曜'}<small>${d.date.getMonth() + 1}/${d.date.getDate()}</small></button>`).join('')}
         </div>
+        ${days.length > 4 ? `<p class="hint">日にちは、横に動かすと${TAKEOUT.monthsAhead}か月先（${mdw(days[days.length - 1].date)}）まで選べます。定休日は出ません。</p>` : ''}
         <div class="slots" id="slots">${slotsHtml(days)}</div>
       </div>
       <h2 class="sec">お名前と電話番号</h2>
@@ -585,6 +647,13 @@ const STATUS_MSG = {
 };
 
 function statusMsg(o) {
+  // 明日以降の受け付け（お店の画面の「受付済み（明日以降）」）。その日になると、ふつうの言い方に戻る
+  if (isBooked(o)) {
+    const day = mdw(new Date(o.pickupAt));
+    if (o.kind === 'delivery') return `承認されました。${day}のご希望の時間にお届けします。`;
+    if (o.kind === 'bulk') return `承認されました。${day}の受け取りの時間に合わせて準備します。`;
+    return `受け付けました。${day}の受け取りの時間に合わせて調理します。`;
+  }
   if (o.kind === 'delivery') {
     if (o.status === 'accepted') return '承認されました。ご希望の日時にお届けします。';
     if (o.status === 'ready') return 'できあがりました。これからお届けします。';
@@ -785,7 +854,7 @@ function viewShop() {
         ${row(ICON.clock, '営業時間', hoursHtml())}
         ${row(ICON.cal, '定休日', closedHtml())}
         ${row(ICON.car, '駐車場', esc(SHOP.parking))}
-        ${row(ICON.seat, '席', esc(SHOP.seats))}
+        ${row(ICON.seat, '席', esc(SHOP.seats), '<a class="mini" href="#reserve">予約</a>')}
         ${row(ICON.wallet, 'お支払い', `現金${SHOP.pay.map(([k, v]) => `<span class="sub-line">${v ? `<em>${esc(k)}</em>${esc(v)}` : esc(k)}</span>`).join('')}`)}
         ${row(ICON.truck, '配達', esc(TAKEOUT.deliveryNote) + (SHOP.contactUrl ? `<span class="sub-line"><a href="${esc(SHOP.contactUrl)}" target="_blank" rel="noopener">ホームページのお問い合わせフォーム ›</a></span>` : ''), '<a class="mini" href="#request">申請</a>')}
         ${row(ICON.insta, 'Instagram', '@baguru.hamburg', `<a class="mini" href="${SHOP.instagram}" target="_blank" rel="noopener">見る</a>`)}
@@ -839,6 +908,8 @@ function viewMe() {
       <label class="field"><span>お名前</span><input id="m-name" autocomplete="name" value="${esc(ME.name)}"></label>
       <label class="field"><span>電話番号</span><input id="m-tel" type="tel" inputmode="tel" autocomplete="tel" value="${esc(ME.tel)}"></label>
       <button class="btn ${ME.registeredAt ? 'btn-sub' : 'btn-main'}" data-act="register" data-arg="m">${ME.registeredAt ? '保存する' : `登録して${STAMP.welcome.points}ポイントもらう`}</button>
+      <h2 class="sec">ご予約のリクエスト</h2>
+      ${reservesHtml()}
       <h2 class="sec">注文の履歴</h2>
       ${mine.length ? `<ul class="orders">${mine.map(o => {
         const t = new Date(o.pickupAt);
@@ -930,6 +1001,7 @@ const ACTIONS = {
   },
   stamp: () => openScanner(),
   coupon: id => openCoupon(id),
+  allergy: () => openAllergyList(),
   install: () => startInstall(),
   'install-guide': () => openInstallGuide(),
   'install-hide': () => hideInstallCard(),

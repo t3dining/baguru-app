@@ -189,7 +189,7 @@ function pickupSlots(day, now = new Date(), leadMin = leadFor(0)) {
 }
 
 /** 受け取りを選べる日（定休日と、もう枠が残っていない日は除く） */
-function pickupDays(now = new Date(), leadMin = leadFor(0), count = TAKEOUT.daysAhead) {
+function pickupDays(now = new Date(), leadMin = leadFor(0), count = 7) {
   const days = [];
   for (let i = 0; days.length < count && i < count * 2 + 7; i++) {
     const d = new Date(now);
@@ -200,6 +200,19 @@ function pickupDays(now = new Date(), leadMin = leadFor(0), count = TAKEOUT.days
     if (slots.length) days.push({ date: d, slots });
   }
   return days;
+}
+
+/** 月を足す（同じ日。その月に無い日は、その月の終わり。1/31 の1か月あとは 2/28） */
+function addMonths(d, n) {
+  const x = new Date(d.getFullYear(), d.getMonth() + n, 1);
+  x.setDate(Math.min(d.getDate(), new Date(x.getFullYear(), x.getMonth() + 1, 0).getDate()));
+  return x;
+}
+
+/** テイクアウトの「時間を指定」で選べる日と時間。今日から TAKEOUT.monthsAhead か月先の同じ日まで（定休日・臨時休業を除く） */
+function takeoutDays(now = new Date(), leadMin = leadFor(0)) {
+  const last = addMonths(new Date(now.getFullYear(), now.getMonth(), now.getDate()), TAKEOUT.monthsAhead);
+  return pickupDays(now, leadMin, 62).filter(d => d.date <= last);
 }
 
 /** 「できしだい」で受け取れるいちばん早い時刻（5分単位）。今日はもう受け取れないときは null */
@@ -271,8 +284,15 @@ const payNoteOf = (kind, meals = 0) => kind === 'delivery'
   ? TAKEOUT.deliveryPayNote + (meals < TAKEOUT.deliveryFreeMin ? '配達料は、承認のときにお店からお知らせします。' : '')
   : TAKEOUT.payNote;
 
-/** 注文の様子の名前（申請・配達のときは言い方を変える） */
+/** 受け付けたが、受け取り（配達はお届け）が明日より後の注文か。
+ *  お店の画面では「受付済み（明日以降）」の枠に入り、その日になると調理中へ移る（status は accepted のまま。2026-10-30 ko-dai さんの了承）。
+ *  ★バグるOrder受付の js/store.js も isBooked を使う。名前や引数を変えるときは、そのセッションに知らせる */
+const laterDay = (o, now = new Date()) => dateKey(new Date(o.pickupAt)) > dateKey(now);
+const isBooked = (o, now = new Date()) => o.status === 'accepted' && laterDay(o, now);
+
+/** 注文の様子の名前（申請・配達のとき、明日以降の受け付けのときは言い方を変える） */
 function statusLabel(o, status = o.status) {
+  if (status === 'accepted' && laterDay(o)) return isRequest(o) ? '承認済み' : '受付済み';   // 注文の様子の4段階の2つ目も、受け付ける前から
   if (isRequest(o) && status === 'accepted') return '承認・準備中';
   if (o.kind === 'delivery' && status === 'done') return 'お届け済み';
   return STATUS[status].label;
