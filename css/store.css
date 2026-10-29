@@ -71,7 +71,7 @@ button { font: inherit; cursor: pointer; border: 0; }
 .list { display: flex; flex-direction: column; gap: 10px; }
 .none { color: var(--sub); text-align: center; font-size: 13px; margin: 18px 0; }
 
-/* 受付済み（明日以降）。受け取りの日になると「調理中」に移る */
+/* 受付済み（調理を始める前）。受け取りの30分前を過ぎると「調理中」に移る */
 .booked { margin: 0 18px 14px; }
 .booked h2 { flex-wrap: wrap; }
 .booked h2 small { font-size: 12px; font-weight: 500; color: var(--sub); }

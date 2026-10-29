@@ -284,15 +284,16 @@ const payNoteOf = (kind, meals = 0) => kind === 'delivery'
   ? TAKEOUT.deliveryPayNote + (meals < TAKEOUT.deliveryFreeMin ? '配達料は、承認のときにお店からお知らせします。' : '')
   : TAKEOUT.payNote;
 
-/** 受け付けたが、受け取り（配達はお届け）が明日より後の注文か。
- *  お店の画面では「受付済み（明日以降）」の枠に入り、その日になると調理中へ移る（status は accepted のまま。2026-10-30 ko-dai さんの了承）。
+/** まだ調理を始める時刻の前か（受け取り・お届けの TAKEOUT.cookBefore 分前より前）。「できしだい」の注文は、いつも調理の時刻を過ぎている扱い */
+const beforeCook = (o, now = new Date()) => !o.asap && new Date(o.pickupAt) - now > TAKEOUT.cookBefore * 60000;
+/** 受け付けたが、まだ調理を始める前の注文か（受け取り・お届けの TAKEOUT.cookBefore 分前まで）。status は accepted のまま。
+ *  お店の画面では「受付済み」の枠に入り、その時刻を過ぎると「調理中」へ移る（2026-10-30 ko-dai さんの指示。前は「明日以降か」で見分けていた）。
  *  ★バグるOrder受付の js/store.js も isBooked を使う。名前や引数を変えるときは、そのセッションに知らせる */
-const laterDay = (o, now = new Date()) => dateKey(new Date(o.pickupAt)) > dateKey(now);
-const isBooked = (o, now = new Date()) => o.status === 'accepted' && laterDay(o, now);
+const isBooked = (o, now = new Date()) => o.status === 'accepted' && beforeCook(o, now);
 
-/** 注文の様子の名前（申請・配達のとき、明日以降の受け付けのときは言い方を変える） */
+/** 注文の様子の名前（申請・配達のとき、調理を始める前の受け付けのときは言い方を変える） */
 function statusLabel(o, status = o.status) {
-  if (status === 'accepted' && laterDay(o)) return isRequest(o) ? '承認済み' : '受付済み';   // 注文の様子の4段階の2つ目も、受け付ける前から
+  if (status === 'accepted' && beforeCook(o)) return isRequest(o) ? '承認済み' : '受付済み';   // 注文の様子の4段階の2つ目も、受け付ける前から
   if (isRequest(o) && status === 'accepted') return '承認・準備中';
   if (o.kind === 'delivery' && status === 'done') return 'お届け済み';
   return STATUS[status].label;

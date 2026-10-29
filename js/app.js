@@ -647,12 +647,12 @@ const STATUS_MSG = {
 };
 
 function statusMsg(o) {
-  // 明日以降の受け付け（お店の画面の「受付済み（明日以降）」）。その日になると、ふつうの言い方に戻る
+  // 受け付けたが、まだ調理を始める前（お店の画面の「受付済み」）。受け取りの cookBefore 分前を過ぎると、ふつうの言い方に戻る
   if (isBooked(o)) {
-    const day = mdw(new Date(o.pickupAt));
-    if (o.kind === 'delivery') return `承認されました。${day}のご希望の時間にお届けします。`;
-    if (o.kind === 'bulk') return `承認されました。${day}の受け取りの時間に合わせて準備します。`;
-    return `受け付けました。${day}の受け取りの時間に合わせて調理します。`;
+    const t = new Date(o.pickupAt), when = `${dayLabel(t)} ${hhmm(t)}`;
+    if (o.kind === 'delivery') return `承認されました。${when}にお届けします。`;
+    if (o.kind === 'bulk') return `承認されました。${when}の受け取りに合わせて準備します。`;
+    return `受け付けました。${when}の受け取りの${TAKEOUT.cookBefore}分前から調理します。`;
   }
   if (o.kind === 'delivery') {
     if (o.status === 'accepted') return '承認されました。ご希望の日時にお届けします。';

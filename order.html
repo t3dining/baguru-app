@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest-store.json">
 <link rel="icon" href="img/store-icon-192.png">
 <link rel="apple-touch-icon" href="img/store-apple-touch-icon.png">
-<link rel="stylesheet" href="css/store.css?v=471f1681">
+<link rel="stylesheet" href="css/store.css?v=9e22f9e2">
 </head>
 <body>
 <header class="s-top">
@@ -36,9 +36,9 @@
   <section class="col" data-col="ready"><h2>できあがり・お渡し待ち<span class="n"></span></h2><div class="list"></div></section>
 </main>
 
-<!-- 明日以降の受け取りで、受け付けた・承認した注文。受け取りの日になると「調理中」に移る（2026-10-30 ko-dai さん） -->
+<!-- 受け付けた・承認したが、まだ調理を始める前の注文。受け取り・お届けの30分前（data.js の TAKEOUT.cookBefore）を過ぎると「調理中」に移る（2026-10-30 ko-dai さん） -->
 <section class="booked">
-  <h2>受付済み（明日以降）<span class="n"></span><small>受け取り・お届けの日になると「調理中」に移ります</small></h2>
+  <h2>受付済み<span class="n"></span><small>受け取り・お届けの<span id="cookBefore">30</span>分前になると「調理中」に移ります</small></h2>
   <div class="list"></div>
 </section>
 
@@ -83,9 +83,9 @@
   <span>注文の音をオンにします（試しに1回鳴ります）。<br>タブレットの決まりで、開いたときに1回だけタッチが要ります。</span>
 </button>
 
-<script src="js/data.js?v=c2892bc6"></script>
+<script src="js/data.js?v=8cd094cf"></script>
 <script src="js/db.js?v=feb3337d"></script>
-<script src="js/common.js?v=3be19673"></script>
-<script src="js/store.js?v=f37404ca"></script>
+<script src="js/common.js?v=18536022"></script>
+<script src="js/store.js?v=27fd1662"></script>
 </body>
 </html>

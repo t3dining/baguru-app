@@ -1,7 +1,7 @@
 /* =====================================================================
  *  お店の画面（タブレットで開いておく想定）
  *  届いた注文を「受け付ける → できあがり → お渡し済み」と進める。
- *  明日以降の注文は、受け付けると「受付済み」に入り、受け取りの日になると「調理中」に移る。
+ *  受け付けた注文は、受け取りの30分前（TAKEOUT.cookBefore）までは「受付済み」に入り、それを過ぎると「調理中」に移る。
  *  お渡し済みにすると、そのお客様のスタンプが1個たまる。
  *  お店に置くスタンプのQRも、ここで出して印刷する（上の「スタンプのQR」）。
  * ===================================================================== */
@@ -15,8 +15,8 @@ const BACK = { accepted: 'new', ready: 'accepted', done: 'ready' };
 // 申請（配達・大量注文）は、承認したら accepted。戻すと申請に戻る
 const backOf = o => o.status === 'accepted' && isRequest(o) ? 'request' : BACK[o.status];
 const nextLabel = o => o.kind === 'delivery' && o.status === 'ready' ? 'お届け済み' : NEXT[o.status]?.label;
-// 明日以降の受け取り（配達はお届け）で、受け付けた・承認した注文は「受付済み」に置く。受け取りの日になると「調理中」に移る（2026-10-30 ko-dai さん）。
-// 見分けは common.js の isBooked（お客さまの画面の「受付済み」と同じ）
+// 受け付けた・承認したが、まだ調理を始める前（受け取り・お届けの TAKEOUT.cookBefore 分前まで）の注文は「受付済み」に置く。その時刻を過ぎると「調理中」に移る。
+// 「できしだい」は、受け付けたらすぐ調理中。見分けは common.js の isBooked（お客さまの画面の「受付済み」と同じ。2026-10-30 ko-dai さん）
 
 const RING_EVERY = 3000;   // 受付待ちの注文があるあいだ、この間隔（ミリ秒）で鳴らし続ける
 const CHIME_URL = 'snd/order.wav';   // 注文が入ったときの音（1.8秒。道具/注文の音を作る.py で作る）
@@ -95,7 +95,8 @@ function card(o) {
   const t = new Date(o.pickupAt);
   const isToday = dateKey(t) === dateKey(new Date());
   const late = ACTIVE.includes(o.status) && t < new Date();
-  const next = isBooked(o) ? null : NEXT[o.status];   // 受付済みは、受け取りの日になるまで「できあがり」を出さない
+  // 受付済みでも、今日の分は早くできたときのために「できあがり」を出す。明日より先の分は出さない
+  const next = isBooked(o) && !isToday ? null : NEXT[o.status];
   const back = backOf(o);
   const map = o.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(o.address)}` : '';
   return `<article class="card ${fresh.has(o.id) ? 'fresh' : ''} ${late ? 'late' : ''} ${o.kind === 'delivery' ? 'is-delivery' : ''}">
@@ -266,6 +267,7 @@ DB.onChange(key => {
 // T3Works の営業日も読み直す（30分に1回まで。変わっていたら描き直す）
 const syncDays = () => refreshDays().then(changed => changed && render());
 setInterval(() => { render(); syncDays(); }, 30000);
+$('#cookBefore').textContent = TAKEOUT.cookBefore;   // 「受付済み」の見出しの「◯分前」
 render();
 syncDays();
 // タブレットは、開いたときから音をオンにする。ブラウザが許さないとき（まだ画面に触っていない）は、少し待って「画面をタッチ」を出す
