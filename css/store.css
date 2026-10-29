@@ -2,16 +2,19 @@
  *  お店の画面（タブレットを横にして使う想定。スマホでも1列で見られる）
  * ===================================================================== */
 
+/* 色は、お店用のアイコン（深い緑の地に金）に合わせる。お客さまの公式アプリ（こげ茶・ピンク）と、ひと目で見分けるため（2026-10-30 ko-dai さんの指示） */
 :root {
-  --brown: #4b2a1b;
-  --cream: #fbf5ec;
+  --main: #1d3128;        /* 深い緑（上の帯・番号・ボタン）。アイコンの地の色 */
+  --bg: #e4ebe6;          /* 画面の地（うすい緑がかった灰色） */
+  --soft: #e6eee9;        /* 控えめなボタンの地 */
   --paper: #ffffff;
-  --gold: #c9973f;
-  --gold-soft: #f6ead2;
-  --pink: #d24f78;
-  --ink: #2b1d16;
-  --sub: #7b6a5f;
-  --line: #e6d8c8;
+  --gold: #c29b38;        /* アイコンの金 */
+  --gold-soft: #f4ecd4;
+  --accent: #c75a1e;      /* 新しい注文・受け付ける（だいだい。目に入りやすく、白い字が読める濃さ） */
+  --accent-soft: #fbe5d6;
+  --ink: #17221d;
+  --sub: #5d6d65;
+  --line: #d3ddd6;
   --green: #2a8553;
   --green-soft: #e2f2e8;
   --blue: #2f6db3;
@@ -21,7 +24,7 @@
 
 * { box-sizing: border-box; }
 body {
-  margin: 0; background: #efe6da; color: var(--ink);
+  margin: 0; background: var(--bg); color: var(--ink);
   font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", system-ui, sans-serif;
   font-size: 15px; line-height: 1.55;
 }
@@ -31,18 +34,18 @@ button { font: inherit; cursor: pointer; border: 0; }
   position: sticky; top: 0; z-index: 10;
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   padding: calc(10px + env(safe-area-inset-top, 0px)) 18px 10px;
-  background: var(--brown); color: #fff;
+  background: var(--main); color: #fff; border-bottom: 3px solid var(--gold);
 }
 .s-brand { display: flex; align-items: center; gap: 10px; margin-right: auto; }
 .s-brand img { width: 42px; height: 42px; border-radius: 50%; background: #fff; padding: 2px; object-fit: contain; }
 .s-brand h1 { margin: 0; font-size: 20px; display: flex; flex-direction: column; line-height: 1.2; }
-.s-brand small { font-size: 12px; font-weight: 500; color: #e0cbbb; }
+.s-brand small { font-size: 12px; font-weight: 500; color: #e3cf96; }
 .s-accept { display: flex; align-items: center; gap: 8px; font-weight: 700; cursor: pointer; }
 .s-accept input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .s-accept:focus-within .sw { outline: 2px solid var(--gold); outline-offset: 2px; }
 .sw { width: 48px; height: 28px; border-radius: 14px; background: var(--green); position: relative; transition: background .2s; }
 .sw::after { content: ""; position: absolute; top: 3px; left: 23px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: left .2s; }
-.s-accept.off .sw { background: #8f7f74; }
+.s-accept.off .sw { background: #7b8a82; }
 .s-accept.off .sw::after { left: 3px; }
 .s-accept.off span:last-child { color: #ffb3a8; }
 .s-btn { height: 38px; padding: 0 14px; border-radius: 999px; background: rgba(255, 255, 255, .14); color: #fff; font-weight: 700; font-size: 13px; }
@@ -53,20 +56,20 @@ button { font: inherit; cursor: pointer; border: 0; }
 /* 音を出せないあいだの「画面をタッチしてください」（画面いっぱい。どこを触っても音がオンになる。下のボタンは押されない） */
 .sound-gate {
   position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
-  background: rgba(43, 29, 22, .88); color: #fff; text-align: center; padding: 24px; line-height: 1.7;
+  background: rgba(18, 32, 25, .9); color: #fff; text-align: center; padding: 24px; line-height: 1.7;
 }
 .sound-gate[hidden] { display: none; }
 .sound-gate .sg-icon { font-size: 72px; line-height: 1; animation: blink 1.2s ease-in-out infinite; }
 .sound-gate b { font-size: clamp(20px, 6vw, 30px); }   /* スマホの幅でも1行に収める */
-.sound-gate span:last-child { font-size: 15px; color: #f3dcc8; }
+.sound-gate span:last-child { font-size: 15px; color: #d8e5dc; }
 
 .demo-bar { background: #fff3c4; color: #6b5200; font-size: 12px; text-align: center; padding: 4px 12px; }
 
 .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; padding: 14px 18px; align-items: start; }
 .col, .past, .booked { background: rgba(255, 255, 255, .45); border-radius: 16px; padding: 10px; }
 .col h2, .past h2, .booked h2 { margin: 2px 4px 10px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
-.n { min-width: 26px; height: 22px; padding: 0 8px; border-radius: 11px; background: var(--brown); color: #fff; font-size: 13px; display: grid; place-items: center; }
-.col[data-col="new"] .n { background: var(--pink); }
+.n { min-width: 26px; height: 22px; padding: 0 8px; border-radius: 11px; background: var(--main); color: #fff; font-size: 13px; display: grid; place-items: center; }
+.col[data-col="new"] .n { background: var(--accent); }
 .col[data-col="ready"] .n { background: var(--green); }
 .list { display: flex; flex-direction: column; gap: 10px; }
 .none { color: var(--sub); text-align: center; font-size: 13px; margin: 18px 0; }
@@ -81,12 +84,12 @@ button { font: inherit; cursor: pointer; border: 0; }
 .past .list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
 .past .card { opacity: .75; }
 
-.card { background: var(--paper); border-radius: 14px; padding: 12px 14px; border: 2px solid transparent; box-shadow: 0 1px 2px rgba(60, 30, 10, .08); }
-.card.fresh { border-color: var(--pink); animation: glow 1s ease-in-out 4; }
+.card { background: var(--paper); border-radius: 14px; padding: 12px 14px; border: 2px solid transparent; box-shadow: 0 1px 2px rgba(15, 40, 28, .1); }
+.card.fresh { border-color: var(--accent); animation: glow 1s ease-in-out 4; }
 .card.late .c-time em { background: var(--red); color: #fff; }
-@keyframes glow { 50% { background: #fde8ef; } }
+@keyframes glow { 50% { background: var(--accent-soft); } }
 .c-top { display: flex; align-items: center; gap: 12px; }
-.c-no { font-size: 30px; font-weight: 800; color: var(--brown); letter-spacing: .04em; font-variant-numeric: tabular-nums; }
+.c-no { font-size: 30px; font-weight: 800; color: var(--main); letter-spacing: .04em; font-variant-numeric: tabular-nums; }
 .c-time { margin-left: auto; text-align: right; display: flex; flex-direction: column; line-height: 1.25; }
 .c-time small { color: var(--sub); font-size: 12px; }
 .c-time b { font-size: 24px; font-variant-numeric: tabular-nums; }
@@ -95,7 +98,7 @@ button { font: inherit; cursor: pointer; border: 0; }
 .c-who a { color: var(--blue); font-size: 14px; }
 .c-lines { list-style: none; margin: 0; padding: 0; }
 .c-lines li { display: grid; grid-template-columns: 1fr auto; padding: 4px 0; }
-.c-lines .q { font-weight: 800; font-size: 17px; color: var(--pink); }
+.c-lines .q { font-weight: 800; font-size: 17px; color: var(--accent); }
 .c-lines small { grid-column: 1 / -1; color: var(--sub); font-size: 13px; }
 .c-memo { margin: 8px 0 0; padding: 6px 10px; border-radius: 8px; background: var(--gold-soft); font-size: 13.5px; font-weight: 600; }
 .c-sum { display: flex; justify-content: space-between; align-items: baseline; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
@@ -104,11 +107,11 @@ button { font: inherit; cursor: pointer; border: 0; }
 .c-cancel { margin: 8px 0 0; color: var(--red); font-weight: 700; font-size: 13px; }
 .c-btns { display: flex; gap: 8px; margin-top: 10px; }
 .c-btns:empty { display: none; }
-.b-main { flex: 1; height: 46px; border-radius: 12px; color: #fff; font-weight: 800; font-size: 16px; background: var(--brown); }
-.b-accepted { background: var(--pink); }
+.b-main { flex: 1; height: 46px; border-radius: 12px; color: #fff; font-weight: 800; font-size: 16px; background: var(--main); }
+.b-accepted { background: var(--accent); }
 .b-ready { background: var(--green); }
-.b-done { background: var(--brown); }
-.b-sub { height: 46px; padding: 0 14px; border-radius: 12px; background: #f3ece4; color: var(--brown); font-weight: 700; }
+.b-done { background: var(--main); }
+.b-sub { height: 46px; padding: 0 14px; border-radius: 12px; background: var(--soft); color: var(--main); font-weight: 700; }
 .b-sub.danger { color: var(--red); background: var(--red-soft); }
 
 /* 配達・大量注文の申請 */
@@ -133,16 +136,16 @@ button { font: inherit; cursor: pointer; border: 0; }
 
 /* ---- スタンプのQR ---- */
 .qr-dlg { width: min(460px, calc(100% - 32px)); border: 0; border-radius: 18px; padding: 22px 22px 18px; color: var(--ink); text-align: center; }
-.qr-dlg::backdrop { background: rgba(43, 29, 22, .55); }
+.qr-dlg::backdrop { background: rgba(18, 32, 25, .55); }
 .qr-dlg h2 { margin: 0 0 4px; font-size: 20px; }
 .qr-dlg > p { margin: 0; font-size: 13.5px; color: var(--sub); }
 .qr-box { width: 240px; margin: 14px auto 6px; aspect-ratio: 1; display: grid; place-items: center; color: var(--sub); font-size: 13px; }
 .qr-box svg { display: block; width: 100%; height: auto; }
-.qr-dlg .qr-url { font-size: 11px; word-break: break-all; color: #a3968c; }
+.qr-dlg .qr-url { font-size: 11px; word-break: break-all; color: #8a9891; }
 .qr-dlg .qr-warn { margin: 8px 0 0; padding: 8px 10px; border-radius: 10px; background: #fff3c4; color: #6b5200; font-size: 12.5px; text-align: left; }
 .qr-tools { display: flex; gap: 8px; justify-content: center; margin-top: 14px; }
-.s-act { height: 44px; padding: 0 16px; border-radius: 12px; background: #f3ece4; color: var(--brown); font-weight: 700; }
-.s-act.main { background: var(--brown); color: #fff; }
+.s-act { height: 44px; padding: 0 16px; border-radius: 12px; background: var(--soft); color: var(--main); font-weight: 700; }
+.s-act.main { background: var(--main); color: #fff; }
 .qr-dlg .qr-note { margin-top: 10px; font-size: 11.5px; }
 
 /* 印刷するときだけ出る紙（A4 の上半分ほど。切ってスタンドに入れる想定） */

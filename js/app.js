@@ -23,6 +23,9 @@ let pick = { mode: 'asap', day: 0, slot: null };   // 受け取り方（asap＝�
 let justOrdered = null;                  // 注文した直後の「ありがとうございます」を出すため
 let lastStatus = statusMap();            // 注文の様子が変わったら知らせるため
 let lastStampTotal = getStamps().total;
+// スタンプカードで最後に見せたマスの数。新しく押されたマスだけ、押す動きを出す（下から出る画面を閉じてから）
+let stampSeen = stampOnCard(lastStampTotal);
+let onSheetClosed = null;                // 下から出る画面を閉じたあとにすること（スタンプの演出のあと、カードを描き直す）
 
 function ensureMember() {
   let m = DB.get('member', null);
@@ -59,18 +62,24 @@ function render(keepScroll = false) {
   $('#back').hidden = !v.back;
   $('#back').dataset.to = v.back || '';
   view.innerHTML = v.html;
-  v.after?.();   // 描いたあとに中身を読みに行く画面（ネット予約の空き状況）
+  // 画面を移ったときだけ、上から順にふわっと出す（1分ごとなどの描き直しでは動かさない。app.css の「装飾と動き」）
+  view.classList.remove('enter');
+  if (!keepScroll) { void view.offsetWidth; view.classList.add('enter'); }
+  v.after?.();   // 描いたあとに動かすもの（ネット予約の空き状況・演出）
   view.dataset.route = name || 'home';     // ヨコ画面のとき、メニューだけ横に広げる（app.css の最後）
   $$('.tabs a').forEach(a => a.classList.toggle('on', a.dataset.tab === v.tab));
   drawCart();
   window.scrollTo(0, keepScroll ? y : 0);
 }
 
+let cartCount = null;
 function drawCart() {
   const n = cart.reduce((s, c) => s + c.qty, 0);
   const badge = $('#cartBtn .badge');
   badge.hidden = !n;
   badge.textContent = n;
+  if (cartCount !== null && n > cartCount) { badge.classList.remove('bump'); void badge.offsetWidth; badge.classList.add('bump'); }
+  cartCount = n;
   const bar = $('#cartbar');
   bar.hidden = !(n && routeName() === 'menu');
   if (!bar.hidden) bar.innerHTML = `<span>${ICON.cart}カートを見る<small>${n}点</small></span><b>${yen(cartTotal())}</b>`;
@@ -129,6 +138,7 @@ function viewHome() {
         <li><time>${n.date.slice(5).replace('-', '/')}</time><b>${esc(n.title)}</b><p>${esc(n.body)}</p></li>`).join('')}
       </ul>
       <a class="link-card" href="${SHOP.instagram}" target="_blank" rel="noopener">${ICON.insta}<span><b>最新情報は Instagram で</b><small>@baguru.hamburg</small></span></a>`,
+    after: () => FX.embers($('.hero')),
   };
 }
 
@@ -700,8 +710,11 @@ function viewOrder(id) {
         <a class="btn btn-sub" href="tel:${SHOP.tel.replace(/-/g, '')}">${ICON.phone}お店に電話</a>
         ${['new', 'request'].includes(o.status) ? `<button class="btn btn-sub danger" data-act="cancel" data-arg="${o.id}">${o.status === 'request' ? '申請を取り下げる' : '注文を取り消す'}</button>` : ''}
       </div>`,
+    // 注文した直後の「ありがとうございます」で、紙ふぶきを1回だけ
+    after: justOrdered === o.id && !celebrated.has(o.id) ? () => { celebrated.add(o.id); FX.confettiFrom($('.thanks svg'), 'pop'); } : null,
   };
 }
+const celebrated = new Set();   // 紙ふぶきを出した注文（同じ注文で何度も出さない）
 
 /* ---------------------------------------------------------------------
  *  スタンプカード
@@ -715,11 +728,18 @@ function viewStamp() {
   const coupons = s.coupons.filter(c => !c.usedAt);
   const doneToday = stampedToday();
   const useOk = canUseCoupon();
+  // 新しく押されたマス（前に見せたときより後の分）は、ぽんと押す動き。ゴールして新しいカードになったときは 0 から
+  const from = on < stampSeen ? 0 : stampSeen;
+  const fresh = on !== stampSeen && sheet.hidden;   // 下から出る画面が開いているあいだ（開き始めも）は、閉じてから
+  const prevAt = Math.max(0, ...STAMP.rewards.filter(r => r.at <= on).map(r => r.at));
+  const pct = next ? Math.round((on - prevAt) / (next.at - prevAt) * 100) : 100;
   const cells = Array.from({ length: STAMP.goal }, (_, i) => {
     const n = i + 1;
     const r = STAMP.rewards.find(x => x.at === n);
     const mark = n <= on ? '<img src="img/logo.png" alt="">' : r?.goal ? '<b>GOAL</b>' : r ? ICON.gift : n;
-    return `<span class="cell ${n <= on ? 'got' : ''} ${r ? 'gift' : ''} ${r?.goal ? 'goal' : ''}">${mark}</span>`;
+    const isNew = fresh && n > from && n <= on;
+    // 押したスタンプは、マスごとに少しずつ傾ける（手で押したように）
+    return `<span class="cell ${n <= on ? 'got' : ''} ${r ? 'gift' : ''} ${r?.goal ? 'goal' : ''} ${isNew ? 'new' : ''}" style="--rot:${(n * 47) % 23 - 18}deg${isNew ? `;animation-delay:${(n - from - 1) * 0.15}s` : ''}">${mark}</span>`;
   }).join('');
   return {
     tab: 'stamp', title: 'スタンプカード',
@@ -729,9 +749,10 @@ function viewStamp() {
         <div class="sc-head">
           <img src="img/logo.png" alt="">
           <div><b>${esc(SHOP.name)} スタンプカード</b><small>${cardNo}枚目</small></div>
-          <span class="sc-count"><em>${on}</em>/${STAMP.goal}</span>
+          <span class="sc-count"><em>${fresh ? from : on}</em>/${STAMP.goal}</span>
         </div>
         <div class="sc-grid">${cells}</div>
+        <div class="sc-bar" aria-hidden="true"><i style="--p:${pct}%"></i></div>
         <p class="sc-next">${next ? `あと <b>${next.at - on}</b> 個で「${esc(couponTitle(next.options))}」` : 'ゴール！ 次のスタンプから新しいカードになります。'}</p>
       </div>
       <button class="btn btn-main btn-block" data-act="stamp" ${doneToday ? 'disabled' : ''}>${doneToday ? '今日のスタンプはもらいました' : `${ICON.qr}QRを読んでスタンプをもらう`}</button>
@@ -753,6 +774,11 @@ function viewStamp() {
       ${s.log.length
         ? `<ul class="hist">${s.log.slice(-10).reverse().map(l => `<li><span>${mdw(new Date(l.at))} ${hhmm(new Date(l.at))}</span><b>${esc(l.via)}</b></li>`).join('')}</ul>`
         : '<p class="hint">まだありません。</p>'}`,
+    after: fresh ? () => {
+      stampSeen = on;
+      FX.count($('.sc-count em'), from, on);
+      setTimeout(() => FX.confettiFrom($$('.cell.new').pop(), on === STAMP.goal ? 'party' : 'pop'), 450);
+    } : null,
   };
 }
 
@@ -782,19 +808,36 @@ function register(p) {
   render(true);
 }
 
+/** スタンプがたまったとき。上からスタンプがどんと落ちて、紙ふぶき・数字が増える・特典の箱がはねる（js/fx.js・app.css の「装飾と動き」） */
 function showStamped(r, title = 'スタンプがたまりました') {
+  const goal = r.on === STAMP.goal;
+  const next = STAMP.rewards.find(x => x.at > r.on);
+  const prevAt = Math.max(0, ...STAMP.rewards.filter(x => x.at <= r.on).map(x => x.at));
+  const from = Math.max(0, r.on - 1);
   openSheet(`
-    <div class="stamped">
-      <span class="big-stamp"><img src="img/logo.png" alt=""></span>
-      <h2>${esc(title)}</h2>
-      <p class="sc-count"><em>${r.on}</em> / ${STAMP.goal}</p>
+    <div class="stamped ${goal ? 'goal' : ''}">
+      <div class="st-stage"><span class="st-ring"></span><span class="big-stamp"><img src="img/logo.png" alt=""></span></div>
+      <h2>${esc(goal ? 'ゴール！ おめでとうございます' : title)}</h2>
+      <p class="sc-count"><em>${FX.calm ? r.on : from}</em> / ${STAMP.goal}</p>
+      ${next ? `<p class="st-next">次の特典まで あと <b>${next.at - r.on}</b> 個</p>
+        <div class="sc-bar" aria-hidden="true"><i style="--p:${Math.round((r.on - prevAt) / (next.at - prevAt) * 100)}%"></i></div>` : ''}
       ${r.got.map(g => `<p class="got-gift">${ICON.gift}特典「${esc(g.title)}」をもらいました</p>`).join('')}
       ${title !== 'スタンプがたまりました' && !stampedToday() ? '<p class="hint">今日お店のQRを読むと、もう1ポイントたまります。</p>' : ''}
       <button class="btn btn-main btn-block" data-s="close">閉じる</button>
     </div>`);
   sheetBody.onchange = null;
   sheetBody.onclick = e => { if (e.target.closest('[data-s="close"]')) closeSheet(); };
-  navigator.vibrate?.(80);
+  // スタンプが下に着いたところで、画面がどんと揺れて紙ふぶき。特典をもらった・ゴールのときは、たくさん
+  setTimeout(() => {
+    sheetBody.classList.remove('thud'); void sheetBody.offsetWidth; sheetBody.classList.add('thud');
+    setTimeout(() => sheetBody.classList.remove('thud'), 450);
+    FX.confettiFrom($('.st-stage', sheetBody), goal || r.got.length ? 'party' : 'pop');   // 落ちてくるスタンプではなく、着く場所から
+    FX.buzz(goal ? [80, 60, 80, 60, 160] : 80);
+  }, 420);
+  setTimeout(() => FX.count($('.sc-count em', sheetBody), from, r.on), 560);
+  if (r.got.length) setTimeout(() => FX.confettiFrom($('.got-gift', sheetBody), 'pop'), 1150);
+  // 閉じたら、スタンプカードの新しいマスを押す動きを見せる
+  onSheetClosed = () => { if (routeName() === 'stamp') render(true); };
 }
 
 function openCoupon(id) {
@@ -830,6 +873,7 @@ function openCoupon(id) {
     closeSheet();
     render(true);
     toast(`特典を使いました（${chose}）`);
+    FX.confetti({ kind: 'pop' });
   };
 }
 
@@ -946,7 +990,13 @@ function closeSheet() {
   stopCamera();   // スタンプのQRを読んでいる途中なら、カメラを止める
   sheet.classList.remove('show');
   document.body.classList.remove('lock');
-  setTimeout(() => { if (!sheet.classList.contains('show')) sheet.hidden = true; }, 250);
+  setTimeout(() => {
+    if (sheet.classList.contains('show')) return;
+    sheet.hidden = true;
+    const after = onSheetClosed;
+    onSheetClosed = null;
+    after?.();
+  }, 250);
 }
 
 let toastTimer;
@@ -1036,7 +1086,7 @@ DB.onChange(key => {
       if (before && before !== o.status) {
         if (o.status === 'accepted') toast(isRequest(o) ? `${KIND[o.kind]}の申請 ${o.no} が承認されました`: `注文番号 ${o.no} を受け付けました`, isRequest(o) ? 'good' : '');
         if (o.status === 'declined') toast(`${KIND[o.kind]}の申請 ${o.no} は、お受けできませんでした`, 'warn');
-        if (o.status === 'ready') { toast(`注文番号 ${o.no} ができあがりました！`, 'good'); navigator.vibrate?.([120, 80, 120]); }
+        if (o.status === 'ready') { toast(`注文番号 ${o.no} ができあがりました！`, 'good'); FX.buzz([120, 80, 120]); FX.confetti({ kind: 'pop' }); }
         if (o.status === 'canceled') toast(`注文番号 ${o.no} は取り消しになりました`, 'warn');
       }
     }
@@ -1044,7 +1094,8 @@ DB.onChange(key => {
   }
   if (key === 'stamps') {
     const s = getStamps();
-    if (s.total > lastStampTotal && !ORDER_ONLY) toast('スタンプが1個たまりました', 'good');
+    // お店がお渡し済みにして、スタンプがたまったとき（スタンプカードを開いていれば、新しいマスを押す動きも出る）
+    if (s.total > lastStampTotal && !ORDER_ONLY) { toast('スタンプが1個たまりました', 'good'); FX.confetti({ kind: 'pop' }); }
     lastStampTotal = s.total;
   }
   if (!NO_LIVE.includes(routeName()) && !sheet.classList.contains('show')) render(true);
