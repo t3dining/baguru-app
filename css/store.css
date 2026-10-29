@@ -63,13 +63,19 @@ button { font: inherit; cursor: pointer; border: 0; }
 .demo-bar { background: #fff3c4; color: #6b5200; font-size: 12px; text-align: center; padding: 4px 12px; }
 
 .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; padding: 14px 18px; align-items: start; }
-.col, .past { background: rgba(255, 255, 255, .45); border-radius: 16px; padding: 10px; }
-.col h2, .past h2 { margin: 2px 4px 10px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.col, .past, .booked { background: rgba(255, 255, 255, .45); border-radius: 16px; padding: 10px; }
+.col h2, .past h2, .booked h2 { margin: 2px 4px 10px; font-size: 15px; display: flex; align-items: center; gap: 8px; }
 .n { min-width: 26px; height: 22px; padding: 0 8px; border-radius: 11px; background: var(--brown); color: #fff; font-size: 13px; display: grid; place-items: center; }
 .col[data-col="new"] .n { background: var(--pink); }
 .col[data-col="ready"] .n { background: var(--green); }
 .list { display: flex; flex-direction: column; gap: 10px; }
 .none { color: var(--sub); text-align: center; font-size: 13px; margin: 18px 0; }
+
+/* 受付済み（明日以降）。受け取りの日になると「調理中」に移る */
+.booked { margin: 0 18px 14px; }
+.booked h2 { flex-wrap: wrap; }
+.booked h2 small { font-size: 12px; font-weight: 500; color: var(--sub); }
+.booked .list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
 
 .past { margin: 0 18px 30px; }
 .past .list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }

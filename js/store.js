@@ -1,6 +1,7 @@
 /* =====================================================================
  *  お店の画面（タブレットで開いておく想定）
  *  届いた注文を「受け付ける → できあがり → お渡し済み」と進める。
+ *  明日以降の注文は、受け付けると「受付済み」に入り、受け取りの日になると「調理中」に移る。
  *  お渡し済みにすると、そのお客様のスタンプが1個たまる。
  *  お店に置くスタンプのQRも、ここで出して印刷する（上の「スタンプのQR」）。
  * ===================================================================== */
@@ -14,6 +15,8 @@ const BACK = { accepted: 'new', ready: 'accepted', done: 'ready' };
 // 申請（配達・大量注文）は、承認したら accepted。戻すと申請に戻る
 const backOf = o => o.status === 'accepted' && isRequest(o) ? 'request' : BACK[o.status];
 const nextLabel = o => o.kind === 'delivery' && o.status === 'ready' ? 'お届け済み' : NEXT[o.status]?.label;
+// 明日以降の受け取り（配達はお届け）で、受け付けた・承認した注文は「受付済み」に置く。受け取りの日になると「調理中」に移る（2026-10-30 ko-dai さん）
+const booked = o => o.status === 'accepted' && dateKey(new Date(o.pickupAt)) > dateKey(new Date());
 
 const RING_EVERY = 3000;   // 受付待ちの注文があるあいだ、この間隔（ミリ秒）で鳴らし続ける
 const CHIME_URL = 'snd/order.wav';   // 注文が入ったときの音（1.8秒。道具/注文の音を作る.py で作る）
@@ -92,7 +95,7 @@ function card(o) {
   const t = new Date(o.pickupAt);
   const isToday = dateKey(t) === dateKey(new Date());
   const late = ACTIVE.includes(o.status) && t < new Date();
-  const next = NEXT[o.status];
+  const next = booked(o) ? null : NEXT[o.status];   // 受付済みは、受け取りの日になるまで「できあがり」を出さない
   const back = backOf(o);
   const map = o.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(o.address)}` : '';
   return `<article class="card ${fresh.has(o.id) ? 'fresh' : ''} ${late ? 'late' : ''} ${o.kind === 'delivery' ? 'is-delivery' : ''}">
@@ -126,10 +129,13 @@ function render() {
   const today = dateKey(new Date());
   const byTime = (a, b) => a.pickupAt.localeCompare(b.pickupAt);
   for (const col of $$('.col')) {
-    const list = all.filter(o => o.status === col.dataset.col).sort(byTime);
+    const list = all.filter(o => o.status === col.dataset.col && !booked(o)).sort(byTime);
     $('.n', col).textContent = list.length;
     $('.list', col).innerHTML = list.length ? list.map(card).join('') : '<p class="none">ありません</p>';
   }
+  const later = all.filter(booked).sort(byTime);
+  $('.booked .n').textContent = later.length;
+  $('.booked .list').innerHTML = later.length ? later.map(card).join('') : '<p class="none">ありません</p>';
   const past = all.filter(o => ['done', 'canceled', 'declined'].includes(o.status) && (o.date === today || dateKey(new Date(o.pickupAt)) === today)).reverse();
   $('.past .n').textContent = past.length;
   $('.past .list').innerHTML = past.length ? past.map(card).join('') : '<p class="none">ありません</p>';

@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest-store.json">
 <link rel="icon" href="img/store-icon-192.png">
 <link rel="apple-touch-icon" href="img/store-apple-touch-icon.png">
-<link rel="stylesheet" href="css/store.css?v=1a648f16">
+<link rel="stylesheet" href="css/store.css?v=471f1681">
 </head>
 <body>
 <header class="s-top">
@@ -35,6 +35,12 @@
   <section class="col" data-col="accepted"><h2>調理中<span class="n"></span></h2><div class="list"></div></section>
   <section class="col" data-col="ready"><h2>できあがり・お渡し待ち<span class="n"></span></h2><div class="list"></div></section>
 </main>
+
+<!-- 明日以降の受け取りで、受け付けた・承認した注文。受け取りの日になると「調理中」に移る（2026-10-30 ko-dai さん） -->
+<section class="booked">
+  <h2>受付済み（明日以降）<span class="n"></span><small>受け取り・お届けの日になると「調理中」に移ります</small></h2>
+  <div class="list"></div>
+</section>
 
 <section class="past">
   <h2>今日のお渡し済み・取り消し<span class="n"></span></h2>
@@ -80,6 +86,6 @@
 <script src="js/data.js?v=611dad0f"></script>
 <script src="js/db.js?v=feb3337d"></script>
 <script src="js/common.js?v=8f827efb"></script>
-<script src="js/store.js?v=dc592a5f"></script>
+<script src="js/store.js?v=99a1f94e"></script>
 </body>
 </html>
