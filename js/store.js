@@ -3,7 +3,7 @@
  *  届いた注文を「受け付ける → できあがり → お渡し済み」と進める。
  *  受け付けた注文は、受け取りの30分前（TAKEOUT.cookBefore）までは「受付済み」に入り、それを過ぎると「調理中」に移る。
  *  お渡し済みにすると、そのお客様のスタンプが1個たまる。
- *  お店に置くスタンプのQRも、ここで出して印刷する（上の「スタンプのQR」）。
+ *  ★お店に置くスタンプのQRを出す・印刷する・作り直すボタンは、2026-10-30 に外した（ko-dai さんの指示）
  * ===================================================================== */
 
 const NEXT = {
@@ -220,47 +220,6 @@ $('#soundGate').addEventListener('click', soundOnNow);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && soundOn && audio) audio.resume().catch(() => {});
   setTimeout(checkSound, 500);
-});
-
-/* ---------------------------------------------------------------------
- *  スタンプのQR（お店に置く）
- * --------------------------------------------------------------------- */
-
-const qrDlg = $('#qrDlg');
-
-async function drawQr() {
-  const url = stampUrl();
-  const boxes = $$('.qr-box');
-  boxes.forEach(b => { b.textContent = 'QRを作っています…'; });
-  $('.qr-url', qrDlg).textContent = url;
-  // 公開前のアドレス（このパソコンの中）だと、お客様のスマホでは開けない
-  const local = /^(localhost|127\.0\.0\.1|\[::1\])$|\.local$/.test(new URL(url).hostname);
-  const warn = $('.qr-warn', qrDlg);
-  warn.hidden = !local;
-  warn.textContent = '試作：このQRは、このパソコンの中のアドレスです。お客様のスマホでは開けません。アプリを公開したら、data.js の SHOP.appUrl に公開先のアドレスを入れてから印刷してください。';
-  try {
-    await loadScript(LIB.qrMake);
-    const qr = qrcode(0, 'M');   // 0 = 大きさは中身に合わせて自動。M = 15%ほど汚れても読める
-    qr.addData(url);
-    qr.make();
-    const svgTag = qr.createSvgTag({ cellSize: 8, margin: 4, scalable: true, alt: 'スタンプのQR' });
-    boxes.forEach(b => { b.innerHTML = svgTag; });
-  } catch (e) {
-    boxes.forEach(b => { b.textContent = 'QRを作れませんでした。インターネットにつながっているか確かめて、もう一度開いてください。'; });
-  }
-}
-
-$('#qrBtn').addEventListener('click', () => { qrDlg.showModal(); drawQr(); });
-qrDlg.addEventListener('click', e => {
-  const k = e.target.closest('[data-q]')?.dataset.q;
-  const r = qrDlg.getBoundingClientRect();
-  const outside = e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
-  if (k === 'close' || (e.target === qrDlg && outside)) qrDlg.close();   // 枠の外を押しても閉じる
-  if (k === 'print') window.print();
-  if (k === 'renew' && confirm('スタンプのQRを作り直します。前に印刷したQRは使えなくなります。よろしいですか？')) {
-    DB.set('qrVersion', qrVersion() + 1);
-    drawQr();
-  }
 });
 
 DB.onChange(key => {

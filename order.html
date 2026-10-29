@@ -13,14 +13,14 @@
 <link rel="manifest" href="manifest-store.json">
 <link rel="icon" href="img/store-icon-192.png">
 <link rel="apple-touch-icon" href="img/store-apple-touch-icon.png">
-<link rel="stylesheet" href="css/store.css?v=654c52df">
+<link rel="stylesheet" href="css/store.css?v=ddf7bb23">
 </head>
 <body>
 <header class="s-top">
   <div class="s-brand"><img src="img/logo.png" alt=""><h1>バグる<small>店舗用・テイクアウト注文</small></h1></div>
   <!-- 画面を読み直す。ホーム画面に置いたアプリには、ブラウザの更新ボタンが無いため（2026-10-30 ko-dai さん） -->
   <button id="reloadBtn" class="s-btn">↻ 更新</button>
-  <button id="qrBtn" class="s-btn">▦ スタンプのQR</button>
+  <!-- 「スタンプのQR」のボタン（QRを出す・印刷する・作り直す）は、2026-10-30 に外した（ko-dai さんの指示） -->
   <label class="s-accept"><input type="checkbox" id="accepting"><span class="sw"></span><span id="acceptText"></span></label>
   <button id="sound" class="s-btn"></button>
 </header>
@@ -49,35 +49,6 @@
   <div class="list"></div>
 </section>
 
-<!-- スタンプのQR（画面で見る・印刷する・作り直す） -->
-<dialog id="qrDlg" class="qr-dlg">
-  <h2>スタンプのQR</h2>
-  <p>印刷して、レジの横やテーブルに置いてください。お客様がアプリで読むと、スタンプが1個たまります（お店の中にいるときだけ）。</p>
-  <div class="qr-box"></div>
-  <p class="qr-url"></p>
-  <p class="qr-warn" hidden></p>
-  <div class="qr-tools">
-    <button class="s-act main" data-q="print">印刷する</button>
-    <button class="s-act" data-q="renew">作り直す</button>
-    <button class="s-act" data-q="close">閉じる</button>
-  </div>
-  <p class="qr-note">作り直すと、前に印刷したQRは使えなくなります。QRを写真に撮られて広まったときなどに使ってください。</p>
-</dialog>
-
-<!-- 印刷するときだけ出る紙 -->
-<section id="qrPaper" class="qr-paper">
-  <img class="qp-logo" src="img/logo.png" alt="">
-  <h2>バグる スタンプカード</h2>
-  <p class="qp-lead">アプリでこのQRを読むと、スタンプが1個たまります</p>
-  <div class="qr-box"></div>
-  <ol>
-    <li>バグるのアプリの「スタンプ」を開く</li>
-    <li>「QRを読んでスタンプをもらう」を押して、このQRを読む</li>
-    <li>スタンプが1個たまります（1日1個まで）</li>
-  </ol>
-  <p class="qp-small">アプリをお持ちでない方は、スマホのカメラでこのQRを読むとアプリが開きます。<br>お店の中でだけ読めます（スマホの位置情報を使います）。</p>
-</section>
-
 <!-- 音がオンなのに出せないとき（ブラウザの決まりで、開いてからまだ画面に触っていない）に、画面いっぱいに出す。触ると音が出せるようになって消える -->
 <button id="soundGate" class="sound-gate" hidden>
   <span class="sg-icon" aria-hidden="true">🔔</span>
@@ -88,6 +59,6 @@
 <script src="js/data.js?v=8cd094cf"></script>
 <script src="js/db.js?v=feb3337d"></script>
 <script src="js/common.js?v=18536022"></script>
-<script src="js/store.js?v=bfba714b"></script>
+<script src="js/store.js?v=fc4fb11d"></script>
 </body>
 </html>

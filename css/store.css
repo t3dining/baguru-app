@@ -133,31 +133,3 @@ button { font: inherit; cursor: pointer; border: 0; }
   .board { grid-template-columns: 1fr; }
   .s-brand { width: 100%; }
 }
-
-/* ---- スタンプのQR ---- */
-.qr-dlg { width: min(460px, calc(100% - 32px)); border: 0; border-radius: 18px; padding: 22px 22px 18px; color: var(--ink); text-align: center; }
-.qr-dlg::backdrop { background: rgba(18, 32, 25, .55); }
-.qr-dlg h2 { margin: 0 0 4px; font-size: 20px; }
-.qr-dlg > p { margin: 0; font-size: 13.5px; color: var(--sub); }
-.qr-box { width: 240px; margin: 14px auto 6px; aspect-ratio: 1; display: grid; place-items: center; color: var(--sub); font-size: 13px; }
-.qr-box svg { display: block; width: 100%; height: auto; }
-.qr-dlg .qr-url { font-size: 11px; word-break: break-all; color: #8a9891; }
-.qr-dlg .qr-warn { margin: 8px 0 0; padding: 8px 10px; border-radius: 10px; background: #fff3c4; color: #6b5200; font-size: 12.5px; text-align: left; }
-.qr-tools { display: flex; gap: 8px; justify-content: center; margin-top: 14px; }
-.s-act { height: 44px; padding: 0 16px; border-radius: 12px; background: var(--soft); color: var(--main); font-weight: 700; }
-.s-act.main { background: var(--main); color: #fff; }
-.qr-dlg .qr-note { margin-top: 10px; font-size: 11.5px; }
-
-/* 印刷するときだけ出る紙（A4 の上半分ほど。切ってスタンドに入れる想定） */
-.qr-paper { display: none; }
-@media print {
-  body { background: #fff; }
-  body > * { display: none !important; }
-  .qr-paper { display: block !important; width: 120mm; margin: 0 auto; padding: 10mm 0; text-align: center; color: #000; }
-  .qp-logo { width: 22mm; height: 22mm; object-fit: contain; }
-  .qr-paper h2 { margin: 2mm 0 0; font-size: 20pt; }
-  .qp-lead { margin: 2mm 0 0; font-size: 12pt; font-weight: 700; }
-  .qr-paper .qr-box { width: 70mm; margin: 5mm auto; }
-  .qr-paper ol { display: inline-block; margin: 0; padding-left: 6mm; text-align: left; font-size: 11pt; line-height: 1.7; }
-  .qp-small { margin: 4mm 0 0; font-size: 9pt; color: #444; }
-}
