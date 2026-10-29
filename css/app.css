@@ -762,8 +762,9 @@ button.link-card { width: 100%; text-align: left; }
 .r-day.is-full i, .r-day.is-closed i { color: var(--sub); }
 .r-day.is-full span, .r-day.is-closed span { background: transparent; opacity: .55; }
 .r-day input:checked + span { border-color: var(--pink); background: var(--pink-soft); }
-.r-times { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-.r-time span { width: 100%; min-width: 0; padding: 9px 4px; font-variant-numeric: tabular-nums; }
+.r-times { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }   /* 10分きざみで多いので5列 */
+.r-sep { grid-column: 1 / -1; margin: 6px 2px 0; font-size: 12px; font-weight: 700; color: var(--sub); }
+.r-time span { width: 100%; min-width: 0; padding: 9px 2px; font-size: 14px; font-variant-numeric: tabular-nums; }
 .r-check { display: flex; align-items: center; gap: 8px; margin: 0 2px 12px; font-weight: 600; }
 .r-check input { width: 20px; height: 20px; accent-color: var(--pink); }
 .r-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }

@@ -156,9 +156,15 @@ function rsvDaysHtml() {
 function rsvTimesHtml() {
   const d = rsv.avail.days.find(x => x.date === rsv.date);
   if (!d) return '<p class="hint">先に日にちを選んでください。</p>';
-  return `<p class="hint"><b>${rsvDay(d.date)}</b></p><div class="r-times">${d.slots.map(s => {
+  // 時刻は10分きざみで多いので（2026-10-30 から）、昼と夜で区切る（1時間より長く空くところか、通しで営業する日は17時）
+  const min = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  const EVENING = 17 * 60;
+  return `<p class="hint"><b>${rsvDay(d.date)}</b></p><div class="r-times">${d.slots.map((s, i) => {
     const ok = rsvFits(s), mk = rsvSlotMark(s);
-    return `<label class="r-chip r-time ${!ok ? 'is-full' : mk === '△' ? 'is-few' : ''}"><input type="radio" name="r-time" value="${s.t}" ${ok ? '' : 'disabled'} ${rsv.time === s.t ? 'checked' : ''}><span>${s.t}<i>${mk}</i></span></label>`;
+    const now = min(s.t), prev = i ? min(d.slots[i - 1].t) : null;
+    const head = i === 0 || now - prev > 60 || (prev < EVENING && now >= EVENING);
+    const sep = head ? `<p class="r-sep">${now >= 16 * 60 ? '夜' : '昼'}</p>` : '';
+    return `${sep}<label class="r-chip r-time ${!ok ? 'is-full' : mk === '△' ? 'is-few' : ''}"><input type="radio" name="r-time" value="${s.t}" ${ok ? '' : 'disabled'} ${rsv.time === s.t ? 'checked' : ''}><span>${s.t}<i>${mk}</i></span></label>`;
   }).join('')}</div>`;
 }
 

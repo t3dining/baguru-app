@@ -196,6 +196,9 @@ document.addEventListener('click', e => {
 });
 
 $('#accepting').addEventListener('change', e => { DB.set('accepting', e.target.checked); render(); });
+// 「更新」：画面を読み直す（公開した新しい版もここで入る。注文は保存してあるので消えない）。
+// ★iPad は読み直すと音が止まるので、また「画面をタッチしてください」が出る（ブラウザの決まり）
+$('#reloadBtn').addEventListener('click', () => location.reload());
 // 音をオンにして、試しに1回鳴らす（受付待ちがあれば、そのまま鳴り続ける）。押した・触ったその場で呼ぶ
 function soundOnNow() {
   soundOn = true;
