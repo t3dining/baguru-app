@@ -38,7 +38,7 @@ const SHOP = {
   closedNote: '火曜日（祝日・GW・お盆・正月は営業）',
   instagram: 'https://www.instagram.com/baguru.hamburg/',
   // 公開したお客さまの画面のアドレス（お店に置くスタンプのQRの中身になる）。
-  // 空なら、お店の画面（store.html）と同じ場所の index.html。会社の GitHub で公開している（道具/公開する.py）
+  // 空なら、お店の画面（order.html）と同じ場所の index.html。会社の GitHub で公開している（道具/公開する.py）
   appUrl: 'https://t3dining.github.io/baguru-app/',
   // ホームページのお問い合わせフォーム（ホームページ/contact.html）のアドレス。公開したら入れると、お店の情報の「配達」にリンクが出る
   contactUrl: '',
