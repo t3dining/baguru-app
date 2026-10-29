@@ -200,6 +200,7 @@ function viewMenu() {
           <div class="items">${ITEMS.filter(i => i.cat === c.id).map(itemRow).join('')}</div>
         </section>`).join('')}
       <a class="link-card" href="#request">${ICON.truck}<span><b>配達・大量注文はこちら</b><small>配達は${TAKEOUT.deliveryFreeMin}食以上で無料（原則${TAKEOUT.deliveryKm}km圏内）・${TAKEOUT.deliveryFreeMin}食未満は要相談。大量注文は${TAKEOUT.bulkMin}食以上。申請して、お店が承認したら確定です</small></span></a>`,
+    after: () => { if (ORDERS_ONLINE) refreshAccepting().then(changed => changed && render(true)).catch(() => {}); },
   };
 }
 
@@ -465,6 +466,7 @@ function viewCheckout() {
       ${linesHtml(cart.map(cartLine), cartTotal())}
       <p class="pay-note">${esc(TAKEOUT.payNote)}</p>
       <div class="foot"><button class="btn btn-main btn-block" data-act="submit" ${ok ? '' : 'disabled'}>${!accepting ? 'ただいま注文を受け付けていません' : !ok ? '受け取りできる日がありません' : 'この内容で注文する'}</button></div>`,
+    after: () => { if (ORDERS_ONLINE) refreshAccepting(true).catch(() => {}); },   // 止めていたら、送ったときに受け口が断る
   };
 }
 
@@ -492,16 +494,29 @@ function readContact(p) {
   return { name, tel, memo };
 }
 
-/** 注文（申請）を作って保存し、注文の様子の画面へ */
-function placeOrder(fields) {
+/** 注文（申請）を作って保存し、注文の様子の画面へ。
+ *  受け口につなぐとき（ORDERS_ONLINE。js/order-api.js）は、受け口に送ってから。番号と合計は受け口がつけ直す。btn は押したボタン（送っているあいだ止める） */
+async function placeOrder(fields, btn) {
   const now = new Date();
   const lines = cart.map(cartLine).map(l => ({ id: l.item.id, name: l.name, opts: l.opts, unit: l.unit, qty: l.qty }));
-  const order = {
+  let order = {
     id: 'o' + now.getTime(), no: nextOrderNo(now), date: dateKey(now), createdAt: now.toISOString(),
     lines, total: cartTotal(), meals: cartMeals(), member: ME.no, ...fields,
     times: { [fields.status]: now.toISOString() },
   };
-  saveOrders([...getOrders(), order]);
+  if (ORDERS_ONLINE) {
+    const label = btn?.textContent;
+    if (btn) { btn.disabled = true; btn.textContent = '送っています…'; }
+    try {
+      order = await sendOrder(order);
+    } catch (e) {
+      if (btn) { btn.disabled = false; btn.textContent = label; }
+      if (e.code === 'not_accepting') DB.set('accepting', false);
+      return toast(orderMessage(e), 'warn');
+    }
+  } else {
+    saveOrders([...getOrders(), order]);
+  }
   Object.assign(ME, { name: order.name, tel: order.tel });
   DB.set('member', ME);
   cart = [];
@@ -513,7 +528,7 @@ function placeOrder(fields) {
   location.hash = '#order/' + order.id;
 }
 
-function submitOrder() {
+function submitOrder(btn) {
   if (cartMeals() >= TAKEOUT.bulkMin) { location.hash = '#request'; return; }
   const lead = checkoutLead();
   let pickupAt;
@@ -537,7 +552,7 @@ function submitOrder() {
   const c = readContact('f');
   if (!c) return;
   if (!DB.get('accepting', true)) return toast('ただいま注文を受け付けていません', 'warn');
-  placeOrder({ ...c, kind: 'pickup', asap: pick.mode === 'asap', pickupAt, status: 'new' });
+  placeOrder({ ...c, kind: 'pickup', asap: pick.mode === 'asap', pickupAt, status: 'new' }, btn);
 }
 
 /* ---------------------------------------------------------------------
@@ -611,10 +626,11 @@ function viewRequest() {
       <a class="add-more" href="#cart">内容を直す（カートへ）</a>
       <p class="pay-note">まだ確定していません。お店が承認したら確定します。<span id="r-pay">${esc(payNoteOf(req.kind, meals))}</span></p>
       <div class="foot"><button class="btn btn-main btn-block" data-act="request" ${d ? '' : 'disabled'}>この内容で申請する</button></div>`,
+    after: () => { if (ORDERS_ONLINE) refreshAccepting(true).catch(() => {}); },
   };
 }
 
-function submitRequest() {
+function submitRequest(btn) {
   const meals = cartMeals();
   const kind = $('input[name="r-kind"]:checked')?.value;
   if (!kind) return toast('受け取り方を選んでください', 'warn');
@@ -627,7 +643,7 @@ function submitRequest() {
   if (kind === 'delivery' && !address) { $('#r-addr').focus(); return toast('お届け先のご住所を入れてください', 'warn'); }
   const c = readContact('r');
   if (!c) return;
-  placeOrder({ ...c, kind, pickupAt: slot, address, address2, status: 'request' });
+  placeOrder({ ...c, kind, pickupAt: slot, address, address2, status: 'request' }, btn);
 }
 
 // 申請の画面：受け取り方・日にちを変えたとき（入力を消さないよう、その部分だけ書きかえる）
@@ -694,17 +710,19 @@ function viewOrder(id) {
         <div><small>${whenWord(o)}${o.status === 'request' ? '（ご希望）' : ''}${o.asap ? '（できしだい）' : ''}</small><b>${dayLabel(t)} ${hhmm(t)}${o.asap ? '頃' : ''}</b>${ACTIVE.includes(o.status) && o.status !== 'request' ? `<small>${untilText(o.pickupAt)}</small>` : ''}</div>
       </div>
       ${o.status === 'canceled' ? `<p class="notice warn">この${req ? '申請' : '注文'}は取り消しになりました。</p>`
-        : o.status === 'declined' ? `<p class="notice warn">${ICON.phone}<span>お店から、この申請はお受けできないとの連絡がありました。${o.declineNote ? `<small>お店から：${esc(o.declineNote)}</small>` : ''}<small>ご相談はお電話でどうぞ。</small></span></p>` : `
+        : o.status === 'declined' ? `<p class="notice warn">${ICON.phone}<span>お店から、この申請はお受けできないとの連絡がありました。${o.shopMsg || o.declineNote ? `<small>お店から：${esc(o.shopMsg || o.declineNote)}</small>` : ''}<small>ご相談はお電話でどうぞ。</small></span></p>` : `
         <ol class="track">${steps.map((s, i) => `
           <li class="${i < step || o.status === 'done' ? 'past' : i === step ? 'now' : ''}"><i>${i < step || o.status === 'done' ? ICON.check : ''}</i><span>${statusLabel(o, s)}</span></li>`).join('')}
         </ol>
-        <p class="track-msg tm-${o.status}">${statusMsg(o)}</p>`}
+        <p class="track-msg tm-${o.status}">${statusMsg(o)}</p>
+        ${o.shopMsg ? `<p class="notice">${ICON.phone}<span>お店から<small>${esc(o.shopMsg)}</small></span></p>` : ''}`}
       <h2 class="sec">ご注文の内容${o.meals ? `（${o.meals}食）` : ''}</h2>
       ${linesHtml(o.lines, o.total)}
-      <p class="pay-note">${o.kind === 'delivery' ? esc(TAKEOUT.deliveryPayNote + (needsFee(o) && o.status === 'request' ? '配達料は、承認のときにお店からお知らせします。' : '')) : esc(TAKEOUT.payNote)}</p>
+      <p class="pay-note">${o.kind === 'delivery' ? esc(TAKEOUT.deliveryPayNote + (needsFee(o) && o.status === 'request' && o.fee == null ? '配達料は、承認のときにお店からお知らせします。' : '')) : esc(TAKEOUT.payNote)}</p>
       <dl class="info">
         <dt>お名前</dt><dd>${esc(o.name)} 様</dd>
         <dt>電話番号</dt><dd>${esc(o.tel)}</dd>
+        ${o.fee != null ? `<dt>配達料</dt><dd>${yen(o.fee)}（お届けのときに、ご注文の合計と一緒に）</dd>` : ''}
         ${o.kind === 'delivery' ? `<dt>お届け先</dt><dd>${esc(o.address)}${o.address2 ? `<br>${esc(o.address2)}` : ''}</dd>` : ''}
         ${o.memo ? `<dt>ご要望</dt><dd>${esc(o.memo)}</dd>` : ''}
       </dl>
@@ -1042,15 +1060,20 @@ const ACTIONS = {
     pick.slot = iso;
     $$('#slots .slot').forEach(b => b.classList.toggle('on', b.dataset.arg === iso));
   },
-  submit: () => submitOrder(),
-  request: () => submitRequest(),
+  submit: (_, el) => submitOrder(el),
+  request: (_, el) => submitRequest(el),
   cancel: id => {
     const o = getOrders().find(x => x.id === id);
     if (!o || !['new', 'request'].includes(o.status)) return toast('お店が受け付けた後は、お電話でご連絡ください', 'warn');
     if (!confirm(`${o.status === 'request' ? '申請' : '注文'}番号 ${o.no} を取り消します。よろしいですか？`)) return;
+    const done = () => { lastStatus[id] = getOrders().find(x => x.id === id)?.status; render(true); };
+    if (ORDERS_ONLINE && orderKeys()[id]) {
+      return cancelOrderOnline(id)
+        .then(() => { done(); toast('注文を取り消しました'); })
+        .catch(e => { done(); toast(orderMessage(e), 'warn'); });
+    }
     updateOrder(id, { status: 'canceled', canceledBy: 'お客様' });
-    lastStatus[id] = 'canceled';
-    render(true);
+    done();
     toast('注文を取り消しました');
   },
   stamp: () => openScanner(),
@@ -1083,27 +1106,48 @@ window.addEventListener('hashchange', () => { if (routeName() !== 'order') justO
  *  お店の画面が書き換えたとき（注文の様子・スタンプ・受付の停止）
  * --------------------------------------------------------------------- */
 
-DB.onChange(key => {
-  if (key === 'orders') {
-    for (const o of myOrders()) {
-      const before = lastStatus[o.id];
-      if (before && before !== o.status) {
-        if (o.status === 'accepted') toast(isRequest(o) ? `${KIND[o.kind]}の申請 ${o.no} が承認されました`: `注文番号 ${o.no} を受け付けました`, isRequest(o) ? 'good' : '');
-        if (o.status === 'declined') toast(`${KIND[o.kind]}の申請 ${o.no} は、お受けできませんでした`, 'warn');
-        if (o.status === 'ready') { toast(`注文番号 ${o.no} ができあがりました！`, 'good'); FX.buzz([120, 80, 120]); FX.confetti({ kind: 'pop' }); }
-        if (o.status === 'canceled') toast(`注文番号 ${o.no} は取り消しになりました`, 'warn');
-      }
+/** 注文の様子が変わったら知らせる（お店の画面が同じブラウザで書き換えたとき・受け口から取り寄せたとき） */
+function ordersChanged() {
+  for (const o of myOrders()) {
+    const before = lastStatus[o.id];
+    if (before && before !== o.status) {
+      if (o.status === 'accepted') toast(isRequest(o) ? `${KIND[o.kind]}の申請 ${o.no} が承認されました`: `注文番号 ${o.no} を受け付けました`, isRequest(o) ? 'good' : '');
+      if (o.status === 'declined') toast(`${KIND[o.kind]}の申請 ${o.no} は、お受けできませんでした`, 'warn');
+      if (o.status === 'ready') { toast(`注文番号 ${o.no} ができあがりました！`, 'good'); FX.buzz([120, 80, 120]); FX.confetti({ kind: 'pop' }); }
+      if (o.status === 'canceled') toast(`注文番号 ${o.no} は取り消しになりました`, 'warn');
     }
-    lastStatus = statusMap();
   }
-  if (key === 'stamps') {
-    const s = getStamps();
-    // お店がお渡し済みにして、スタンプがたまったとき（スタンプカードを開いていれば、新しいマスを押す動きも出る）
-    if (s.total > lastStampTotal && !ORDER_ONLY) { toast('スタンプが1個たまりました', 'good'); FX.confetti({ kind: 'pop' }); }
-    lastStampTotal = s.total;
-  }
+  lastStatus = statusMap();
+  // 受け口から来た注文がお渡し済みになったら、この端末でスタンプを押す（前はお店の画面が、同じブラウザで押していた）
+  if (stampDoneOrders()) stampsChanged();
+}
+
+function stampsChanged() {
+  const s = getStamps();
+  // お店がお渡し済みにして、スタンプがたまったとき（スタンプカードを開いていれば、新しいマスを押す動きも出る）
+  if (s.total > lastStampTotal && !ORDER_ONLY) { toast('スタンプが1個たまりました', 'good'); FX.confetti({ kind: 'pop' }); }
+  lastStampTotal = s.total;
+}
+
+DB.onChange(key => {
+  if (key === 'orders') ordersChanged();
+  if (key === 'stamps') stampsChanged();
   if (!NO_LIVE.includes(routeName()) && !sheet.classList.contains('show')) render(true);
 });
+
+// 受け口につなぐとき：進めている注文があるあいだ、画面を見ているときだけ SYNC_EVERY ごとに、お店が進めた様子を取り寄せる（js/order-api.js）
+function pullOrders() {
+  if (!ORDERS_ONLINE || document.visibilityState !== 'visible') return;
+  syncOrders().then(changed => {
+    if (!changed) return;
+    ordersChanged();
+    if (!NO_LIVE.includes(routeName()) && !sheet.classList.contains('show')) render(true);
+  }).catch(() => {});   // つながらないときは、次の回に
+}
+if (ORDERS_ONLINE) {
+  setInterval(pullOrders, SYNC_EVERY);
+  document.addEventListener('visibilitychange', pullOrders);
+}
 
 // T3Works の営業日を読み直す（30分に1回まで）。変わっていたら描き直す
 const syncDays = () => refreshDays().then(changed => {
@@ -1123,4 +1167,5 @@ if (stampParam) history.replaceState(null, '', location.pathname + '#stamp');
 $$('[data-icon]').forEach(el => el.insertAdjacentHTML('afterbegin', ICON[el.dataset.icon]));
 render();
 syncDays();
+pullOrders();
 if (stampParam) claimStamp(stampParam);

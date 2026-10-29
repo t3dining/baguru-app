@@ -40,9 +40,7 @@ function rsvMessage(e) {
   return RSV_MSG[e.code] || RSV_MSG.no_answer;
 }
 
-/** 予約ボードの公開先から、受け口の場所（config.js）と、やりとりの道具（api.js）を読む */
-const rsvLib = () => loadScript({ src: SHOP.reserveBase + 'config.js', integrity: '' })
-  .then(() => loadScript({ src: SHOP.reserveBase + 'api.js', integrity: '' }));
+// 受け口の場所（config.js）と、やりとりの道具（api.js）は、テイクアウトの注文と同じものを読む（js/order-api.js の baguruLib）
 
 const ymdDate = ymd => { const [y, m, d] = ymd.split('-').map(Number); return new Date(y, m - 1, d); };
 const rsvDay = ymd => mdw(ymdDate(ymd));
@@ -63,11 +61,8 @@ function rsvStart() {
   box.onclick = rsvClick;
   if (rsv.step !== 'form') return rsvDraw();
   rsv.err = '';
-  rsvLib()
-    .then(() => {
-      if (!window.BaguruApi?.ready()) throw Object.assign(new Error('not_ready'), { code: 'not_ready' });
-      return BaguruApi.post({ action: 'avail' });
-    })
+  baguruLib()
+    .then(() => BaguruApi.post({ action: 'avail' }))
     .then(a => { rsv.avail = a; rsvDropUnfit(); })
     .catch(e => { rsv.avail = null; rsv.err = rsvMessage(e); })
     .then(rsvDraw);
