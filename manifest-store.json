@@ -1,6 +1,6 @@
 {
   "name": "炭焼ハンバーグ バグる 店舗用",
-  "short_name": "バグる店舗",
+  "short_name": "Order受付",
   "description": "炭焼ハンバーグ バグるのお店の画面（テイクアウトの注文を受ける）",
   "id": "./store.html",
   "start_url": "./store.html",
