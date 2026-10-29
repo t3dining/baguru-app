@@ -18,7 +18,10 @@ const nextLabel = o => o.kind === 'delivery' && o.status === 'ready' ? 'お届�
 const RING_EVERY = 3000;   // 受付待ちの注文があるあいだ、この間隔（ミリ秒）で鳴らし続ける
 const CHIME_URL = 'snd/order.wav';   // 注文が入ったときの音（1.8秒。道具/注文の音を作る.py で作る）
 
-let soundOn = true;   // 開いたときから音はオン（2026-10-30 ko-dai さんの願い）。「音」のボタンで、そのときだけ止められる
+// タブレット（iPad など。画面の短いほうが600以上）は、開いたときから音はオン。「音」のボタンで、そのときだけ止められる。
+// スマホは前のように、音はオフで始まり「音」のボタンで選ぶ（2026-10-30 ko-dai さん）。パソコンはタブレットと同じ扱い
+const TABLET = Math.min(screen.width, screen.height) >= 600;
+let soundOn = TABLET;
 let audio = null;
 let chime = null;   // 読み込んだ音。読めなかったときは、前の「ピッピッ」で鳴らす
 let ringTimer = null;
@@ -41,9 +44,10 @@ function unlockSound() {
   return loadChime().then(() => resumed);
 }
 
-// 音がオンなのに出せないあいだは、画面いっぱいに「画面をタッチしてください」を出す（触ると音が出せるようになる）
+// タブレットで、音がオンなのに出せないあいだは、画面いっぱいに「画面をタッチしてください」を出す（触ると音が出せるようになる）。
+// スマホには出さない（前のように「音」のボタンで選ぶ）
 function checkSound() {
-  $('#soundGate').hidden = !(soundOn && (!audio || audio.state !== 'running'));
+  $('#soundGate').hidden = !(TABLET && soundOn && (!audio || audio.state !== 'running'));
 }
 
 function loadChime() {
@@ -258,6 +262,8 @@ const syncDays = () => refreshDays().then(changed => changed && render());
 setInterval(() => { render(); syncDays(); }, 30000);
 render();
 syncDays();
-// 開いたときから音をオンにする。ブラウザが許さないとき（まだ画面に触っていない）は、少し待って「画面をタッチ」を出す
-unlockSound().then(() => { checkSound(); render(); });
-setTimeout(checkSound, 600);
+// タブレットは、開いたときから音をオンにする。ブラウザが許さないとき（まだ画面に触っていない）は、少し待って「画面をタッチ」を出す
+if (TABLET) {
+  unlockSound().then(() => { checkSound(); render(); });
+  setTimeout(checkSound, 600);
+}
