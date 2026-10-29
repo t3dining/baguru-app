@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest-store.json">
 <link rel="icon" href="img/store-icon-192.png">
 <link rel="apple-touch-icon" href="img/store-apple-touch-icon.png">
-<link rel="stylesheet" href="css/store.css?v=dcb08cc5">
+<link rel="stylesheet" href="css/store.css?v=1a648f16">
 </head>
 <body>
 <header class="s-top">
@@ -69,9 +69,16 @@
   <p class="qp-small">アプリをお持ちでない方は、スマホのカメラでこのQRを読むとアプリが開きます。<br>お店の中でだけ読めます（スマホの位置情報を使います）。</p>
 </section>
 
+<!-- 音がオンなのに出せないとき（ブラウザの決まりで、開いてからまだ画面に触っていない）に、画面いっぱいに出す。触ると音が出せるようになって消える -->
+<button id="soundGate" class="sound-gate" hidden>
+  <span class="sg-icon" aria-hidden="true">🔔</span>
+  <b>画面をタッチしてください</b>
+  <span>注文の音をオンにします（試しに1回鳴ります）。<br>タブレットの決まりで、開いたときに1回だけタッチが要ります。</span>
+</button>
+
 <script src="js/data.js?v=611dad0f"></script>
 <script src="js/db.js?v=feb3337d"></script>
 <script src="js/common.js?v=8f827efb"></script>
-<script src="js/store.js?v=654b5f76"></script>
+<script src="js/store.js?v=f006fe10"></script>
 </body>
 </html>

@@ -18,12 +18,33 @@ const nextLabel = o => o.kind === 'delivery' && o.status === 'ready' ? 'お届�
 const RING_EVERY = 3000;   // 受付待ちの注文があるあいだ、この間隔（ミリ秒）で鳴らし続ける
 const CHIME_URL = 'snd/order.wav';   // 注文が入ったときの音（1.8秒。道具/注文の音を作る.py で作る）
 
-let soundOn = false;
+let soundOn = true;   // 開いたときから音はオン（2026-10-30 ko-dai さんの願い）。「音」のボタンで、そのときだけ止められる
 let audio = null;
 let chime = null;   // 読み込んだ音。読めなかったときは、前の「ピッピッ」で鳴らす
 let ringTimer = null;
 let known = new Set(getOrders().map(o => o.id));   // 新しく届いた注文に印を付けるため
 const fresh = new Set();
+
+/* 音を出せるようにする。
+   ★ブラウザの決まりで、画面に一度も触っていないページは音を出せないことがある（iPad はいつも。Android はホーム画面に置いたアプリなら出せる）。
+   触ったその場でこれを呼ぶと、そのあとは鳴らせる。触る前に呼んでも、出せる端末ならそのまま鳴らせるようになる */
+function unlockSound() {
+  if (!audio) {
+    audio = new (window.AudioContext || window.webkitAudioContext)();
+    audio.onstatechange = () => { checkSound(); render(); };   // 止まった（スリープ・電話など）・また鳴らせるようになった
+  }
+  const resumed = audio.resume().catch(() => {});
+  const s = audio.createBufferSource();   // iPad の Safari は、触ったその場で一度鳴らさないと、あとで音を出せない。聞こえない音を鳴らしておく
+  s.buffer = audio.createBuffer(1, 1, 22050);
+  s.connect(audio.destination);
+  s.start();
+  return loadChime().then(() => resumed);
+}
+
+// 音がオンなのに出せないあいだは、画面いっぱいに「画面をタッチしてください」を出す（触ると音が出せるようになる）
+function checkSound() {
+  $('#soundGate').hidden = !(soundOn && (!audio || audio.state !== 'running'));
+}
 
 function loadChime() {
   if (chime || !audio) return Promise.resolve();
@@ -164,20 +185,27 @@ document.addEventListener('click', e => {
 });
 
 $('#accepting').addEventListener('change', e => { DB.set('accepting', e.target.checked); render(); });
-$('#sound').addEventListener('click', () => {
-  soundOn = !soundOn;
-  if (soundOn && !audio) audio = new (window.AudioContext || window.webkitAudioContext)();
-  if (!soundOn) { render(); return; }
-  // iPad の Safari は、押したその場で一度鳴らさないと、あとで音を出せない。聞こえない音を鳴らしておく
-  audio.resume();
-  const s = audio.createBufferSource();
-  s.buffer = audio.createBuffer(1, 1, 22050);
-  s.connect(audio.destination);
-  s.start();
-  loadChime().then(() => {
+// 音をオンにして、試しに1回鳴らす（受付待ちがあれば、そのまま鳴り続ける）。押した・触ったその場で呼ぶ
+function soundOnNow() {
+  soundOn = true;
+  const ready = unlockSound();
+  checkSound();
+  ready.then(() => {
+    checkSound();
     render();
-    if (soundOn && !ringTimer) beep();   // 受付待ちがないときは、試しに1回だけ鳴らす
+    if (soundOn && !ringTimer) beep();
   });
+}
+
+$('#sound').addEventListener('click', () => {
+  if (soundOn) { soundOn = false; checkSound(); render(); return; }
+  soundOnNow();
+});
+$('#soundGate').addEventListener('click', soundOnNow);
+// タブレットを起こした・ほかのアプリから戻ったときは、音をもう一度出せるようにする（出せなければ「画面をタッチ」が出る）
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && soundOn && audio) audio.resume().catch(() => {});
+  setTimeout(checkSound, 500);
 });
 
 /* ---------------------------------------------------------------------
@@ -230,3 +258,6 @@ const syncDays = () => refreshDays().then(changed => changed && render());
 setInterval(() => { render(); syncDays(); }, 30000);
 render();
 syncDays();
+// 開いたときから音をオンにする。ブラウザが許さないとき（まだ画面に触っていない）は、少し待って「画面をタッチ」を出す
+unlockSound().then(() => { checkSound(); render(); });
+setTimeout(checkSound, 600);

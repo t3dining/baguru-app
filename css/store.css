@@ -50,6 +50,16 @@ button { font: inherit; cursor: pointer; border: 0; }
 .s-btn.warn { background: var(--red); animation: blink 1s ease-in-out infinite; }
 @keyframes blink { 50% { opacity: .55; } }
 
+/* 音を出せないあいだの「画面をタッチしてください」（画面いっぱい。どこを触っても音がオンになる。下のボタンは押されない） */
+.sound-gate {
+  position: fixed; inset: 0; z-index: 50; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  background: rgba(43, 29, 22, .88); color: #fff; text-align: center; padding: 24px; line-height: 1.7;
+}
+.sound-gate[hidden] { display: none; }
+.sound-gate .sg-icon { font-size: 72px; line-height: 1; animation: blink 1.2s ease-in-out infinite; }
+.sound-gate b { font-size: clamp(20px, 6vw, 30px); }   /* スマホの幅でも1行に収める */
+.sound-gate span:last-child { font-size: 15px; color: #f3dcc8; }
+
 .demo-bar { background: #fff3c4; color: #6b5200; font-size: 12px; text-align: center; padding: 4px 12px; }
 
 .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; padding: 14px 18px; align-items: start; }
