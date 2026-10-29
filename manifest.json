@@ -1,0 +1,16 @@
+{
+  "name": "炭焼ハンバーグ バグる",
+  "short_name": "バグる",
+  "description": "炭焼ハンバーグ バグるのテイクアウト注文・スタンプカード・お店の情報",
+  "id": "./",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fbf5ec",
+  "theme_color": "#4b2a1b",
+  "lang": "ja",
+  "icons": [
+    { "src": "img/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "img/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
