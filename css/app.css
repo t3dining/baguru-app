@@ -483,6 +483,11 @@ main { padding: 0 16px; }
 .dine li > div { display: flex; flex-direction: column; min-width: 0; }
 .dine li small { color: var(--sub); line-height: 1.5; }
 .dine-p { white-space: nowrap; color: var(--brown); }
+/* 店内のメニューの写真（2026-10-30） */
+.dine li.has-pic { justify-content: flex-start; align-items: center; }
+.dine li.has-pic > div { flex: 1; }
+.dine-pic { width: 64px; height: 48px; flex: none; border-radius: 8px; object-fit: cover; box-shadow: 0 1px 4px rgba(75, 42, 27, .15); }
+.photo-note { margin: 8px 0 0; font-size: 11.5px; color: var(--sub); }
 .sizes { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 4px; }
 .sizes span { font-size: 13px; color: var(--sub); background: #f6f0e9; border-radius: 8px; padding: 2px 8px; }
 .sizes b { color: var(--brown); }

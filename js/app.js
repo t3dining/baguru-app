@@ -196,6 +196,7 @@ function viewMenu() {
         <section class="cat-sec" id="cat-${c.id}">
           <h2 class="sec">${esc(c.name)}</h2>
           ${c.id === 'hamburg' || c.id === 'teishoku' ? setNote : ''}
+          ${c.id === 'side' ? `<p class="cat-note">サイドの${esc(SIDE_PHOTO_NOTE)}</p>` : ''}
           <div class="items">${ITEMS.filter(i => i.cat === c.id).map(itemRow).join('')}</div>
         </section>`).join('')}
       <a class="link-card" href="#request">${ICON.truck}<span><b>配達・大量注文はこちら</b><small>配達は${TAKEOUT.deliveryFreeMin}食以上で無料（原則${TAKEOUT.deliveryKm}km圏内）・${TAKEOUT.deliveryFreeMin}食未満は要相談。大量注文は${TAKEOUT.bulkMin}食以上。申請して、お店が承認したら確定です</small></span></a>`,
@@ -250,6 +251,7 @@ function openItem(id) {
 
   openSheet(`
     ${photo(item, 'item-photo')}
+    ${item.photoNote ? `<p class="photo-note">${esc(item.photoNote)}</p>` : ''}
     <button class="sheet-x" data-s="close" aria-label="閉じる">×</button>
     <div class="item-head">
       <h2>${esc(item.full || item.name)}</h2>
@@ -934,7 +936,9 @@ function dineItem(i) {
   const price = i.sizes
     ? `<span class="sizes">${i.sizes.map(([n, p, more = '']) => `<span>${esc(n)} <b>${yen(p)}${more}</b></span>`).join('')}</span>`
     : `<b class="dine-p">${yen(i.p)}</b>`;
-  return `<li><div><b>${esc(i.n)}</b>${i.d ? `<small>${esc(i.d)}</small>` : ''}${i.sizes ? price : ''}</div>${i.sizes ? '' : price}</li>`;
+  // 写真があるものは、左に小さく（2026-10-30 ホームページと同じ写真）
+  const pic = i.img ? `<img class="dine-pic" src="img/menu/${i.img}" alt="" loading="lazy">` : '';
+  return `<li class="${pic ? 'has-pic' : ''}">${pic}<div><b>${esc(i.n)}</b>${i.d ? `<small>${esc(i.d)}</small>` : ''}${i.sizes ? price : ''}</div>${i.sizes ? '' : price}</li>`;
 }
 
 /* ---------------------------------------------------------------------
