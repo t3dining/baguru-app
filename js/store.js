@@ -105,7 +105,7 @@ function render() {
   $('#sound').textContent = !soundOn ? '🔕 音：オフ（押すとオン）' : ringTimer ? '🔔 鳴っています（受け付ける・申請に返事をすると止まります）' : '🔔 音：オン';
   $('#sound').classList.toggle('on', soundOn);
   $('#sound').classList.toggle('warn', !soundOn && waiting > 0);
-  document.title = (waiting ? `（${waiting}）` : '') + '炭焼ハンバーグ バグる 店舗用';
+  document.title = (waiting ? `（${waiting}）` : '') + 'バグるOrder受付';
 }
 
 function checkNew() {
