@@ -15,17 +15,35 @@ const BACK = { accepted: 'new', ready: 'accepted', done: 'ready' };
 const backOf = o => o.status === 'accepted' && isRequest(o) ? 'request' : BACK[o.status];
 const nextLabel = o => o.kind === 'delivery' && o.status === 'ready' ? 'お届け済み' : NEXT[o.status]?.label;
 
-const RING_EVERY = 5000;   // 受付待ちの注文があるあいだ、この間隔（ミリ秒）で鳴らし続ける
+const RING_EVERY = 3000;   // 受付待ちの注文があるあいだ、この間隔（ミリ秒）で鳴らし続ける
+const CHIME_URL = 'snd/order.wav';   // 注文が入ったときの音（1.8秒。道具/注文の音を作る.py で作る）
 
 let soundOn = false;
 let audio = null;
+let chime = null;   // 読み込んだ音。読めなかったときは、前の「ピッピッ」で鳴らす
 let ringTimer = null;
 let known = new Set(getOrders().map(o => o.id));   // 新しく届いた注文に印を付けるため
 const fresh = new Set();
 
+function loadChime() {
+  if (chime || !audio) return Promise.resolve();
+  return fetch(CHIME_URL)
+    .then(r => r.arrayBuffer())
+    .then(b => new Promise((ok, ng) => audio.decodeAudioData(b, ok, ng)))   // 古い Safari は、この書き方しか使えない
+    .then(buf => { chime = buf; })
+    .catch(() => {});
+}
+
 function beep() {
   if (!soundOn || !audio) return;
   if (audio.state === 'suspended') audio.resume();   // タブレットがしばらく裏に回ると止まることがある
+  if (chime) {
+    const s = audio.createBufferSource();
+    s.buffer = chime;
+    s.connect(audio.destination);
+    s.start();
+    return;
+  }
   [0, 0.28].forEach(t => {
     const o = audio.createOscillator();
     const g = audio.createGain();
@@ -149,8 +167,17 @@ $('#accepting').addEventListener('change', e => { DB.set('accepting', e.target.c
 $('#sound').addEventListener('click', () => {
   soundOn = !soundOn;
   if (soundOn && !audio) audio = new (window.AudioContext || window.webkitAudioContext)();
-  render();
-  if (soundOn && !ringTimer) beep();   // 受付待ちがないときは、試しに1回だけ鳴らす
+  if (!soundOn) { render(); return; }
+  // iPad の Safari は、押したその場で一度鳴らさないと、あとで音を出せない。聞こえない音を鳴らしておく
+  audio.resume();
+  const s = audio.createBufferSource();
+  s.buffer = audio.createBuffer(1, 1, 22050);
+  s.connect(audio.destination);
+  s.start();
+  loadChime().then(() => {
+    render();
+    if (soundOn && !ringTimer) beep();   // 受付待ちがないときは、試しに1回だけ鳴らす
+  });
 });
 
 /* ---------------------------------------------------------------------
