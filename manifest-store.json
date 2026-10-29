@@ -1,0 +1,16 @@
+{
+  "name": "炭焼ハンバーグ バグる 店舗用",
+  "short_name": "バグる店舗",
+  "description": "炭焼ハンバーグ バグるのお店の画面（テイクアウトの注文を受ける）",
+  "id": "./store.html",
+  "start_url": "./store.html",
+  "scope": "./store.html",
+  "display": "standalone",
+  "background_color": "#efe6da",
+  "theme_color": "#4b2a1b",
+  "lang": "ja",
+  "icons": [
+    { "src": "img/store-icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "img/store-icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
