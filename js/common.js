@@ -354,24 +354,6 @@ function giveWelcome(now = new Date()) {
   return { ...r, got: [...r.got, gift] };
 }
 
-/** まだ使える特典券か（使っていない・期限が切れていない。期限 until があるのは誕生月の特典） */
-const couponLive = (c, now = new Date()) => !c.usedAt && !(c.until && new Date(c.until) < now);
-
-/** 誕生月の特典。誕生月に1枚（その月の終わりまで）。1年に1回。渡したら券を返す（会員の birthdayYear は、呼んだ側が書く）。
- *  誕生月を入れた月がちょうど誕生月のときは、次の年から（入れてすぐもらえないように）。★本番はサーバーで1人1年1回にする */
-function giveBirthday(m, now = new Date()) {
-  const month = now.getMonth() + 1, year = now.getFullYear();
-  if (!m.registeredAt || m.birthMonth !== month || m.birthdayYear === year) return null;
-  if (new Date(m.birthMonthAt || m.registeredAt) >= new Date(year, month - 1, 1)) return null;
-  const s = getStamps();
-  const c = makeCoupon({ options: STAMP.birthday.options }, `${month}月のお誕生月の特典`, now);
-  c.id = `cbd-${year}`;
-  c.until = new Date(year, month, 0, 23, 59, 59).toISOString();   // その月の終わりまで
-  s.coupons.push(c);
-  DB.set('stamps', s);
-  return c;
-}
-
 /** 今日もう特典を使ったか（特典は1日 couponsPerDay 枚まで。併用できない） */
 const couponsUsedToday = (now = new Date()) => getStamps().coupons.filter(c => c.usedAt && dateKey(new Date(c.usedAt)) === dateKey(now)).length;
 const canUseCoupon = (now = new Date()) => couponsUsedToday(now) < STAMP.couponsPerDay;
