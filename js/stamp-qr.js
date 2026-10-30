@@ -4,6 +4,7 @@
  *    （ホーム画面のアプリのまま、そのアプリのカードにたまる）
  *  ・スマホのカメラアプリで読んだとき … アドレスの ?stamp= から同じ流れに入る（app.js のいちばん下）
  *  お店の外（STAMP.place から radius メートルより遠い）では押さない。
+ *  ・LINE のポイントの引き継ぎのQR（?line=）も、同じカメラで読む（下の claimLine。お店にいるかは確かめない。QRに時間切れがある）
  *  ※ app.js より先に読む（openSheet などは app.js にあるが、使うのは押されたあと）
  * ===================================================================== */
 
@@ -49,25 +50,28 @@ const CAMERA_NG = {
   NotReadableError: 'カメラを他のアプリが使っています。他のアプリを閉じて、もう一度開いてください。',
 };
 
-async function openScanner() {
-  if (stampedToday()) return toast(`スタンプは1日${STAMP.perDay}個までです`);
+/** QRを読む画面。line … LINE のポイントの引き継ぎのQRを読むとき（今日のスタンプをもらったあとでも読める） */
+async function openScanner({ line = false } = {}) {
+  if (!line && stampedToday()) return toast(`スタンプは1日${STAMP.perDay}個までです`);
   stopCamera();
   const id = scanId;
   openSheet(`
     <button class="sheet-x" data-s="close" aria-label="閉じる">×</button>
     <div class="scan">
-      <h2>お店のQRを読む</h2>
-      <p>レジの横などに置いてある、スタンプのQRを枠の中に入れてください。</p>
+      ${line
+        ? '<h2>引き継ぎのQRを読む</h2><p>お店の人がお店の画面に出した、LINEのポイントの引き継ぎのQRを枠の中に入れてください。</p>'
+        : '<h2>お店のQRを読む</h2><p>レジの横などに置いてある、スタンプのQRを枠の中に入れてください。</p>'}
       <div class="scan-view"><video playsinline muted></video><i class="scan-frame"></i></div>
       <p class="scan-msg">カメラを準備しています…</p>
-      <p class="hint">カメラが使えないときは、スマホのカメラアプリでQRを読んでもスタンプがたまります。</p>
-      <p class="demo-hint">試作版：パソコンで試すときは <button data-s="demo">QRを読んだことにする</button></p>
+      <p class="hint">カメラが使えないときは、スマホのカメラアプリでQRを読んでも${line ? '引き継げます' : 'スタンプがたまります'}。</p>
+      <p class="demo-hint">試作版：パソコンで試すときは ${line ? '<button data-s="demo-line">5ポイントの引き継ぎのQRを読んだことにする</button>' : '<button data-s="demo">QRを読んだことにする</button>'}</p>
     </div>`);
   sheetBody.onchange = null;
   sheetBody.onclick = e => {
     const k = e.target.closest('[data-s]')?.dataset.s;
     if (k === 'close') closeSheet();
     if (k === 'demo') { stopCamera(); claimStamp(qrToken()); }
+    if (k === 'demo-line') { stopCamera(); claimLine(lineToken(5)); }
   };
   const video = $('video', sheetBody);
   const stillOpen = () => id === scanId;
@@ -101,9 +105,10 @@ async function openScanner() {
     let text = '';
     try { text = await read(video); } catch (e) { /* 次の回にもう一度 */ }
     if (!stillOpen()) return;
-    const token = tokenFrom(text);
+    const token = tokenFrom(text), moving = lineFrom(text);
     if (token) { stopCamera(); navigator.vibrate?.(40); return claimStamp(token); }
-    if (text && Date.now() - warned > 2500) { warned = Date.now(); msg('バグるのスタンプのQRではないようです'); }
+    if (moving) { stopCamera(); navigator.vibrate?.(40); return claimLine(moving); }
+    if (text && Date.now() - warned > 2500) { warned = Date.now(); msg(line ? 'バグるの引き継ぎのQRではないようです' : 'バグるのスタンプのQRではないようです'); }
     scanTimer = setTimeout(tick, 200);
   };
   tick();
@@ -148,6 +153,18 @@ function giveStamp() {
   if (!r.ok) return stampProblem('今日のスタンプはもらいました', `スタンプは1日${STAMP.perDay}個までです。`);
   pendingToken = '';
   showStamped(r);
+  render(true);
+}
+
+/* ---- LINE のポイントを引き継ぐ（common.js の「LINE のショップカードからの引き継ぎ」） ---- */
+function claimLine(token) {
+  const c = checkLine(token);
+  if (c.error === 'old') return stampProblem('このQRは時間切れです', `引き継ぎのQRは、お店の画面に出してから${STAMP.lineMove.validMin}分だけ使えます。お店の人に、もう一度出してもらってください。`);
+  if (c.error) return stampProblem('このQRは使えません', 'お店の人に声をかけてください。');
+  if (getStamps().lineMovedAt) return stampProblem('LINEのポイントは引き継ぎ済みです', 'この端末には、もう引き継いであります（引き継ぎは1回だけです）。');
+  const r = moveFromLine(c.n);
+  lastStampTotal = getStamps().total;
+  showStamped(r, `${c.n}ポイント引き継ぎました`);   // 長いと2行に折れるので、LINE の名前は入れない
   render(true);
 }
 

@@ -203,6 +203,17 @@ button { font: inherit; cursor: pointer; border: 0; }
 .dlg-err[hidden] { display: none; }
 .dlg-btns { display: flex; gap: 8px; }
 
+/* LINE のポイントの引き継ぎ（数を選ぶ・QR） */
+.num-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 0 0 12px; }
+.num-grid button { height: 46px; border-radius: 10px; background: var(--soft); color: var(--main); font-weight: 800; font-size: 18px; font-variant-numeric: tabular-nums; }
+.num-grid button[aria-checked="true"] { background: var(--main); color: #fff; }
+.line-go { margin-bottom: 12px; }
+.line-out { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 0 0 12px; padding: 12px; border-radius: 14px; border: 2px solid var(--line); }
+.line-out[hidden] { display: none; }
+.line-qr svg { display: block; width: min(300px, 70vw); height: auto; }
+.line-n { font-size: 26px; color: var(--main); }
+.line-left { margin: 0; font-size: 13.5px; color: var(--sub); text-align: center; font-variant-numeric: tabular-nums; }
+
 @media (max-width: 520px) {
   .f-grid { grid-template-columns: 1fr; }
 }

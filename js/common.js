@@ -420,6 +420,54 @@ function tokenFrom(text) {
   try { return new URL(text).searchParams.get('stamp') || ''; } catch (e) { return ''; }
 }
 
+/* ---------------------------------------------------------------------
+ *  LINE のショップカードからの引き継ぎ（2026-10-30 ko-dai さんの指示：「店頭で引き継ぐ形」）
+ *  LINE は、お店の側から一人ずつのポイント数を見られない（見られるのは合計の数だけ）。だから会計のときに、
+ *  お客さまの LINE のショップカードの画面をお店の人が見て数を確かめ、お店の画面（Order受付）で「引き継ぎのQR（◯ポイント）」を出す。
+ *  お客さまがアプリの「引き継ぎのQRを読む」（スマホのカメラでもよい）で読むと、同じ数がたまる。
+ *  ・QR の中身は、アプリのアドレス ＋ ?line=印。印は「数.作った分（1分ごとの数を36進）.確かめの数」。
+ *    作ってから STAMP.lineMove.validMin 分だけ使える（写真に撮って、あとで別の端末で使わせない）
+ *  ・1端末1回。1日1個の数には入れない。途中の特典のマスを越えても特典は出さない（LINE でもらっていた分と重ならないように。次の特典から数える）
+ *  ★試作だけの確かめ方（スタンプのQRと同じ）。本番では受け口で、1人1回までを確かめる
+ * --------------------------------------------------------------------- */
+const lineSign = (n, t) => hashOf(`${STAMP.demoSecret}:line:${n}:${t}`).toString(36);
+/** 引き継ぎの印を作る（お店の画面が使う）。n … 確かめた LINE のポイント数（1〜STAMP.lineMove.max） */
+function lineToken(n, now = new Date()) {
+  const t = Math.floor(now.getTime() / 60000).toString(36);
+  return `${n}.${t}.${lineSign(n, t)}`;
+}
+/** 引き継ぎのQRで開くアドレス（お店の画面が、この中身でQRを描く） */
+function lineUrl(n, now = new Date()) {
+  const u = new URL(SHOP.appUrl || './', location.href);
+  u.search = 'line=' + lineToken(n, now);
+  u.hash = '';
+  return u.href;
+}
+/** QR の中身から、引き継ぎの印を取り出す（引き継ぎのQRでなければ ''） */
+function lineFrom(text) {
+  try { return new URL(text).searchParams.get('line') || ''; } catch (e) { return ''; }
+}
+/** 印を確かめる。使えるなら { n }、使えないなら { error: 'bad'（違う印）| 'old'（時間切れ） } */
+function checkLine(token, now = new Date()) {
+  const [ns, t, sig] = String(token).split('.');
+  const n = Number(ns);
+  if (!Number.isInteger(n) || n < 1 || n > STAMP.lineMove.max || !t || sig !== lineSign(n, t)) return { error: 'bad' };
+  const age = Math.floor(now.getTime() / 60000) - parseInt(t, 36);
+  if (age < -2 || age > STAMP.lineMove.validMin) return { error: 'old' };   // 少し先の時刻は、端末の時計のずれとして大目に見る
+  return { n };
+}
+/** LINE のポイントを入れる（1端末1回）。特典のマスを越えても、特典は出さない。from … 入れる前のマス */
+function moveFromLine(n, now = new Date()) {
+  const s = getStamps();
+  if (s.lineMovedAt) return { ok: false, reason: 'done' };
+  const from = stampOnCard(s.total);
+  s.total += n;
+  s.log.push({ date: dateKey(now), at: now.toISOString(), via: `LINEから引き継ぎ（${n}ポイント）`, bonus: true, n });
+  s.lineMovedAt = now.toISOString();
+  DB.set('stamps', s);
+  return { ok: true, from, on: stampOnCard(s.total), got: [], moved: n };
+}
+
 /** 2つの地点のあいだの距離（メートル） */
 function distanceM(a, b) {
   const rad = x => x * Math.PI / 180;

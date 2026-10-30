@@ -777,6 +777,7 @@ function viewStamp() {
       </div>
       <button class="btn btn-main btn-block" data-act="stamp" ${doneToday ? 'disabled' : ''}>${doneToday ? '今日のスタンプはもらいました' : `${ICON.qr}QRを読んでスタンプをもらう`}</button>
       <p class="hint">お店に置いてあるQRを読むと、1個たまります。お店の中（駐車場を含む）にいるときだけ読めます（位置情報を使います）。テイクアウトは、受け取りのときに自動で1個たまります。スタンプは1日${STAMP.perDay}個までです（初回登録の${STAMP.welcome.points}ポイントは別）。</p>
+      ${s.lineMovedAt ? '' : `<button class="link-card" data-act="lineScan">${ICON.card}<span><b>LINEのポイントカードをお持ちの方</b><small>お会計のときに、LINEのショップカードの画面をお店の人に見せてください。お店の人が出す引き継ぎのQRを読むと、同じ数のポイントがこのカードにたまります（1回だけ）</small></span></button>`}
       ${coupons.length ? `
         <h2 class="sec">使える特典</h2>
         ${useOk ? '' : `<p class="notice">${ICON.check}<span>今日はもう特典を使いました。<small>特典は1日${STAMP.couponsPerDay}枚までです（他の特典とは一緒に使えません）。また次のご来店でどうぞ。</small></span></p>`}
@@ -832,10 +833,10 @@ function register(p) {
 
 /** スタンプがたまったとき。上からスタンプがどんと落ちて、紙ふぶき・数字が増える・特典の箱がはねる（js/fx.js・app.css の「装飾と動き」） */
 function showStamped(r, title = 'スタンプがたまりました') {
-  const goal = r.on === STAMP.goal;
+  const goal = r.on === STAMP.goal && !r.moved;   // LINE からの引き継ぎ（moved）は、ゴールのマスに着いてもゴールの特典を出さないので、言葉も出さない
   const next = STAMP.rewards.find(x => x.at > r.on);
   const prevAt = Math.max(0, ...STAMP.rewards.filter(x => x.at <= r.on).map(x => x.at));
-  const from = Math.max(0, r.on - 1);
+  const from = r.moved ? (r.from < r.on ? r.from : 0) : Math.max(0, r.on - 1);
   openSheet(`
     <div class="stamped ${goal ? 'goal' : ''}">
       <div class="st-stage"><span class="st-ring"></span><span class="big-stamp"><img src="img/logo.png" alt=""></span></div>
@@ -1086,6 +1087,7 @@ const ACTIONS = {
     toast('注文を取り消しました');
   },
   stamp: () => openScanner(),
+  lineScan: () => openScanner({ line: true }),
   coupon: id => openCoupon(id),
   allergy: () => openAllergyList(),
   install: () => startInstall(),
@@ -1171,7 +1173,8 @@ setInterval(() => {
 
 // スマホのカメラアプリでお店のQRを読んで開いたとき（?stamp=印）。印はアドレスから消してから確かめる
 const stampParam = new URLSearchParams(location.search).get('stamp');
-if (stampParam) history.replaceState(null, '', location.pathname + '#stamp');
+const lineParam = new URLSearchParams(location.search).get('line');   // LINE のポイントの引き継ぎのQR（common.js の「LINE からの引き継ぎ」）
+if (stampParam || lineParam) history.replaceState(null, '', location.pathname + '#stamp');
 
 // バグる Owner（オーナー用の入口）から開いたときだけ、上の帯に「🏠 ホーム」を出す（2026-10-30 ko-dai さんの指示。フォルダーアプリのセッションに頼まれた）。
 // 印は common.js がこのタブの sessionStorage に控えている（アドレスの ? が消えても出し続ける）。お客さまが開いたときは出さない。
@@ -1193,3 +1196,4 @@ render();
 syncDays();
 pullOrders();
 if (stampParam) claimStamp(stampParam);
+else if (lineParam && !ORDER_ONLY) claimLine(lineParam);
