@@ -13,18 +13,21 @@
 <link rel="manifest" href="manifest-store.json">
 <link rel="icon" href="img/store-icon-192.png">
 <link rel="apple-touch-icon" href="img/store-apple-touch-icon.png">
-<link rel="stylesheet" href="css/store.css?v=ddf7bb23">
+<link rel="stylesheet" href="css/store.css?v=41501287">
 </head>
 <body>
 <header class="s-top">
   <div class="s-brand"><img src="img/logo.png" alt=""><h1>バグる<small>店舗用・テイクアウト注文</small></h1></div>
+  <!-- 電話・店頭の注文を入れる（2026-10-30。テイクアウトの操作は、すべて Order受付でする決まりになったため） -->
+  <button id="phoneBtn" class="s-btn">＋ 電話・店頭の注文</button>
   <!-- 画面を読み直す。ホーム画面に置いたアプリには、ブラウザの更新ボタンが無いため（2026-10-30 ko-dai さん） -->
   <button id="reloadBtn" class="s-btn">↻ 更新</button>
   <!-- 「スタンプのQR」のボタン（QRを出す・印刷する・作り直す）は、2026-10-30 に外した（ko-dai さんの指示） -->
   <label class="s-accept"><input type="checkbox" id="accepting"><span class="sw"></span><span id="acceptText"></span></label>
   <button id="sound" class="s-btn"></button>
 </header>
-<div class="demo-bar">試作版：お客様の画面（index.html）と同じブラウザで開くと、注文が届く様子を試せます。</div>
+<!-- 試作か、受け口から注文を読めているか（読めないときは赤くなる）。文は js/store.js の paintNet が書く -->
+<div id="netBar" class="net-bar demo"></div>
 
 <!-- 配達・大量注文の申請（承認するまで確定しない） -->
 <section class="reqs" hidden>
@@ -56,9 +59,71 @@
   <span>注文の音をオンにします（試しに1回鳴ります）。<br>タブレットの決まりで、開いたときに1回だけタッチが要ります。</span>
 </button>
 
-<script src="js/data.js?v=34198656"></script>
+<!-- 受け口につないだときの合言葉（予約ボードと同じもの）。入れるまで注文は見えない -->
+<form id="pinGate" class="pin-gate" hidden>
+  <img src="img/store-icon-192.png" alt="">
+  <b>合言葉を入れてください</b>
+  <span>予約ボードと同じ合言葉です。この端末に覚えておくので、次からは要りません。</span>
+  <input id="pin" type="password" autocomplete="current-password" aria-label="合言葉">
+  <button class="b-main">開く</button>
+  <p id="pinErr" class="pin-err" hidden></p>
+</form>
+
+<!-- 配達・大量注文の申請に返事をする（承認・お断り）。配達料とお客様への一言は、お客様のアプリに出る -->
+<dialog id="decideDlg" class="dlg">
+  <h3 id="dTitle"></h3>
+  <p id="dWho" class="f-note"></p>
+  <label id="dFeeRow" class="f-field"><span>配達料（円）</span>
+    <input id="dFee" type="number" min="0" max="100000" step="10" inputmode="numeric">
+    <small>10食より少ない配達です。無料なら 0 を入れてください</small></label>
+  <label class="f-field"><span>お客様への一言（なくても構いません）</span>
+    <textarea id="dMsg" rows="3" maxlength="200"></textarea>
+    <small>お客様のアプリの、注文の様子に出ます</small></label>
+  <p id="dErr" class="dlg-err" hidden></p>
+  <div class="dlg-btns"><button type="button" class="b-sub" data-close>やめる</button><button type="button" id="dOk" class="b-main"></button></div>
+</dialog>
+
+<!-- 電話・店頭の注文を入れる。受け付けた形で入り、お客様のアプリには出ない -->
+<dialog id="phoneDlg" class="dlg wide">
+  <h3>電話・店頭の注文を入れる</h3>
+  <div class="seg">
+    <label><input type="radio" name="pRoute" value="電話" checked><span>電話</span></label>
+    <label><input type="radio" name="pRoute" value="店頭"><span>店頭</span></label>
+  </div>
+  <div class="f-grid">
+    <label class="f-field"><span>お名前</span><input id="pName" maxlength="40" autocomplete="off"></label>
+    <label class="f-field"><span>電話番号（なくても可）</span><input id="pTel" type="tel" maxlength="20" autocomplete="off"></label>
+  </div>
+  <div class="seg">
+    <label><input type="radio" name="pWhen" value="asap" checked><span>できしだい</span></label>
+    <label><input type="radio" name="pWhen" value="time"><span>時間を指定</span></label>
+  </div>
+  <p id="pAsap" class="f-note"></p>
+  <div id="pTime" class="f-grid" hidden>
+    <label class="f-field"><span>受け取りの日</span><input id="pDay" type="date"></label>
+    <label class="f-field"><span>時刻</span><input id="pHm" type="time" step="300"></label>
+  </div>
+  <fieldset class="f-item">
+    <legend>品物</legend>
+    <select id="pItem" aria-label="品物"></select>
+    <div id="pOpts"></div>
+    <div class="f-add">
+      <label class="f-qty">数<input id="pQty" type="number" min="1" max="99" value="1" inputmode="numeric"></label>
+      <button type="button" id="pAdd" class="b-sub">＋ 入れる</button>
+    </div>
+  </fieldset>
+  <ul id="pLines" class="p-lines"></ul>
+  <p class="f-total"><span>合計（店頭で支払い）</span><b id="pTotal">¥0</b></p>
+  <label class="f-field"><span>ご要望・メモ</span><textarea id="pNote" rows="2" maxlength="300"></textarea></label>
+  <p id="pErr" class="dlg-err" hidden></p>
+  <div class="dlg-btns"><button type="button" class="b-sub" data-close>やめる</button><button type="button" id="pSend" class="b-main">この注文を入れる</button></div>
+</dialog>
+
+<script src="js/data.js?v=93c4501a"></script>
 <script src="js/db.js?v=feb3337d"></script>
 <script src="js/common.js?v=18536022"></script>
-<script src="js/store.js?v=fc4fb11d"></script>
+<!-- 受け口とのやりとり（公式アプリと同じもの。切り替え ORDERS_ONLINE・受け口の場所・送り方）。公式アプリのセッションの持ち物 -->
+<script src="js/order-api.js?v=a0a24de9"></script>
+<script src="js/store.js?v=8c857896"></script>
 </body>
 </html>

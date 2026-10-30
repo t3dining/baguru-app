@@ -2,8 +2,15 @@
  *  お店の画面（タブレットで開いておく想定）
  *  届いた注文を「受け付ける → できあがり → お渡し済み」と進める。
  *  受け付けた注文は、受け取りの30分前（TAKEOUT.cookBefore）までは「受付済み」に入り、それを過ぎると「調理中」に移る。
- *  お渡し済みにすると、そのお客様のスタンプが1個たまる。
+ *  お渡し済みにすると、そのお客様のスタンプが1個たまる（試作ではここで押す。受け口につないだときは、お客様のスマホが押す）。
+ *  電話・店頭の注文も、ここから入れる。
+ *  ★テイクアウトの操作は、すべてこの画面でする（2026-10-30 ko-dai さん。予約ボードのテイクアウトの画面は見るだけ）
  *  ★お店に置くスタンプのQRを出す・印刷する・作り直すボタンは、2026-10-30 に外した（ko-dai さんの指示）
+ *
+ *  注文の置き場所は、公式アプリと同じ切り替え ORDERS_ONLINE（data.js の TAKEOUT.online を ../js/order-api.js が読む）で変わる
+ *  ・false（試作）：このブラウザの中の注文（DB 'orders'）。お客様の画面を同じブラウザで開くと届く
+ *  ・true：受け口（予約ボードの受け口・コード.gs）。15秒ごとに読み直す（orders）。進める・承認する・取り消す・電話の注文は saveOrder、
+ *    受付の切り替えは setTakeout。この Mac で試すときは、にせの受け口（予約ボード/受け口/にせの受け口.py）が配るアドレスに ?test を付けて開く
  * ===================================================================== */
 
 const NEXT = {
@@ -17,6 +24,7 @@ const backOf = o => o.status === 'accepted' && isRequest(o) ? 'request' : BACK[o
 const nextLabel = o => o.kind === 'delivery' && o.status === 'ready' ? 'お届け済み' : NEXT[o.status]?.label;
 // 受け付けた・承認したが、まだ調理を始める前（受け取り・お届けの TAKEOUT.cookBefore 分前まで）の注文は「受付済み」に置く。その時刻を過ぎると「調理中」に移る。
 // 「できしだい」は、受け付けたらすぐ調理中。見分けは common.js の isBooked（お客さまの画面の「受付済み」と同じ。2026-10-30 ko-dai さん）
+const who = o => o.name ? `${o.name} 様` : 'お名前なし';   // 店頭の注文は、お名前を聞かないことがある
 
 const RING_EVERY = 3000;   // 受付待ちの注文があるあいだ、この間隔（ミリ秒）で鳴らし続ける
 const CHIME_URL = 'snd/order.wav';   // 注文が入ったときの音（1.8秒。道具/注文の音を作る.py で作る）
@@ -28,8 +36,139 @@ let soundOn = TABLET;
 let audio = null;
 let chime = null;   // 読み込んだ音。読めなかったときは、前の「ピッピッ」で鳴らす
 let ringTimer = null;
-let known = new Set(getOrders().map(o => o.id));   // 新しく届いた注文に印を付けるため
+// 新しく届いた注文に印を付けるため。受け口につないだときは、はじめて読めたときに埋める（開いたときからある注文には印を付けない）
+let known = ORDERS_ONLINE ? null : new Set(getOrders().map(o => o.id));
 const fresh = new Set();
+
+/* ---------------------------------------------------------------------
+ *  受け口とのやりとり（ORDERS_ONLINE のときだけ）
+ *  ・合言葉は予約ボードと同じもの。予約ボードと同じ所（localStorage の baguru.daicho.pin）に置くので、同じブラウザなら1回入れれば両方で使える。
+ *    受け口に「合言葉が違う」と言われたら消して、入れ直してもらう（予約ボードと同じ）
+ *  ・受け口の注文は、このブラウザの DB 'orders' に入れない（同じブラウザで公式アプリを開くと、お客様の「自分の注文」に混ざるため）。
+ *    画面を開いているあいだだけ持ち、開き直したら読み直す
+ * --------------------------------------------------------------------- */
+
+const PIN_KEY = 'baguru.daicho.pin';
+const POLL_EVERY = 15000;   // 受け口に頼まれた 10〜20秒
+// orders：受け口の注文／accepting：受付中か／at：最後に読めた時刻／error：読めなかったわけ
+// gen：進めた回数。読んでいるあいだに進めたら、その読んだ答えは古いので使わない
+const net = { orders: [], accepting: true, at: 0, error: '', gen: 0, loading: null };
+const STAFF_MSG = {
+  bad_pin: '合言葉が違います。',
+  locked: '合言葉を何度も間違えたので、10分止まっています。少し待ってから入れ直してください。',
+  conflict: 'ほかの端末で、この注文が先に変わっていました。いまの様子を出したので、もう一度確かめてください。',
+  not_found: 'この注文が見つかりませんでした。「更新」を押して確かめてください。',
+  bad_date: '受け取りの日時を確かめてください。',
+  bad_tel: '電話番号を確かめてください。',
+  need_lines: '品物を1つ以上入れてください。',
+  bad_input: '入れた内容を確かめてください。',
+  bad_status: '注文の様子を変えられませんでした。「更新」を押して確かめてください。',
+  not_setup: '受け口の準備がまだです（予約ボードの引き継ぎ書の setup）。',
+  not_ready: '受け口の場所を読めませんでした。Wi-Fi・電波を確かめて「更新」を押してください。',
+  no_answer: '受け口から返事がありませんでした。少し待って、もう一度お試しください。',
+  offline: 'つながりませんでした。Wi-Fi・電波を確かめてください。',
+};
+const staffText = e => STAFF_MSG[e?.code] || STAFF_MSG.offline;
+const quiet = e => e?.code === 'bad_pin' || e?.code === 'locked';   // 合言葉の画面に出すので、ほかには出さない
+
+function pinGet() { try { return localStorage.getItem(PIN_KEY) || ''; } catch (e) { return ''; } }
+function pinSet(v) { try { if (v) localStorage.setItem(PIN_KEY, v); else localStorage.removeItem(PIN_KEY); } catch (e) {} }
+
+/** 合言葉を付けて受け口に送る。合言葉が違う・止まっているときは、合言葉の画面を出す */
+async function staffPost(payload) {
+  try {
+    return await orderPost({ ...payload, pin: pinGet() });
+  } catch (e) {
+    if (quiet(e)) askPin(staffText(e));
+    throw e;
+  }
+}
+
+/** 受け口が返した注文の並び（orders の答え）を、画面の注文にする */
+function take(r) {
+  net.orders = (r.orders || []).map(fromServer);
+  net.accepting = r.accepting !== false;
+  checkNew();
+}
+/** 受け口が返した1件を、画面の注文に入れる（無ければ足す） */
+function put(o) {
+  const i = net.orders.findIndex(x => x.id === o.id);
+  if (i >= 0) net.orders[i] = o; else net.orders.push(o);
+}
+
+/** 受け口の注文を読み直す（15秒ごと・画面に戻ったとき） */
+function pull() {
+  if (!ORDERS_ONLINE || !pinGet()) return Promise.resolve();
+  if (net.loading) return net.loading;
+  const gen = net.gen;
+  net.loading = staffPost({ action: 'orders' })
+    .then(r => { net.error = ''; net.at = Date.now(); if (gen === net.gen) take(r); })
+    .catch(e => { net.error = staffText(e); })
+    .then(() => { net.loading = null; render(); });
+  return net.loading;
+}
+
+/** 合言葉の画面を出す（はじめて・合言葉が違うと言われたとき） */
+function askPin(msg = '') {
+  pinSet('');
+  net.orders = [];
+  known = null;
+  $('#pinGate').hidden = false;
+  $('#pinErr').textContent = msg;
+  $('#pinErr').hidden = !msg;
+  setTimeout(() => $('#pin').focus(), 50);
+  render();
+}
+
+/** 画面の注文（試作はこのブラウザの中、受け口につないだときは受け口から読んだもの） */
+const list = () => ORDERS_ONLINE ? net.orders : getOrders();
+const isAccepting = () => ORDERS_ONLINE ? net.accepting : DB.get('accepting', true);
+
+/** 注文を進める・直す。受け口につないだときは saveOrder（読んだときの更新日時 expect を付けて、ほかの端末と重ならないようにする）。
+ *  うまくいったら true。だめなときは、わけを出して false */
+async function change(o, patch) {
+  if (!ORDERS_ONLINE) { updateOrder(o.id, patch); render(); return true; }
+  net.gen++;
+  try {
+    const r = await staffPost({ action: 'saveOrder', row: { id: o.id, ...patch }, expect: o.updatedAt });
+    put(fromServer(r.row));
+    return true;
+  } catch (e) {
+    if (e.code === 'conflict' && e.data?.row) put(fromServer(e.data.row));
+    if (!quiet(e)) alert(staffText(e));
+    return false;
+  } finally {
+    net.gen++;   // 送っているあいだに読み始めた答えも、古いことがあるので使わない
+    render();
+  }
+}
+
+/** 注文の受付を止める・始める */
+async function setAccepting(on) {
+  if (!ORDERS_ONLINE) { DB.set('accepting', on); return; }
+  try {
+    const r = await staffPost({ action: 'setTakeout', accepting: on });
+    net.accepting = r.accepting !== false;
+  } catch (e) {
+    if (!quiet(e)) alert(staffText(e));
+  }
+}
+
+/** 上の細い帯：試作か、受け口から読めているか */
+function paintNet() {
+  const bar = $('#netBar');
+  if (!ORDERS_ONLINE) {
+    bar.className = 'net-bar demo';
+    bar.textContent = '試作版：お客様の画面（index.html）と同じブラウザで開くと、注文が届く様子を試せます。';
+    return;
+  }
+  const test = TAKEOUT.online ? '' : '試し（にせの受け口）・';
+  const last = net.at ? `最後に読めたのは ${hhmm(new Date(net.at))}。` : '';
+  bar.className = `net-bar ${net.error ? 'ng' : 'ok'}`;
+  bar.textContent = net.error ? `⚠ ${test}${net.error}${last}新しい注文が届いていないかもしれません。`
+    : net.at ? `${test}${hhmm(new Date(net.at))} に注文を読みました（${POLL_EVERY / 1000}秒ごとに読み直します）`
+    : `${test}読み込んでいます…`;
+}
 
 /* 音を出せるようにする。
    ★ブラウザの決まりで、画面に一度も触っていないページは音を出せないことがある（iPad はいつも。Android はホーム画面に置いたアプリなら出せる）。
@@ -99,40 +238,49 @@ function card(o) {
   const next = isBooked(o) && !isToday ? null : NEXT[o.status];
   const back = backOf(o);
   const map = o.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(o.address)}` : '';
+  const tags = [
+    isRequest(o) ? `<span class="c-kind k-${o.kind}">${KIND[o.kind]}・${o.meals || 0}食</span>` : '',
+    isRequest(o) && needsFee(o) && o.fee == null ? '<span class="c-kind k-ask">要相談・配達料</span>' : '',
+    o.asap ? '<span class="c-kind k-asap">できしだい</span>' : '',
+    o.route && o.route !== 'アプリ' ? `<span class="c-kind k-route">${esc(o.route)}</span>` : '',   // 電話・店頭で入れた注文
+  ].join('');
+  const pay = o.kind !== 'delivery' ? '（店頭で支払い）'
+    : `（お届けのときに現金で${o.fee != null ? `・配達料 ${yen(o.fee)} は別` : needsFee(o) ? '・配達料は承認のときに決めます' : ''}）`;
   return `<article class="card ${fresh.has(o.id) ? 'fresh' : ''} ${late ? 'late' : ''} ${o.kind === 'delivery' ? 'is-delivery' : ''}">
       <div class="c-top">
-        <b class="c-no">${o.no}</b>
+        <b class="c-no">${esc(o.no)}</b>
         <div class="c-time"><small>${isToday ? '今日' : mdw(t)} ${whenWord(o)}${o.status === 'request' ? '（希望）' : ''}</small><b>${hhmm(t)}${o.asap ? '<i>頃</i>' : ''}</b>${ACTIVE.includes(o.status) && o.status !== 'request' ? `<em>${untilText(o.pickupAt)}</em>` : ''}</div>
       </div>
-      ${isRequest(o) || o.asap ? `<div class="c-tags">${isRequest(o) ? `<span class="c-kind k-${o.kind}">${KIND[o.kind]}・${o.meals || 0}食</span>${needsFee(o) ? '<span class="c-kind k-ask">要相談・配達料</span>' : ''}` : '<span class="c-kind k-asap">できしだい</span>'}</div>` : ''}
-      <div class="c-who"><b>${esc(o.name)} 様</b><a href="tel:${esc(o.tel)}">${esc(o.tel)}</a></div>
+      ${tags ? `<div class="c-tags">${tags}</div>` : ''}
+      <div class="c-who"><b>${esc(who(o))}</b>${o.tel ? `<a href="tel:${esc(o.tel)}">${esc(o.tel)}</a>` : ''}</div>
       ${o.kind === 'delivery' ? `<p class="c-addr">お届け先：${esc(o.address)}${o.address2 ? `　${esc(o.address2)}` : ''}<a href="${map}" target="_blank" rel="noopener">地図</a></p>` : ''}
       <ul class="c-lines">${o.lines.map(l => `
         <li><b>${esc(l.name)}</b><span class="q">×${l.qty}</span>${l.opts.length ? `<small>${esc(l.opts.join(' / '))}</small>` : ''}</li>`).join('')}
       </ul>
       ${o.memo ? `<p class="c-memo">ご要望：${esc(o.memo)}</p>` : ''}
-      <div class="c-sum"><span>合計${o.kind === 'delivery' ? `（お届けのときに現金で${needsFee(o) ? '・配達料は承認のときにお伝えください' : ''}）` : '（店頭で支払い）'}</span><b>${yen(o.total)}</b></div>
+      <div class="c-sum"><span>合計${pay}</span><b>${yen(o.total)}</b></div>
+      ${o.shopMsg && o.status !== 'declined' ? `<p class="c-msg">お客様への一言：${esc(o.shopMsg)}</p>` : ''}
       ${o.status === 'canceled' ? `<p class="c-cancel">取り消し（${esc(o.canceledBy || '')}）</p>` : ''}
-      ${o.status === 'declined' ? `<p class="c-cancel">お断りしました${o.declineNote ? `（${esc(o.declineNote)}）` : ''}</p>` : ''}
+      ${o.status === 'declined' ? `<p class="c-cancel">お断りしました${o.shopMsg || o.declineNote ? `（${esc(o.shopMsg || o.declineNote)}）` : ''}</p>` : ''}
       <div class="c-btns">
         ${o.status === 'request' ? `
           <button class="b-sub danger" data-act="decline" data-id="${o.id}">お断りする</button>
           <button class="b-main b-approve" data-act="approve" data-id="${o.id}">承認する</button>` : `
         ${back ? `<button class="b-sub" data-act="back" data-id="${o.id}">戻す</button>` : ''}
-        ${o.status === 'new' ? `<button class="b-sub danger" data-act="cancel" data-id="${o.id}">取り消す</button>` : ''}
+        ${NEXT[o.status] ? `<button class="b-sub danger" data-act="cancel" data-id="${o.id}">取り消す</button>` : ''}
         ${next ? `<button class="b-main b-${next.to}" data-act="next" data-id="${o.id}">${nextLabel(o)}</button>` : ''}`}
       </div>
     </article>`;
 }
 
 function render() {
-  const all = getOrders();
+  const all = list();
   const today = dateKey(new Date());
   const byTime = (a, b) => a.pickupAt.localeCompare(b.pickupAt);
   for (const col of $$('.col')) {
-    const list = all.filter(o => o.status === col.dataset.col && !isBooked(o)).sort(byTime);
-    $('.n', col).textContent = list.length;
-    $('.list', col).innerHTML = list.length ? list.map(card).join('') : '<p class="none">ありません</p>';
+    const items = all.filter(o => o.status === col.dataset.col && !isBooked(o)).sort(byTime);
+    $('.n', col).textContent = items.length;
+    $('.list', col).innerHTML = items.length ? items.map(card).join('') : '<p class="none">ありません</p>';
   }
   const later = all.filter(o => isBooked(o)).sort(byTime);
   $('.booked .n').textContent = later.length;
@@ -145,7 +293,7 @@ function render() {
   $('.reqs .n').textContent = reqs.length;
   $('.reqs .list').innerHTML = reqs.map(card).join('');
 
-  const accepting = DB.get('accepting', true);
+  const accepting = isAccepting();
   $('#accepting').checked = accepting;
   $('#acceptText').textContent = accepting ? '注文を受け付け中' : '受付を止めています';
   $('.s-accept').classList.toggle('off', !accepting);
@@ -156,10 +304,12 @@ function render() {
   $('#sound').classList.toggle('on', soundOn);
   $('#sound').classList.toggle('warn', !soundOn && waiting > 0);
   document.title = (waiting ? `（${waiting}）` : '') + 'バグるOrder受付';
+  paintNet();
 }
 
 function checkNew() {
-  const all = getOrders();
+  const all = list();
+  if (!known) { known = new Set(all.map(o => o.id)); return; }   // 受け口から、はじめて読めたとき
   const added = all.filter(o => !known.has(o.id));
   if (added.length) {
     added.forEach(o => fresh.add(o.id));
@@ -169,34 +319,262 @@ function checkNew() {
   known = new Set(all.map(o => o.id));
 }
 
-document.addEventListener('click', e => {
+document.addEventListener('click', async e => {
   const b = e.target.closest('[data-act]');
-  if (!b) return;
-  const o = getOrders().find(x => x.id === b.dataset.id);
+  if (!b || b.disabled) return;
+  const o = list().find(x => x.id === b.dataset.id);
   if (!o) return;
-  if (b.dataset.act === 'next') {
-    const to = NEXT[o.status].to;
-    updateOrder(o.id, { status: to });
-    // ★試作ではお客様と同じ端末なので、ここでスタンプを押す。本番はサーバーがお客様のカードに押す
-    if (to === 'done') addStamp(KIND[o.kind || 'pickup']);
+  const act = b.dataset.act;
+  if (act === 'approve' || act === 'decline') return openDecide(o, act === 'approve');
+  let patch = null;
+  if (act === 'next' && NEXT[o.status]) patch = { status: NEXT[o.status].to };
+  if (act === 'back' && backOf(o)) patch = { status: backOf(o) };
+  if (act === 'cancel' && confirm(`注文番号 ${o.no}（${who(o)}）を取り消します。お客様にはお電話でもお伝えください。`)) {
+    patch = { status: 'canceled', canceledBy: 'お店' };
   }
-  if (b.dataset.act === 'back') updateOrder(o.id, { status: backOf(o) });
-  if (b.dataset.act === 'approve' && confirm(`${KIND[o.kind]}の申請 ${o.no}（${o.name} 様・${mdw(new Date(o.pickupAt))} ${hhmm(new Date(o.pickupAt))}）を承認します。この注文は確定になります。よろしいですか？`)) {
-    updateOrder(o.id, { status: 'accepted' });
-  }
-  if (b.dataset.act === 'decline') {
-    const note = prompt(`${KIND[o.kind]}の申請 ${o.no}（${o.name} 様）をお断りします。お客様の画面に出す一言があれば入れてください（なくても構いません）。`, '');
-    if (note !== null) updateOrder(o.id, { status: 'declined', declineNote: note.trim() });
-  }
-  if (b.dataset.act === 'cancel' && confirm(`注文番号 ${o.no}（${o.name} 様）を取り消します。お客様にはお電話でもお伝えください。`)) {
-    updateOrder(o.id, { status: 'canceled', canceledBy: 'お店' });
-  }
+  if (!patch) return;
+  b.disabled = true;   // 受け口に送っているあいだ、2回押されないように
   fresh.delete(o.id);
+  const ok = await change(o, patch);
+  // ★試作ではお客様と同じ端末なので、ここでスタンプを押す。受け口につないだときは、お客様のスマホが押す（js/order-api.js の stampDoneOrders）
+  if (ok && patch.status === 'done' && !ORDERS_ONLINE) addStamp(KIND[o.kind || 'pickup']);
   render();
 });
 
-$('#accepting').addEventListener('change', e => { DB.set('accepting', e.target.checked); render(); });
-// 「更新」：画面を読み直す（公開した新しい版もここで入る。注文は保存してあるので消えない）。
+/* ---------------------------------------------------------------------
+ *  配達・大量注文の申請に返事をする（承認・お断り）
+ *  ・お客様への一言（shopMsg）は、お客様のアプリの注文の様子に出る
+ *  ・配達で TAKEOUT.deliveryFreeMin 食より少ないとき（要相談）は、承認のときに配達料（fee）を入れる。お客様のアプリに出る
+ * --------------------------------------------------------------------- */
+
+let deciding = null;   // { id, approve }
+
+function openDecide(o, approve) {
+  deciding = { id: o.id, approve };
+  const t = new Date(o.pickupAt);
+  const fee = approve && needsFee(o);
+  $('#dTitle').textContent = `${KIND[o.kind]}の申請 ${o.no} を${approve ? '承認する' : 'お断りする'}`;
+  $('#dWho').textContent = `${who(o)}・${mdw(t)} ${hhmm(t)} ${whenWord(o)}・${o.meals || 0}食・${yen(o.total)}`;
+  $('#dFeeRow').hidden = !fee;
+  $('#dFee').value = o.fee ?? '';
+  $('#dMsg').value = o.shopMsg || '';
+  $('#dMsg').placeholder = approve ? '例：お届けは12時ごろになります' : '例：その日は貸切のため、お受けできません';
+  $('#dOk').textContent = approve ? '承認する' : 'お断りする';
+  $('#dOk').className = `b-main ${approve ? 'b-approve' : 'b-decline'}`;
+  $('#dOk').disabled = false;
+  decideErr('');
+  $('#decideDlg').showModal();
+}
+function decideErr(text) { $('#dErr').textContent = text; $('#dErr').hidden = !text; }
+
+$('#dOk').addEventListener('click', async () => {
+  const o = list().find(x => x.id === deciding?.id);
+  if (!o || o.status !== 'request') { $('#decideDlg').close(); return alert('この申請は、もう返事が済んでいます。'); }
+  const patch = { status: deciding.approve ? 'accepted' : 'declined', shopMsg: $('#dMsg').value.trim() };
+  if (deciding.approve && needsFee(o)) {
+    const v = $('#dFee').value.trim();
+    const fee = Number(v);
+    if (v === '' || !Number.isInteger(fee) || fee < 0 || fee > 100000) return decideErr('配達料を入れてください（無料なら 0）');
+    patch.fee = fee;
+  }
+  $('#dOk').disabled = true;
+  fresh.delete(o.id);
+  const ok = await change(o, patch);
+  $('#dOk').disabled = false;
+  if (ok || list().find(x => x.id === o.id)?.status !== 'request') $('#decideDlg').close();
+});
+
+/* ---------------------------------------------------------------------
+ *  電話・店頭の注文を入れる（受け付けた形で入る：調理中か受付済み。お客様のアプリには出ない）
+ *  品物と値段は、公式アプリと同じ（data.js の ITEMS、common.js の priceOf）。テイクアウトだけ（配達・大量注文は申請から）
+ * --------------------------------------------------------------------- */
+
+let phone = null;   // 入れている注文 { lines: [{ id, name, opts, unit, qty }], rid }。rid は送り直しで2つにならない印
+const phoneMeals = () => mealCount(phone.lines);
+const phoneWhen = () => $('input[name="pWhen"]:checked').value;
+/** 「できしだい」の時刻（食数で変わる。営業時間の外なら、いまから） */
+function phoneAsap() {
+  const lead = leadFor(phoneMeals());
+  return asapTime(new Date(), lead) || new Date(Math.ceil((Date.now() + lead * 60000) / 300000) * 300000);
+}
+function phoneErr(text) { $('#pErr').textContent = text; $('#pErr').hidden = !text; }
+
+function openPhone() {
+  phone = { lines: [], rid: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10) };
+  $('#phoneDlg input[name="pRoute"][value="電話"]').checked = true;
+  $('#phoneDlg input[name="pWhen"][value="asap"]').checked = true;
+  ['#pName', '#pTel', '#pNote'].forEach(s => { $(s).value = ''; });
+  const t = phoneAsap();
+  const slot = new Date(Math.ceil(t.getTime() / (TAKEOUT.stepMinutes * 60000)) * TAKEOUT.stepMinutes * 60000);
+  $('#pDay').value = $('#pDay').min = dateKey(new Date());
+  $('#pDay').value = dateKey(slot);
+  $('#pHm').value = hhmm(slot);
+  $('#pItem').innerHTML = '<option value="">品物を選んでください</option>' + CATEGORIES.map(c => `<optgroup label="${esc(c.name)}">${
+    ITEMS.filter(i => i.cat === c.id).map(i => `<option value="${i.id}">${esc(i.full || i.name)}（${yen(i.price)}${i.groups.length ? '〜' : ''}）</option>`).join('')}</optgroup>`).join('');
+  $('#pQty').value = 1;
+  $('#pSend').disabled = false;
+  paintOpts();
+  paintPhone();
+  phoneErr('');
+  $('#phoneDlg').showModal();
+}
+
+/** 選んだ品物の、選ぶ項目（ソース・ご飯の量など） */
+function paintOpts() {
+  const item = ITEM_BY_ID[$('#pItem').value];
+  const plus = c => c.p ? `（+${yen(c.p)}）` : '';
+  $('#pOpts').innerHTML = !item ? '' : item.groups.map(g => {
+    if (g.type === 'one') {
+      const def = g.choices.findIndex(c => c.plain);   // 「普通」「なし」があれば、はじめからそれ。ソースなどは選んでもらう
+      return `<label class="f-opt"><span>${esc(g.name)}</span><select data-g="${g.id}">${def < 0 ? '<option value="">選んでください</option>' : ''}${
+        g.choices.map((c, i) => `<option value="${i}" ${i === def ? 'selected' : ''}>${esc(c.n)}${plus(c)}</option>`).join('')}</select></label>`;
+    }
+    if (g.type === 'many') {
+      return `<div class="f-opt"><span>${esc(g.name)}（なければ選ばない）</span><div class="f-checks">${
+        g.choices.map((c, i) => c.none ? '' : `<label><input type="checkbox" data-g="${g.id}" value="${i}">${esc(c.n)}${plus(c)}</label>`).join('')}</div></div>`;
+    }
+    if (g.type === 'count') {
+      return `<label class="f-opt"><span>${esc(g.name)}（1つ ${yen(g.choices[0].p)}）</span><input type="number" data-g="${g.id}" min="0" max="${g.max || 10}" value="0" inputmode="numeric"></label>`;
+    }
+    return '';
+  }).join('');
+}
+
+/** 選んだもの（common.js の priceOf に渡す形） */
+function readSel(item) {
+  const sel = {};
+  for (const g of item.groups) {
+    if (g.type === 'one') {
+      const v = $(`#pOpts select[data-g="${g.id}"]`).value;
+      sel[g.id] = v === '' ? null : Number(v);
+    }
+    if (g.type === 'many') {
+      const on = $$(`#pOpts input[data-g="${g.id}"]:checked`).map(x => Number(x.value));
+      const none = g.choices.findIndex(c => c.none);
+      sel[g.id] = on.length ? on : none >= 0 ? [none] : [];
+    }
+    if (g.type === 'count') sel[g.id] = Math.max(0, Math.min(g.max || 10, parseInt($(`#pOpts input[data-g="${g.id}"]`).value, 10) || 0));
+  }
+  return sel;
+}
+
+/** 入れた品物・合計・受け取りの時刻 */
+function paintPhone() {
+  $('#pLines').innerHTML = phone.lines.length ? phone.lines.map((l, i) => `
+    <li><b>${esc(l.name)}</b><span class="q">×${l.qty}</span><span class="p-sum">${yen(l.unit * l.qty)}</span><button type="button" class="p-del" data-del="${i}" aria-label="消す">✕</button>${
+      l.opts.length ? `<small>${esc(l.opts.join(' / '))}</small>` : ''}</li>`).join('') : '<li class="none">まだ品物がありません</li>';
+  $('#pTotal').textContent = yen(phone.lines.reduce((s, l) => s + l.unit * l.qty, 0));
+  const asap = phoneWhen() === 'asap';
+  $('#pTime').hidden = asap;
+  $('#pAsap').hidden = !asap;
+  $('#pAsap').textContent = `${hhmm(phoneAsap())}頃（作るのに約${leadFor(phoneMeals())}分。食数で変わります。営業時間の外なら、次に開けてから）`;
+}
+
+$('#phoneBtn').addEventListener('click', openPhone);
+$('#pItem').addEventListener('change', () => { paintOpts(); phoneErr(''); });
+$$('#phoneDlg input[name="pWhen"]').forEach(r => r.addEventListener('change', paintPhone));
+$('#pAdd').addEventListener('click', () => {
+  const item = ITEM_BY_ID[$('#pItem').value];
+  if (!item) return phoneErr('品物を選んでください');
+  const p = priceOf(item, readSel(item));
+  if (p.missing) return phoneErr(`「${p.missing.name}」を選んでください`);
+  const qty = Math.max(1, Math.min(99, parseInt($('#pQty').value, 10) || 1));
+  phone.lines.push({ id: item.id, name: item.full || item.name, opts: p.opts, unit: p.unit, qty });
+  $('#pItem').value = '';
+  $('#pQty').value = 1;
+  paintOpts();
+  paintPhone();
+  phoneErr('');
+});
+$('#pLines').addEventListener('click', e => {
+  const d = e.target.closest('[data-del]');
+  if (!d) return;
+  phone.lines.splice(Number(d.dataset.del), 1);
+  paintPhone();
+});
+$$('dialog [data-close]').forEach(b => b.addEventListener('click', () => b.closest('dialog').close()));
+
+$('#pSend').addEventListener('click', async () => {
+  const route = $('input[name="pRoute"]:checked').value;
+  const name = $('#pName').value.trim();
+  const asap = phoneWhen() === 'asap';
+  const at = asap ? phoneAsap() : new Date(`${$('#pDay').value}T${$('#pHm').value}`);
+  if (route === '電話' && !name) return phoneErr('お名前を入れてください');
+  if ($('#pItem').value) return phoneErr('選んだ品物を「＋ 入れる」で入れてください（入れないなら、品物を「品物を選んでください」に戻す）');
+  if (!phone.lines.length) return phoneErr('品物を1つ以上入れてください（品物を選んで「＋ 入れる」）');
+  if (!asap && (!$('#pDay').value || !$('#pHm').value || isNaN(at))) return phoneErr('受け取りの日と時刻を入れてください');
+  if (!asap && at < Date.now() - 5 * 60000) return phoneErr('受け取りの時刻が、もう過ぎています');
+  const row = { kind: 'pickup', asap, pickupAt: at.toISOString(), name, tel: $('#pTel').value.trim(), route, note: $('#pNote').value.trim(),
+    lines: phone.lines, meals: phoneMeals() };
+  $('#pSend').disabled = true;
+  const ok = await addPhoneOrder(row);
+  $('#pSend').disabled = false;
+  if (ok) $('#phoneDlg').close();
+});
+
+/** 電話・店頭の注文を入れる。うまくいったら true */
+async function addPhoneOrder(row) {
+  if (!ORDERS_ONLINE) {
+    const now = new Date();
+    const o = { id: 'o' + now.getTime(), no: nextOrderNo(now), date: dateKey(now), createdAt: now.toISOString(), status: 'accepted', ...row,
+      memo: row.note, total: row.lines.reduce((s, l) => s + l.unit * l.qty, 0), times: { accepted: now.toISOString() } };
+    known?.add(o.id);   // 自分で入れた注文には「新しい」の印を付けない
+    saveOrders([...getOrders(), o]);
+    render();
+    return true;
+  }
+  net.gen++;
+  try {
+    const r = await staffPost({ action: 'saveOrder', row, rid: phone.rid });   // status を省くと accepted になる
+    const o = fromServer(r.row);
+    known?.add(o.id);
+    put(o);
+    return true;
+  } catch (e) {
+    if (!quiet(e)) phoneErr(staffText(e));
+    return false;
+  } finally {
+    net.gen++;
+    render();
+  }
+}
+
+/* ---------------------------------------------------------------------
+ *  合言葉の画面（受け口につないだときだけ）
+ * --------------------------------------------------------------------- */
+
+$('#pinGate').addEventListener('submit', async e => {
+  e.preventDefault();
+  const pin = $('#pin').value.trim();
+  if (!pin) return;
+  if (TABLET && soundOn) unlockSound().then(() => { checkSound(); render(); });   // 触ったついでに、音も出せるようにする（iPad）
+  const btn = $('#pinGate button');
+  btn.disabled = true;
+  $('#pinErr').hidden = true;
+  try {
+    const r = await orderPost({ action: 'orders', pin });
+    pinSet(pin);
+    $('#pin').value = '';
+    $('#pinGate').hidden = true;
+    net.error = '';
+    net.at = Date.now();
+    take(r);
+  } catch (err) {
+    $('#pinErr').textContent = staffText(err);
+    $('#pinErr').hidden = false;
+  }
+  btn.disabled = false;
+  render();
+});
+
+$('#accepting').addEventListener('change', async e => {
+  const on = e.target.checked;
+  e.target.disabled = true;
+  await setAccepting(on);
+  e.target.disabled = false;
+  render();
+});
+// 「更新」：画面を読み直す（公開した新しい版もここで入る。注文は保存してある・受け口にあるので消えない）。
 // ★iPad は読み直すと音が止まるので、また「画面をタッチしてください」が出る（ブラウザの決まり）
 $('#reloadBtn').addEventListener('click', () => location.reload());
 // 音をオンにして、試しに1回鳴らす（受付待ちがあれば、そのまま鳴り続ける）。押した・触ったその場で呼ぶ
@@ -216,14 +594,15 @@ $('#sound').addEventListener('click', () => {
   soundOnNow();
 });
 $('#soundGate').addEventListener('click', soundOnNow);
-// タブレットを起こした・ほかのアプリから戻ったときは、音をもう一度出せるようにする（出せなければ「画面をタッチ」が出る）
+// タブレットを起こした・ほかのアプリから戻ったときは、音をもう一度出せるようにする（出せなければ「画面をタッチ」が出る）。注文も読み直す
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && soundOn && audio) audio.resume().catch(() => {});
+  if (document.visibilityState === 'visible') pull();
   setTimeout(checkSound, 500);
 });
 
 DB.onChange(key => {
-  if (key === 'orders') checkNew();
+  if (key === 'orders' && !ORDERS_ONLINE) checkNew();
   render();
 });
 // T3Works の営業日も読み直す（30分に1回まで。変わっていたら描き直す）
@@ -232,6 +611,12 @@ setInterval(() => { render(); syncDays(); }, 30000);
 $('#cookBefore').textContent = TAKEOUT.cookBefore;   // 「受付済み」の見出しの「◯分前」
 render();
 syncDays();
+// 受け口につないだときは、15秒ごとに注文を読み直す。電波が戻ったときもすぐ読む。合言葉がまだなら、合言葉の画面を出す
+if (ORDERS_ONLINE) {
+  setInterval(pull, POLL_EVERY);
+  window.addEventListener('online', pull);
+  if (pinGet()) pull(); else askPin();
+}
 // タブレットは、開いたときから音をオンにする。ブラウザが許さないとき（まだ画面に触っていない）は、少し待って「画面をタッチ」を出す
 if (TABLET) {
   unlockSound().then(() => { checkSound(); render(); });

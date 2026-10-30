@@ -120,7 +120,7 @@ function viewHome() {
         <img src="${SHOP.hero}" alt="">
         <div class="hero-in">
           <img class="hero-logo" src="img/logo.png" alt="">
-          <div><p class="hero-catch">${esc(SHOP.catch)}</p><p class="hero-name">${esc(SHOP.name)}</p></div>
+          <div><p class="hero-en">CHARCOAL GRILLED HAMBURG</p><p class="hero-catch">${esc(SHOP.catch)}</p><p class="hero-name">${esc(SHOP.name)}</p></div>
         </div>
       </section>
       ${stateHtml(st)}
@@ -133,7 +133,7 @@ function viewHome() {
       <a class="link-card" href="#reserve">${ICON.cal}<span><b>ネット予約（席のご予約）</b><small>空いている日と時間を選んで、リクエストを送れます。お店が確かめて、確定をメールでお知らせします</small></span></a>
       <a class="link-card" href="#request">${ICON.truck}<span><b>配達・大量注文の申請</b><small>配達は${TAKEOUT.deliveryFreeMin}食以上で無料（原則${TAKEOUT.deliveryKm}km圏内）・${TAKEOUT.deliveryFreeMin}食未満は要相談。大量注文は${TAKEOUT.bulkMin}食以上。お店が確認してから確定します</small></span></a>
       ${installCard()}
-      <h2 class="sec">お知らせ</h2>
+      <h2 class="sec" data-en="NEWS">お知らせ</h2>
       <ul class="news">${NEWS.map(n => `
         <li><time>${n.date.slice(5).replace('-', '/')}</time><b>${esc(n.title)}</b><p>${esc(n.body)}</p></li>`).join('')}
       </ul>
@@ -194,7 +194,7 @@ function viewMenu() {
       <button class="link-line" data-act="allergy">アレルギーについて ›</button>
       ${CATEGORIES.map(c => `
         <section class="cat-sec" id="cat-${c.id}">
-          <h2 class="sec">${esc(c.name)}</h2>
+          <h2 class="sec" data-en="${esc(c.en)}">${esc(c.name)}</h2>
           ${c.id === 'hamburg' || c.id === 'teishoku' ? setNote : ''}
           ${c.id === 'side' ? `<p class="cat-note">${esc(SIDE_CAT_NOTE)}</p>` : ''}
           <div class="items">${ITEMS.filter(i => i.cat === c.id).map(itemRow).join('')}</div>
@@ -784,7 +784,7 @@ function viewStamp() {
           <div class="coupon">${ICON.gift}<div><b>${esc(c.title)}</b><small>${esc(c.label || `${c.at}個たまった特典`)}</small></div><button class="btn btn-small" data-act="coupon" data-arg="${c.id}" ${useOk ? '' : 'disabled'}>使う</button></div>`).join('')}
         </div>
         <p class="hint">特典は1日${STAMP.couponsPerDay}枚まで。他の特典とは一緒に使えません。</p>` : ''}
-      <h2 class="sec">特典</h2>
+      <h2 class="sec" data-en="REWARDS">特典</h2>
       <ul class="rewards">
         <li class="${ME.registeredAt ? 'done' : ''}"><span>登録</span><b>${STAMP.welcome.points}ポイント ＋ ${esc(couponTitle(STAMP.welcome.options))}</b></li>
         ${STAMP.rewards.map(r => `<li class="${on >= r.at ? 'done' : ''} ${r.goal ? 'goal' : ''}"><span>${r.at}個${r.goal ? '<small>ゴール</small>' : ''}</span><b>${esc(couponTitle(r.options))}</b></li>`).join('')}
@@ -924,7 +924,7 @@ function viewShop() {
         ${row(ICON.insta, 'Instagram', '@baguru.hamburg', `<a class="mini" href="${SHOP.instagram}" target="_blank" rel="noopener">見る</a>`)}
       </ul>
       <div class="map"><iframe src="https://www.google.com/maps?q=${q}&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="地図"></iframe></div>
-      <h2 class="sec">店内のメニュー</h2>
+      <h2 class="sec" data-en="IN-STORE MENU">店内のメニュー</h2>
       <p class="hint">お店でお召し上がりのメニューです（アプリからは注文できません）。価格は税込です。テイクアウトは「注文」からどうぞ。</p>
       <div class="dine">${DINE_IN.map((c, i) => `
         <details ${i === 0 ? 'open' : ''}>

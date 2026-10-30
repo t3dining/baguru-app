@@ -2,7 +2,8 @@
  *  お店の画面（タブレットを横にして使う想定。スマホでも1列で見られる）
  * ===================================================================== */
 
-/* 色は、お店用のアイコン（深い緑の地に金）に合わせる。お客さまの公式アプリ（こげ茶・ピンク）と、ひと目で見分けるため（2026-10-30 ko-dai さんの指示） */
+/* 色は、お店用のアイコン（深い緑の地に金）に合わせる。お客さまの公式アプリと、ひと目で見分けるため（2026-10-30 ko-dai さんの指示）。
+   公式アプリは同じ日に、こげ茶・ピンクから、ホームページに寄せた炭の黒（#1f1916）・炭火の赤（#c7361d）・真鍮の金に変わった。緑の地なので今も見分けられる */
 :root {
   --main: #1d3128;        /* 深い緑（上の帯・番号・ボタン）。アイコンの地の色 */
   --bg: #e4ebe6;          /* 画面の地（うすい緑がかった灰色） */
@@ -63,7 +64,24 @@ button { font: inherit; cursor: pointer; border: 0; }
 .sound-gate b { font-size: clamp(20px, 6vw, 30px); }   /* スマホの幅でも1行に収める */
 .sound-gate span:last-child { font-size: 15px; color: #d8e5dc; }
 
-.demo-bar { background: #fff3c4; color: #6b5200; font-size: 12px; text-align: center; padding: 4px 12px; }
+/* 上の細い帯：試作（黄）・受け口から読めている（緑）・読めない（赤。注文が届いていないかもしれない） */
+.net-bar { font-size: 12px; text-align: center; padding: 4px 12px; }
+.net-bar.demo { background: #fff3c4; color: #6b5200; }
+.net-bar.ok { background: var(--green-soft); color: #1f6440; }
+.net-bar.ng { background: var(--red); color: #fff; font-size: 14px; font-weight: 700; padding: 8px 12px; }
+
+/* 合言葉の画面（受け口につないだとき。音の「画面をタッチ」より上に出す） */
+.pin-gate {
+  position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  background: var(--main); color: #fff; text-align: center; padding: 24px;
+}
+.pin-gate[hidden] { display: none; }
+.pin-gate img { width: 88px; height: 88px; border-radius: 22px; }
+.pin-gate b { font-size: 22px; }
+.pin-gate span { font-size: 14px; color: #d8e5dc; max-width: 26em; }
+.pin-gate input { width: min(280px, 100%); height: 50px; border-radius: 12px; border: 2px solid var(--gold); padding: 0 14px; font: inherit; font-size: 20px; text-align: center; }
+.pin-gate .b-main { flex: none; width: min(280px, 100%); background: var(--gold); color: var(--main); }
+.pin-err { margin: 0; color: #ffb3a8; font-weight: 700; }
 
 .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; padding: 14px 18px; align-items: start; }
 .col, .past, .booked { background: rgba(255, 255, 255, .45); border-radius: 16px; padding: 10px; }
@@ -105,6 +123,7 @@ button { font: inherit; cursor: pointer; border: 0; }
 .c-sum span { font-size: 12px; color: var(--sub); }
 .c-sum b { font-size: 18px; }
 .c-cancel { margin: 8px 0 0; color: var(--red); font-weight: 700; font-size: 13px; }
+.c-msg { margin: 8px 0 0; padding: 6px 10px; border-radius: 8px; background: var(--green-soft); font-size: 13px; }
 .c-btns { display: flex; gap: 8px; margin-top: 10px; }
 .c-btns:empty { display: none; }
 .b-main { flex: 1; height: 46px; border-radius: 12px; color: #fff; font-weight: 800; font-size: 16px; background: var(--main); }
@@ -113,6 +132,8 @@ button { font: inherit; cursor: pointer; border: 0; }
 .b-done { background: var(--main); }
 .b-sub { height: 46px; padding: 0 14px; border-radius: 12px; background: var(--soft); color: var(--main); font-weight: 700; }
 .b-sub.danger { color: var(--red); background: var(--red-soft); }
+.b-main:disabled, .b-sub:disabled { opacity: .5; cursor: default; }
+.b-decline { background: var(--red); }
 
 /* 配達・大量注文の申請 */
 .reqs { margin: 14px 18px 0; padding: 10px; border-radius: 16px; background: #e7eefb; border: 2px solid #9fb8e3; }
@@ -128,6 +149,55 @@ button { font: inherit; cursor: pointer; border: 0; }
 .c-addr { margin: 8px 0 0; padding: 6px 10px; border-radius: 8px; background: #eef3fb; font-size: 13.5px; font-weight: 600; }
 .c-addr a { margin-left: 8px; color: var(--blue); font-weight: 700; }
 .b-approve { background: #2f5fa3; }
+.c-kind.k-route { background: var(--gold-soft); color: #6b4e10; }   /* 電話・店頭で入れた注文 */
+
+/* 窓（申請の返事・電話の注文） */
+.dlg { width: min(440px, calc(100% - 32px)); max-height: calc(100% - 32px); border: 0; border-radius: 18px; padding: 18px; color: var(--ink); background: var(--paper); }
+.dlg.wide { width: min(620px, calc(100% - 32px)); }
+.dlg::backdrop { background: rgba(18, 32, 25, .55); }
+.dlg h3 { margin: 0 0 6px; font-size: 18px; color: var(--main); }
+.f-note { margin: 0 0 12px; color: var(--sub); font-size: 13.5px; }
+.f-note[hidden] { display: none; }
+.f-field { display: flex; flex-direction: column; gap: 4px; margin: 0 0 12px; font-size: 13px; font-weight: 700; }
+.f-field[hidden] { display: none; }
+.f-field small { font-weight: 500; color: var(--sub); font-size: 12px; }
+.dlg input:not([type=radio]):not([type=checkbox]), .dlg select, .dlg textarea {
+  font: inherit; font-size: 16px; font-weight: 500; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: #fff; color: var(--ink); width: 100%;
+}
+.dlg textarea { resize: vertical; }
+.f-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.f-grid[hidden] { display: none; }
+.seg { display: flex; gap: 6px; margin: 0 0 12px; }
+.seg label { flex: 1; }
+.seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.seg span { display: block; text-align: center; padding: 8px 6px; border-radius: 10px; background: var(--soft); color: var(--main); font-weight: 700; cursor: pointer; }
+.seg input:checked + span { background: var(--main); color: #fff; }
+.seg input:focus-visible + span { outline: 2px solid var(--gold); outline-offset: 2px; }
+.f-item { border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px 12px; margin: 0 0 10px; }
+.f-item legend { font-size: 13px; font-weight: 700; padding: 0 4px; }
+.f-opt { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; font-size: 13px; font-weight: 700; }
+.f-checks { display: flex; flex-wrap: wrap; gap: 4px 14px; font-weight: 500; font-size: 14px; }
+.f-checks label { display: flex; align-items: center; gap: 4px; }
+.f-add { display: flex; align-items: flex-end; gap: 10px; margin-top: 10px; }
+.f-qty { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; }
+.dlg .f-qty input { width: 80px; }
+.f-add .b-sub { flex: 1; background: var(--main); color: #fff; }
+.p-lines { list-style: none; margin: 0 0 6px; padding: 0; }
+.p-lines li { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 2px 10px; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.p-lines li.none { display: block; color: var(--sub); text-align: center; font-size: 13px; border: 0; }
+.p-lines .q { font-weight: 800; color: var(--accent); }
+.p-lines small { grid-column: 1 / -1; color: var(--sub); font-size: 13px; }
+.p-del { width: 32px; height: 32px; border-radius: 50%; background: var(--red-soft); color: var(--red); font-weight: 800; }
+.f-total { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 12px; }
+.f-total span { font-size: 12px; color: var(--sub); }
+.f-total b { font-size: 20px; }
+.dlg-err { margin: 0 0 10px; padding: 8px 10px; border-radius: 10px; background: var(--red-soft); color: var(--red); font-weight: 700; font-size: 13.5px; }
+.dlg-err[hidden] { display: none; }
+.dlg-btns { display: flex; gap: 8px; }
+
+@media (max-width: 520px) {
+  .f-grid { grid-template-columns: 1fr; }
+}
 
 @media (max-width: 900px) {
   .board { grid-template-columns: 1fr; }

@@ -122,10 +122,11 @@ const NEWS = [
 
 // meal: true … 1つを「1食」と数える（受け取りの最短時間・大量注文・配達の食数）
 const CATEGORIES = [
-  { id: 'hamburg', name: 'ハンバーグBOX', meal: true },
-  { id: 'teishoku', name: 'バグる定食', meal: true },
-  { id: 'acai', name: 'アサイーボウル' },
-  { id: 'side', name: 'サイド・ドリンク' },
+  // en：見出しの右に小さく出す英字（ホームページに寄せた見た目。2026-10-30）
+  { id: 'hamburg', name: 'ハンバーグBOX', en: 'HAMBURG BOX', meal: true },
+  { id: 'teishoku', name: 'バグる定食', en: 'SET MEAL', meal: true },
+  { id: 'acai', name: 'アサイーボウル', en: 'ACAI BOWL' },
+  { id: 'side', name: 'サイド・ドリンク', en: 'SIDE & DRINK' },
 ];
 
 const RICE = {

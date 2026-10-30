@@ -8,7 +8,7 @@
 const FX = {
   calm: !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
   // ロゴのピンク・金・クリーム・こげ茶
-  colors: ['#d24f78', '#e8789a', '#c9973f', '#f3c96b', '#fff6e8', '#4b2a1b'],
+  colors: ['#c7361d', '#e7792f', '#b8914b', '#f3c96b', '#fff6e8', '#1f1916'],   // 炭火の赤・だいだい・真鍮・金・白・炭（ホームページの色）
 
   /** 紙ふぶきとハート。x, y は飛び出す場所（画面の中の位置。省略すると画面の上のまん中）。
    *  kind … 'pop'（少し。スタンプ1個・注文）／'party'（たくさん。ゴール・初回登録） */

@@ -4,14 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">   <!-- 試作のあいだは検索に出さない（2026-10-29 決定。本番で外す） -->
-<meta name="theme-color" content="#4b2a1b">
+<meta name="theme-color" content="#1f1916">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="バグる">
 <title>テイクアウト注文｜バグる</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="img/icon-192.png">
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
-<link rel="stylesheet" href="css/app.css?v=845cd20a">
+<!-- 字の形はホームページと同じ（2026-10-30）。読めないときは、スマホの字で出る -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
+<link rel="stylesheet" href="css/app.css?v=dc206979">
 </head>
 <!-- ホームページの「モバイルオーダーで注文」から開く、注文だけの画面。中身は index.html と同じ（js/app.js の ORDER_ONLY）。
      2026-10-30 に order.html から移した（order.html はお店の画面になった。ko-dai さんの指示） -->
@@ -35,15 +39,15 @@
 </div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<script src="js/data.js?v=34198656"></script>
+<script src="js/data.js?v=93c4501a"></script>
 <script src="js/db.js?v=feb3337d"></script>
 <script src="js/common.js?v=18536022"></script>
 <script src="js/install.js?v=d414ecea"></script>
 <script src="js/stamp-qr.js?v=fb70c463"></script>
-<script src="js/fx.js?v=3648564b"></script>
-<script src="js/order-api.js?v=d352958c"></script>
+<script src="js/fx.js?v=7cb1c3bb"></script>
+<script src="js/order-api.js?v=a0a24de9"></script>
 <script src="js/reserve.js?v=a3c6c27f"></script>
 <script>window.ORDER_ONLY = true;</script>
-<script src="js/app.js?v=080752a9"></script>
+<script src="js/app.js?v=9fe226cc"></script>
 </body>
 </html>
