@@ -85,6 +85,23 @@ function drawCart() {
   if (!bar.hidden) bar.innerHTML = `<span>${ICON.cart}カートを見る<small>${n}点</small></span><b>${yen(cartTotal())}</b>`;
 }
 
+/** カートの1行が、売り切れ・出さないもの（バグるマネージで止めたもの）か。商品か、選んだものの1つでも売り切れなら true */
+function lineOut(c) {
+  const item = ITEM_BY_ID[c.itemId];
+  if (!item || item.hidden || item.soldOut) return true;
+  return (item.groups || []).some(g => {
+    const v = c.sel[g.id];
+    if (g.type === 'one') return typeof v === 'number' && !!g.choices[v]?.soldOut;
+    if (g.type === 'many') return Array.isArray(v) && v.some(i => g.choices[i]?.soldOut);
+    return g.type === 'count' && v > 0 && !!g.choices[0].soldOut;
+  });
+}
+const cartOut = () => cart.filter(lineOut);
+
+/** お店からの一言（バグるマネージで書いたもの。js/content.js の APP_NOTICE）。ホームとメニューのいちばん上に出す */
+const noticeHtml = () => APP_NOTICE
+  ? `<p class="notice shop-notice">${ICON.gift}<span><b>お店からのお知らせ</b><small>${esc(APP_NOTICE.text)}</small></span></p>` : '';
+
 function cartLine(c) {
   const item = ITEM_BY_ID[c.itemId];
   const p = priceOf(item, c.sel);
@@ -124,6 +141,7 @@ function viewHome() {
         </div>
       </section>
       ${stateHtml(st)}
+      ${noticeHtml()}
       ${active.map(orderBanner).join('')}
       <div class="quick">
         <a class="quick-btn q-order" href="#menu">${ICON.bag}<b>テイクアウト注文</b><small>できしだい・時間指定</small></a>
@@ -183,21 +201,25 @@ function firstPickup(lead) {
 function viewMenu() {
   const accepting = DB.get('accepting', true);
   const first = firstPickup(leadFor(cartMeals()));
-  const setNote = '<p class="cat-note">全定食にお得なセット！ ポテトフライ or 唐揚げ（5個）＋¥600／ミニシーザーサラダ ＋¥400</p>';
+  const setNote = `<p class="cat-note">全定食にお得なセット！ ポテトフライ or 唐揚げ（5個）＋${yen(SET.choices[1].p)}／ミニシーザーサラダ ＋${yen(SALAD.choices[1].p)}</p>`;
+  // バグるマネージで「出さない」にした商品は並べない（中身が無くなった見出しも出さない）
+  const shown = c => ITEMS.filter(i => i.cat === c.id && !i.hidden);
+  const cats = CATEGORIES.filter(c => shown(c).length);
   return {
     tab: 'menu', title: 'テイクアウト注文',
     html: `
-      <nav class="cats">${CATEGORIES.map(c => `<button data-act="cat" data-arg="${c.id}">${esc(c.name)}</button>`).join('')}</nav>
+      <nav class="cats">${cats.map(c => `<button data-act="cat" data-arg="${c.id}">${esc(c.name)}</button>`).join('')}</nav>
       ${ORDER_ONLY ? myOrders().filter(o => ACTIVE.includes(o.status)).map(orderBanner).join('') : ''}
       ${accepting ? '' : '<p class="notice warn">ただいま、アプリからの注文の受付を止めています。お急ぎの方はお電話でどうぞ。</p>'}
+      ${noticeHtml()}
       <p class="notice">${ICON.clock}<span>一番早い受け取り：<b>${first}</b><small>最短の受け取りは、${leadRuleText()}（ハンバーグBOX・定食の数）。${esc(TAKEOUT.payNote)}</small></span></p>
       <button class="link-line" data-act="allergy">アレルギーについて ›</button>
-      ${CATEGORIES.map(c => `
+      ${cats.map(c => `
         <section class="cat-sec" id="cat-${c.id}">
           <h2 class="sec" data-en="${esc(c.en)}">${esc(c.name)}</h2>
           ${c.id === 'hamburg' || c.id === 'teishoku' ? setNote : ''}
           ${c.id === 'side' ? `<p class="cat-note">${esc(SIDE_CAT_NOTE)}</p>` : ''}
-          <div class="items">${ITEMS.filter(i => i.cat === c.id).map(itemRow).join('')}</div>
+          <div class="items">${shown(c).map(itemRow).join('')}</div>
         </section>`).join('')}
       <a class="link-card" href="#request">${ICON.truck}<span><b>配達・大量注文はこちら</b><small>配達は${TAKEOUT.deliveryFreeMin}食以上で無料（原則${TAKEOUT.deliveryKm}km圏内）・${TAKEOUT.deliveryFreeMin}食未満は要相談。大量注文は${TAKEOUT.bulkMin}食以上。申請して、お店が承認したら確定です</small></span></a>`,
     after: () => { if (ORDERS_ONLINE) refreshAccepting().then(changed => changed && render(true)).catch(() => {}); },
@@ -208,13 +230,14 @@ function itemRow(i) {
   const from = i.groups.some(g => g.id === 'size');
   // サイド・ドリンクで写真のないものは、小さい絵にして、名前を1行に入れる
   const small = i.cat === 'side' && !i.img;
-  return `<button class="item${small ? ' item-sm' : ''}" data-act="item" data-arg="${i.id}">
+  // 売り切れ（バグるマネージで止めたもの）は、押せないようにして「売り切れ」と出す
+  return `<button class="item${small ? ' item-sm' : ''}${i.soldOut ? ' is-out' : ''}" data-act="item" data-arg="${i.id}" ${i.soldOut ? 'disabled' : ''}>
       ${photo(i, small ? 'thumb sm' : 'thumb')}
       <span class="item-txt">
         <b>${esc(i.name)}</b>
         ${i.sub ? `<small>${esc(i.sub)}</small>` : ''}
         ${i.desc ? `<small class="desc">${esc(i.desc)}</small>` : ''}
-        <em>${yen(i.price)}${from ? '〜' : ''}</em>
+        <em>${yen(i.price)}${from ? '〜' : ''}${i.soldOut ? '<span class="out-tag">売り切れ</span>' : ''}</em>
       </span>
       <span class="plus">＋</span>
     </button>`;
@@ -233,13 +256,13 @@ function groupHtml(g) {
   if (g.type === 'count') {
     // 個数のボタンは、数量と同じく横に並べる：1個 ＋¥130 ……「なし」［− 0 ＋］。「なし」か個数を選ぶまで、カートに入れられない
     const c = g.choices[0];
-    return `<div class="g g-cnt">${head}<div class="g-cnt-row"><small>1個 ＋${yen(c.p)}（${g.max}個まで）</small>
-      <div class="g-cnt-r">${g.required ? `<label class="none-chip"><input type="checkbox" name="${g.id}" value="none">なし</label>` : ''}${stepper(g.id, 0, g.max)}</div></div></div>`;
+    return `<div class="g g-cnt">${head}<div class="g-cnt-row"><small>1個 ＋${yen(c.p)}（${c.soldOut ? '売り切れ' : `${g.max}個まで`}）</small>
+      <div class="g-cnt-r">${g.required ? `<label class="none-chip"><input type="checkbox" name="${g.id}" value="none">なし</label>` : ''}${c.soldOut ? '' : stepper(g.id, 0, g.max)}</div></div></div>`;
   }
   const type = g.type === 'one' ? 'radio' : 'checkbox';
   return `<div class="g">${head}<div class="choices">${g.choices.map((c, i) => `
-      <label class="choice"><input type="${type}" name="${g.id}" value="${i}" ${g.default === i ? 'checked' : ''}>
-        <span class="c-name">${esc(c.n)}</span>${c.show ? `<span class="c-price">${c.show}</span>` : c.p ? `<span class="c-price">＋${yen(c.p)}</span>` : ''}
+      <label class="choice${c.soldOut ? ' off' : ''}"><input type="${type}" name="${g.id}" value="${i}" ${g.default === i && !c.soldOut ? 'checked' : ''} ${c.soldOut ? 'disabled' : ''}>
+        <span class="c-name">${esc(c.n)}${c.soldOut ? '<small>売り切れ</small>' : ''}</span>${c.show ? `<span class="c-price">${c.show}</span>` : c.p ? `<span class="c-price">＋${yen(c.p)}</span>` : ''}
       </label>`).join('')}</div></div>`;
 }
 
@@ -399,13 +422,15 @@ function viewCart() {
   const lines = cart.map(cartLine);
   const meals = cartMeals();
   const bulk = meals >= TAKEOUT.bulkMin;
+  const out = cartOut();
   return {
     tab: 'menu', title: 'カート', back: '#menu',
     html: `
-      <div class="lines">${lines.map(l => `
-        <div class="line">
+      ${out.length ? `<p class="notice warn">売り切れになったものがあります。カートから削除してください。</p>` : ''}
+      <div class="lines">${lines.map((l, k) => `
+        <div class="line${lineOut(cart[k]) ? ' is-out' : ''}">
           ${photo(l.item, 'thumb sm')}
-          <div class="line-txt"><b>${esc(l.name)}</b>${l.opts.length ? `<small>${esc(l.opts.join(' / '))}</small>` : ''}<em>${yen(l.unit * l.qty)}</em></div>
+          <div class="line-txt"><b>${esc(l.name)}</b>${l.opts.length ? `<small>${esc(l.opts.join(' / '))}</small>` : ''}<em>${yen(l.unit * l.qty)}${lineOut(cart[k]) ? '<span class="out-tag">売り切れ</span>' : ''}</em></div>
           <span class="stepper"><button data-act="cq" data-arg="${l.key}:-1" aria-label="減らす">${l.qty === 1 ? '<small>削除</small>' : '−'}</button><b>${l.qty}</b><button data-act="cq" data-arg="${l.key}:1" aria-label="増やす">＋</button></span>
         </div>`).join('')}
       </div>
@@ -414,10 +439,10 @@ function viewCart() {
       ${meals ? `<p class="meals">ハンバーグBOX・定食 <b>${meals}食</b>${bulk ? '' : `・一番早くて${leadFor(meals)}分後に受け取れます`}</p>` : ''}
       ${bulk ? `<p class="notice warn">${ICON.truck}<span>${TAKEOUT.bulkMin}食以上は大量注文です。下の「配達・大量注文を申請する」から申請してください。お店が確認してから確定します。</span></p>` : ''}
       <p class="pay-note">${esc(TAKEOUT.payNote)}</p>
-      <div class="foot foot-2">
+      ${out.length ? '' : `<div class="foot foot-2">
         ${bulk ? '' : '<a class="btn btn-main btn-block" href="#checkout">受け取り時間を選ぶ</a>'}
         <a class="btn ${bulk ? 'btn-main' : 'btn-sub'} btn-block" href="#request">${ICON.truck}配達・大量注文を申請する</a>
-      </div>`,
+      </div>`}`,
   };
 }
 
@@ -529,6 +554,7 @@ async function placeOrder(fields, btn) {
 }
 
 function submitOrder(btn) {
+  if (cartOut().length) { location.hash = '#cart'; return toast('売り切れになったものがあります。カートから削除してください', 'warn'); }
   if (cartMeals() >= TAKEOUT.bulkMin) { location.hash = '#request'; return; }
   const lead = checkoutLead();
   let pickupAt;
@@ -631,6 +657,7 @@ function viewRequest() {
 }
 
 function submitRequest(btn) {
+  if (cartOut().length) { location.hash = '#cart'; return toast('売り切れになったものがあります。カートから削除してください', 'warn'); }
   const meals = cartMeals();
   const kind = $('input[name="r-kind"]:checked')?.value;
   if (!kind) return toast('受け取り方を選んでください', 'warn');
@@ -939,9 +966,9 @@ function viewShop() {
       <p class="hint">お店でお召し上がりのメニューです（アプリからは注文できません）。価格は税込です。テイクアウトは「注文」からどうぞ。</p>
       <div class="dine">${DINE_IN.map((c, i) => `
         <details ${i === 0 ? 'open' : ''}>
-          <summary>${esc(c.name)}<small>${c.items.length}品</small></summary>
+          <summary>${esc(c.name)}<small>${c.items.filter(x => !x.hidden).length}品</small></summary>
           ${c.note ? `<p class="dine-note">${esc(c.note)}</p>` : ''}
-          <ul>${c.items.map(dineItem).join('')}</ul>
+          <ul>${c.items.filter(x => !x.hidden).map(dineItem).join('')}</ul>
         </details>`).join('')}
       </div>`,
   };
@@ -1192,9 +1219,19 @@ if (OWNER_MODE && $('#ownerHome')) {
   };
 }
 
+// バグるマネージで直した中身（js/content.js）。前に読んだ分をすぐ重ねてから描き、そのあと受け口から読み直す（変わっていたら描き直す）
+applyContent(contentNow()?.content);
+const syncContent = () => refreshContent().then(changed => {
+  if (!changed) return;
+  if (!sheet.classList.contains('show')) render(true);
+  drawCart();
+});
+
 $$('[data-icon]').forEach(el => el.insertAdjacentHTML('afterbegin', ICON[el.dataset.icon]));
 render();
 syncDays();
 pullOrders();
+syncContent();
+document.addEventListener('visibilitychange', () => { if (!document.hidden) syncContent(); });
 if (stampParam) claimStamp(stampParam);
 else if (lineParam && !ORDER_ONLY) claimLine(lineParam);

@@ -146,6 +146,15 @@ main { padding: 0 16px; }
 .notice svg { color: var(--brass); margin-top: 1px; }
 .notice small { display: block; color: var(--sub); }
 .notice.warn { background: var(--red-soft); border-color: #f2c9c4; color: var(--red); font-weight: 600; }
+/* バグるマネージで直したもの（2026-10-30）：お店からの一言・売り切れ */
+.notice.shop-notice { background: var(--ember-soft); border-color: rgba(199, 54, 29, .3); }
+.notice.shop-notice svg { color: var(--ember); }
+.notice.shop-notice b { color: var(--ember); }
+.notice.shop-notice small { color: var(--ink); font-size: 13.5px; white-space: pre-line; }
+.out-tag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--coal); color: #fff; font: 700 11px/1.6 var(--jp); vertical-align: 2px; }
+.item.is-out { opacity: .6; cursor: default; }
+.item.is-out .plus { display: none; }
+.line.is-out { border-color: #f2c9c4; background: var(--red-soft); }
 
 .state {
   display: flex; align-items: center; gap: 8px; margin: 14px 0 0;
