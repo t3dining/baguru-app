@@ -777,7 +777,7 @@ function viewStamp() {
       </div>
       <button class="btn btn-main btn-block" data-act="stamp" ${doneToday ? 'disabled' : ''}>${doneToday ? '今日のスタンプはもらいました' : `${ICON.qr}QRを読んでスタンプをもらう`}</button>
       <p class="hint">お店に置いてあるQRを読むと、1個たまります。お店の中（駐車場を含む）にいるときだけ読めます（位置情報を使います）。テイクアウトは、受け取りのときに自動で1個たまります。スタンプは1日${STAMP.perDay}個までです（初回登録の${STAMP.welcome.points}ポイントは別）。</p>
-      ${s.lineMovedAt ? '' : `<button class="link-card" data-act="lineScan">${ICON.card}<span><b>LINEのポイントカードをお持ちの方</b><small>お会計のときに、LINEのショップカードの画面をお店の人に見せてください。お店の人が出す引き継ぎのQRを読むと、同じ数のポイントがこのカードにたまります（1回だけ）</small></span></button>`}
+      ${s.lineMovedAt ? '' : `<button class="link-card" data-act="lineScan">${ICON.card}<span><b>LINEのポイントカードをお持ちの方</b><small>お会計のときに、LINEのショップカードの画面をお店の人に見せてください。お店の人が出す引き継ぎのQRを読むと、同じ数のポイントがこのカードにたまります（1回だけ）。引き継いだ分のマスの特典は出ません（LINEでもらった特典と重ならないように）。既に獲得済みのLINEの特典は、ご利用いただけます</small></span></button>`}
       ${coupons.length ? `
         <h2 class="sec">使える特典</h2>
         ${useOk ? '' : `<p class="notice">${ICON.check}<span>今日はもう特典を使いました。<small>特典は1日${STAMP.couponsPerDay}枚までです（他の特典とは一緒に使えません）。また次のご来店でどうぞ。</small></span></p>`}
@@ -845,6 +845,7 @@ function showStamped(r, title = 'スタンプがたまりました') {
       ${next ? `<p class="st-next">次の特典まで あと <b>${next.at - r.on}</b> 個</p>
         <div class="sc-bar" aria-hidden="true"><i style="--p:${Math.round((r.on - prevAt) / (next.at - prevAt) * 100)}%"></i></div>` : ''}
       ${r.got.map(g => `<p class="got-gift">${ICON.gift}特典「${esc(couponName(g))}」をもらいました</p>`).join('')}
+      ${r.moved ? '<p class="hint">引き継いだ分のマスの特典は出ません（LINEでもらった特典と重ならないように）。既に獲得済みのLINEの特典は、ご利用いただけます。次の特典からは、ふつうにたまります。</p>' : ''}
       ${title !== 'スタンプがたまりました' && !stampedToday() ? '<p class="hint">今日お店のQRを読むと、もう1ポイントたまります。</p>' : ''}
       <button class="btn btn-main btn-block" data-s="close">閉じる</button>
     </div>`);
