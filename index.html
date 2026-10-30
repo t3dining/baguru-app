@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
-<link rel="stylesheet" href="css/app.css?v=0985f31c">
+<link rel="stylesheet" href="css/app.css?v=4ad1367f">
 </head>
 <body>
 <div class="app">
@@ -23,6 +23,7 @@
   <header class="top">
     <button id="back" class="top-btn" hidden aria-label="戻る" data-icon="back"></button>
     <h1 id="title"></h1>
+    <button id="ownerHome" class="owner-home" hidden>🏠 ホーム</button>   <!-- バグる Owner から開いたときだけ出す（app.js の OWNER_MODE） -->
     <a id="cartBtn" class="top-btn cart-btn" href="#cart" aria-label="カート" data-icon="cart"><span class="badge" hidden></span></a>
   </header>
 
@@ -46,12 +47,12 @@
 
 <script src="js/data.js?v=308ff8e3"></script>
 <script src="js/db.js?v=feb3337d"></script>
-<script src="js/common.js?v=e9d0b010"></script>
+<script src="js/common.js?v=3cadd761"></script>
 <script src="js/install.js?v=d414ecea"></script>
 <script src="js/stamp-qr.js?v=fb70c463"></script>
 <script src="js/fx.js?v=7cb1c3bb"></script>
 <script src="js/order-api.js?v=a0a24de9"></script>
 <script src="js/reserve.js?v=375e85ac"></script>
-<script src="js/app.js?v=ff290011"></script>
+<script src="js/app.js?v=b102cbe8"></script>
 </body>
 </html>

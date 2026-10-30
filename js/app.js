@@ -58,7 +58,7 @@ function render(keepScroll = false) {
   const v = (ROUTES[name] || viewHome)(arg && decodeURIComponent(arg));
   if (!v) return;
   const y = window.scrollY;
-  $('#title').innerHTML = v.title ? esc(v.title) : `<img src="img/logo.png" alt="">${esc(SHOP.fullName)}`;
+  $('#title').innerHTML = v.title ? `<span>${esc(v.title)}</span>` : `<img src="img/logo.png" alt=""><span>${esc(SHOP.fullName)}</span>`;
   $('#back').hidden = !v.back;
   $('#back').dataset.to = v.back || '';
   view.innerHTML = v.html;
@@ -1172,6 +1172,21 @@ setInterval(() => {
 // スマホのカメラアプリでお店のQRを読んで開いたとき（?stamp=印）。印はアドレスから消してから確かめる
 const stampParam = new URLSearchParams(location.search).get('stamp');
 if (stampParam) history.replaceState(null, '', location.pathname + '#stamp');
+
+// バグる Owner（オーナー用の入口）から開いたときだけ、上の帯に「🏠 ホーム」を出す（2026-10-30 ko-dai さんの指示。フォルダーアプリのセッションに頼まれた）。
+// 印は common.js がこのタブの sessionStorage に控えている（アドレスの ? が消えても出し続ける）。お客さまが開いたときは出さない。
+// 戻り先は、バグる Owner が控えた sessionStorage の bg.owner（?test で開いたときは ?test 付き）
+const OWNER_HOME = 'https://t3dining.github.io/baguru-app/owner/';
+const OWNER_MODE = (() => { try { return sessionStorage.getItem('bg.fromOwner') === '1'; } catch (e) { return false; } })();
+if (OWNER_MODE && $('#ownerHome')) {
+  $('#ownerHome').hidden = false;
+  $('.top').classList.add('has-owner');   // 名前の字を少し小さくして、ボタンと並べても名前が切れないように
+  $('#ownerHome').onclick = () => {
+    let to = '';
+    try { to = sessionStorage.getItem('bg.owner') || ''; } catch (e) {}
+    location.href = to || OWNER_HOME;
+  };
+}
 
 $$('[data-icon]').forEach(el => el.insertAdjacentHTML('afterbegin', ICON[el.dataset.icon]));
 render();

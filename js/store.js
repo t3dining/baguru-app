@@ -26,6 +26,23 @@ const nextLabel = o => o.kind === 'delivery' && o.status === 'ready' ? 'お届�
 // 「できしだい」は、受け付けたらすぐ調理中。見分けは common.js の isBooked（お客さまの画面の「受付済み」と同じ。2026-10-30 ko-dai さん）
 const who = o => o.name ? `${o.name} 様` : 'お名前なし';   // 店頭の注文は、お名前を聞かないことがある
 
+// バグる Owner（フォルダーアプリ。../バグるOwner/）から開いたとき（?from=owner）だけ、上の帯と合言葉の画面に「🏠 ホーム」を出す
+// （2026-10-30 ko-dai さんの指示。フォルダーアプリのセッションに頼まれた）。印はこのタブの sessionStorage にも残し、「↻ 更新」のあとも出し続ける。
+// 戻り先は、バグる Owner が控えた sessionStorage の bg.owner（?test で開いたときは ?test 付き）。★お店のタブレットのホーム画面から開いたときは出さない
+const OWNER_URL = 'https://t3dining.github.io/baguru-app/owner/';
+const FROM_OWNER = (() => {
+  const mark = /[?&]from=owner\b/.test(location.search);
+  try {
+    if (mark) sessionStorage.setItem('bg.fromOwner', '1');
+    return sessionStorage.getItem('bg.fromOwner') === '1';
+  } catch (e) { return mark; }
+})();
+function goOwner() {
+  let to = '';
+  try { to = sessionStorage.getItem('bg.owner') || ''; } catch (e) {}
+  location.href = to || OWNER_URL;
+}
+
 const RING_EVERY = 3000;   // 受付待ちの注文があるあいだ、この間隔（ミリ秒）で鳴らし続ける
 const CHIME_URL = 'snd/order.wav';   // 注文が入ったときの音（1.8秒。道具/注文の音を作る.py で作る）
 
@@ -601,6 +618,9 @@ $('#accepting').addEventListener('change', async e => {
 // 「更新」：画面を読み直す（公開した新しい版もここで入る。注文は保存してある・受け口にあるので消えない）。
 // ★iPad は読み直すと音が止まるので、また「画面をタッチしてください」が出る（ブラウザの決まり）
 $('#reloadBtn').addEventListener('click', () => location.reload());
+$('#homeBtn').hidden = $('#pinHome').hidden = !FROM_OWNER;
+$('#homeBtn').addEventListener('click', goOwner);
+$('#pinHome').addEventListener('click', goOwner);   // 合言葉を入れずに戻れるように
 // 音をオンにして、試しに1回鳴らす（受付待ちがあれば、そのまま鳴り続ける）。押した・触ったその場で呼ぶ
 function soundOnNow() {
   soundOn = true;

@@ -13,11 +13,13 @@
 <link rel="manifest" href="manifest-store.json">
 <link rel="icon" href="img/store-icon-192.png">
 <link rel="apple-touch-icon" href="img/store-apple-touch-icon.png">
-<link rel="stylesheet" href="css/store.css?v=0d54ab64">
+<link rel="stylesheet" href="css/store.css?v=c5407b0f">
 </head>
 <body>
 <header class="s-top">
   <div class="s-brand"><img src="img/logo.png" alt=""><h1>バグる<small>店舗用・テイクアウト注文</small></h1></div>
+  <!-- バグる Owner（フォルダーアプリ）から開いたとき（?from=owner）だけ出す。押すとバグる Owner に戻る（2026-10-30 ko-dai さんの指示。js/store.js の FROM_OWNER） -->
+  <button id="homeBtn" class="s-btn" hidden>🏠 ホーム</button>
   <!-- 電話・店頭の注文を入れる（2026-10-30。テイクアウトの操作は、すべて Order受付でする決まりになったため） -->
   <button id="phoneBtn" class="s-btn">＋ 電話・店頭の注文</button>
   <!-- 画面を読み直す。ホーム画面に置いたアプリには、ブラウザの更新ボタンが無いため（2026-10-30 ko-dai さん） -->
@@ -69,6 +71,8 @@
   <input id="pin" type="password" autocomplete="current-password" aria-label="合言葉">
   <button class="b-main">開く</button>
   <p id="pinErr" class="pin-err" hidden></p>
+  <button type="button" id="pinHome" class="pin-home" hidden>🏠 ホームに戻る</button>   <!-- バグる Owner から開いたときだけ -->
+
 </form>
 
 <!-- 配達・大量注文の申請に返事をする（承認・お断り）。配達料とお客様への一言は、お客様のアプリに出る -->
@@ -123,9 +127,9 @@
 
 <script src="js/data.js?v=308ff8e3"></script>
 <script src="js/db.js?v=feb3337d"></script>
-<script src="js/common.js?v=e9d0b010"></script>
+<script src="js/common.js?v=3cadd761"></script>
 <!-- 受け口とのやりとり（公式アプリと同じもの。切り替え ORDERS_ONLINE・受け口の場所・送り方）。公式アプリのセッションの持ち物 -->
 <script src="js/order-api.js?v=a0a24de9"></script>
-<script src="js/store.js?v=141bd227"></script>
+<script src="js/store.js?v=77764769"></script>
 </body>
 </html>

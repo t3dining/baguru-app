@@ -10,6 +10,11 @@ const pad = n => String(n).padStart(2, '0');
 const WEEK = ['日', '月', '火', '水', '木', '金', '土'];
 const dateKey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const hhmm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+// バグる Owner（オーナー用の入口。バグるOwner/）から開いた印（?from=owner）を、このタブの sessionStorage に控える。
+// ほかのところがアドレスの ? を消す前に（install.js・スタンプのQR）、いちばん先に読むここで控える（2026-10-30 ko-dai さんの指示。
+// 公式アプリは app.js の OWNER_MODE、Order受付は store.js の FROM_OWNER が読む）。★ここでは名前を作らない（Order受付の名前とぶつけない）
+try { if (/[?&]from=owner\b/.test(location.search)) sessionStorage.setItem('bg.fromOwner', '1'); } catch (e) {}
 const mdw = d => `${d.getMonth() + 1}/${d.getDate()}（${WEEK[d.getDay()]}）`;
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 

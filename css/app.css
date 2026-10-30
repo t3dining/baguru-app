@@ -85,6 +85,12 @@ small { font-size: 12px; }
   display: flex; align-items: center; gap: 8px; min-width: 0;
 }
 .top h1 img { width: 34px; height: 34px; object-fit: contain; background: #fff; border-radius: 50%; padding: 2px; }
+.top h1 span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }   /* 狭い画面で「🏠 ホーム」と並んでも、はみ出さない */
+/* バグる Owner から開いたときだけ出す「🏠 ホーム」（2026-10-30） */
+.owner-home { flex: none; height: 32px; padding: 0 11px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .35); background: rgba(255, 255, 255, .08); color: #fff; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+.owner-home[hidden] { display: none; }
+.top.has-owner h1 { font-size: 15px; letter-spacing: .02em; }
+.owner-home:active { background: rgba(255, 255, 255, .2); }
 #back[hidden] + h1 { padding-left: 8px; }
 .top-btn { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 50%; position: relative; }
 .top-btn:active { background: rgba(255, 255, 255, .12); }
