@@ -767,18 +767,33 @@ button.link-card { width: 100%; text-align: left; }
 .r-chip input:checked + span { border-color: var(--ember); background: var(--ember-soft); color: var(--ember); }
 .r-chip input:disabled + span { opacity: .4; }
 .r-chip i { font-style: normal; font-size: 12px; color: var(--sub); }
+/* 日にちは、ひと月ずつのカレンダー（ホームページの予約と同じ形。2026-10-30）。前の月・次の月のボタンで動かす */
+.r-cal-nav { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 10px; }
+.r-cal-title { margin: 0; font-weight: 700; font-size: 16px; white-space: nowrap; }
+.r-cal-title b { font-family: var(--en); font-size: 26px; font-weight: 600; margin: 0 3px; }
+.r-cal-move { display: inline-flex; align-items: center; gap: 4px; height: 40px; padding: 0 14px; border-radius: 999px; background: var(--paper); border: 1.5px solid var(--line); font-weight: 700; font-size: 13px; color: var(--coal); box-shadow: var(--shadow); }
+.r-cal-move span { font-size: 20px; line-height: 1; margin-top: -2px; }
+.r-cal-move:disabled { opacity: .35; box-shadow: none; cursor: default; }
 .r-cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
-.r-wd { text-align: center; font-size: 12px; font-weight: 700; color: var(--sub); }
+.r-wd { text-align: center; font-size: 12px; font-weight: 700; color: var(--sub); padding-bottom: 2px; }
 .r-wd.sun, .r-day.sun b { color: var(--red); }
 .r-wd.sat, .r-day.sat b { color: #2f6db3; }
 .r-day { position: relative; }
-.r-day span { display: flex; flex-direction: column; align-items: center; padding: 6px 0; border-radius: 10px; background: var(--paper); border: 1.5px solid var(--line); }
-.r-day b { font-size: 13px; font-variant-numeric: tabular-nums; }
-.r-day i { font-style: normal; font-size: 12px; font-weight: 700; color: var(--green); }
+.r-day span { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 54px; border-radius: 10px; background: var(--paper); border: 1.5px solid var(--line); line-height: 1.25; }
+.r-day b { font-family: var(--en); font-size: 16px; font-weight: 600; }
+.r-day i { font-style: normal; font-family: var(--en); font-size: 14px; font-weight: 600; color: var(--green); }
 .r-day.is-few i { color: var(--brass); }
 .r-day.is-full i, .r-day.is-closed i { color: var(--sub); }
 .r-day.is-full span, .r-day.is-closed span { background: transparent; opacity: .55; }
+.r-day.is-today span { box-shadow: inset 0 -3px 0 var(--flame); }   /* 今日の印（ホームページと同じ、下のだいだいの線） */
 .r-day input:checked + span { border-color: var(--ember); background: var(--ember-soft); }
+.r-day input:checked + span b, .r-day input:checked + span i { color: var(--ember); }
+.r-day input:focus-visible + span { outline: 3px solid var(--flame); outline-offset: 1px; }
+.r-out { display: grid; place-items: center; height: 54px; font-family: var(--en); font-size: 15px; font-weight: 500; color: #c9bdb0; }   /* 受け付けていない日は、数字だけ */
+.r-key { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 10px 2px 0; font-size: 12.5px; color: var(--sub); }
+.r-key i { font-style: normal; font-family: var(--en); font-size: 14px; font-weight: 600; margin-right: 3px; color: var(--sub); }
+.r-key i.ok { color: var(--green); }
+.r-key i.few { color: var(--brass); }
 .r-times { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }   /* 10分きざみで多いので5列 */
 .r-sep { grid-column: 1 / -1; margin: 6px 2px 0; font-size: 12px; font-weight: 700; color: var(--sub); }
 .r-time span { width: 100%; min-width: 0; padding: 9px 2px; font-size: 14px; font-variant-numeric: tabular-nums; }

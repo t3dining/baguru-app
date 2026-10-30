@@ -98,7 +98,12 @@ function put(o) {
 
 /** 受け口の注文を読み直す（15秒ごと・画面に戻ったとき） */
 function pull() {
-  if (!ORDERS_ONLINE || !pinGet()) return Promise.resolve();
+  if (!ORDERS_ONLINE) return Promise.resolve();
+  // 同じブラウザの予約ボードでログアウトすると、合言葉が消える（置き場所が同じ）。黙って読むのを止めないで、合言葉の画面を出す
+  if (!pinGet()) {
+    if ($('#pinGate').hidden) askPin('合言葉が消えました（同じブラウザの予約ボードでログアウトしたときなど）。もう一度入れてください。');
+    return Promise.resolve();
+  }
   if (net.loading) return net.loading;
   const gen = net.gen;
   net.loading = staffPost({ action: 'orders' })

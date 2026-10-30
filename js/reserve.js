@@ -31,7 +31,7 @@ const RSV_MSG = {
   no_answer: 'つながりませんでした。時間を置いてもう一度お試しいただくか、お電話でどうぞ。',
 };
 
-let rsv = { avail: null, people: 0, date: '', time: '', v: null, rid: '', step: 'form', done: null, err: '', busy: false };
+let rsv = { avail: null, people: 0, date: '', time: '', month: '', v: null, rid: '', step: 'form', done: null, err: '', busy: false };   // month：カレンダーで見せている月（'2026-10'）
 
 function rsvMessage(e) {
   const d = e.data || {};
@@ -76,15 +76,27 @@ function rsvFits(s) {
   const p = rsv.people || 1, maxTable = rsv.avail.maxTable || 0;
   return p <= s.single || (p > maxTable && p <= s.group);
 }
-function rsvDayMark(d) {
-  if (d.type === 'closed') return { m: '休', cls: 'is-closed', ok: false };
-  const open = d.slots.filter(rsvFits);
-  if (!open.length && d.slots.every(s => s.late)) return { m: '－', cls: 'is-closed', ok: false };
-  if (!open.length) return { m: '×', cls: 'is-full', ok: false };
-  const many = open.some(s => s.left >= Math.min(2, rsv.avail.cap));
-  return many ? { m: '○', cls: '', ok: true } : { m: '△', cls: 'is-few', ok: true };
+// その時刻に、選んだ人数が入れる空き卓（卓に入らない人数は、空いているグループ）がいくつあるか。受け口が数を返さないときは null
+function rsvOptions(s) {
+  if (!s.n) return null;
+  const p = rsv.people || 1, caps = rsv.avail.caps || [], maxTable = rsv.avail.maxTable || 0;
+  if (p <= maxTable) { const i = caps.findIndex(c => c >= p); return i < 0 ? 0 : s.n[i] || 0; }
+  return (s.g || []).filter(c => c >= p).length;
 }
-const rsvSlotMark = s => s.late ? '－' : !rsvFits(s) ? '×' : (s.left === 1 && rsv.avail.cap > 1) ? '△' : '○';
+// 「残りわずか」でないか：入れる卓が2つ以上（数が無いときは、受けられる組数で見る）
+function rsvPlenty(s) {
+  const o = rsvOptions(s);
+  return o === null ? s.left >= Math.min(2, rsv.avail.cap) : o >= 2;
+}
+function rsvDayMark(d) {
+  if (d.type === 'closed') return { m: '休', cls: 'is-closed', ok: false, sr: '定休日' };
+  const open = d.slots.filter(rsvFits);
+  // 締め切りの時間を過ぎただけの日（その日の夜など）は、満席と言わない
+  if (!open.length && d.slots.every(s => s.late)) return { m: '－', cls: 'is-closed', ok: false, sr: '受付終了' };
+  if (!open.length) return { m: '×', cls: 'is-full', ok: false, sr: '満席' };
+  return open.some(rsvPlenty) ? { m: '○', cls: '', ok: true, sr: '空きあり' } : { m: '△', cls: 'is-few', ok: true, sr: '残りわずか' };
+}
+const rsvSlotMark = s => s.late ? '－' : !rsvFits(s) ? '×' : rsvPlenty(s) ? '○' : '△';
 
 /** 選んでいた日・時間に入れなくなったら外す（埋まったとき・人数を変えたとき） */
 function rsvDropUnfit() {
@@ -132,20 +144,39 @@ function rsvDraw() {
     <div class="foot"><button class="btn btn-main btn-block" data-r="next">内容を確認する</button></div>`;
 }
 
+// 年月（'2026-10'）を n か月動かす
+function rsvAddMonth(ym, n) {
+  const d = new Date(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)) - 1 + n, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// 日にちは、ひと月ずつのカレンダーで見せる（前の月・次の月のボタンで動かす）。ホームページの予約と同じ形（2026-10-30 ko-dai さんの指示）
 function rsvDaysHtml() {
   const days = rsv.avail.days;
   if (!days.length) return '<p class="hint">受け付けている日がありません。</p>';
-  const pad = ymdDate(days[0].date).getDay();
-  return `<div class="r-cal">${WEEK.map((w, i) => `<span class="r-wd ${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}">${w}</span>`).join('')}
-    ${'<span></span>'.repeat(pad)}
-    ${days.map((d, i) => {
-      const mk = rsvDayMark(d), dt = ymdDate(d.date), day = dt.getDate(), w = dt.getDay();
-      const label = (i === 0 || day === 1) ? `${dt.getMonth() + 1}/${day}` : day;
-      return `<label class="r-day ${mk.cls} ${w === 0 || d.holiday ? 'sun' : w === 6 ? 'sat' : ''}">
-          <input type="radio" name="r-date" value="${d.date}" ${mk.ok ? '' : 'disabled'} ${rsv.date === d.date ? 'checked' : ''}>
-          <span><b>${label}</b><i>${mk.m}</i></span></label>`;
-    }).join('')}</div>
-    <p class="hint">○ 空いています　△ 残りわずか　× 満席　休 お休み</p>`;
+  const byDate = Object.fromEntries(days.map(d => [d.date, d]));
+  const minYm = days[0].date.slice(0, 7), maxYm = days[days.length - 1].date.slice(0, 7);
+  if (!rsv.month || rsv.month < minYm || rsv.month > maxYm) rsv.month = rsv.date ? rsv.date.slice(0, 7) : minYm;
+  const ym = rsv.month, y = Number(ym.slice(0, 4)), mo = Number(ym.slice(5, 7));
+  const last = new Date(y, mo, 0).getDate(), pad = new Date(y, mo - 1, 1).getDay();
+  const cells = [];
+  for (let day = 1; day <= last; day++) {
+    const date = `${ym}-${String(day).padStart(2, '0')}`, d = byDate[date], w = new Date(y, mo - 1, day).getDay();
+    const wcls = w === 0 || d?.holiday ? ' sun' : w === 6 ? ' sat' : '';
+    if (!d) { cells.push(`<span class="r-out${wcls}">${day}</span>`); continue; }   // 今日より前と、受け付ける日より先は、数字だけ
+    const mk = rsvDayMark(d);
+    cells.push(`<label class="r-day ${mk.cls}${wcls}${date === days[0].date ? ' is-today' : ''}">
+        <input type="radio" name="r-date" value="${d.date}" aria-label="${rsvDay(d.date)} ${mk.sr}" ${mk.ok ? '' : 'disabled'} ${rsv.date === d.date ? 'checked' : ''}>
+        <span><b>${day}</b><i>${mk.m}</i></span></label>`);
+  }
+  return `<div class="r-cal-nav">
+      <button type="button" class="r-cal-move" data-r="month" data-dir="-1" ${ym <= minYm ? 'disabled' : ''}><span aria-hidden="true">‹</span>前の月</button>
+      <p class="r-cal-title" aria-live="polite">${y}年<b>${mo}</b>月</p>
+      <button type="button" class="r-cal-move" data-r="month" data-dir="1" ${ym >= maxYm ? 'disabled' : ''}>次の月<span aria-hidden="true">›</span></button>
+    </div>
+    <div class="r-cal">${WEEK.map((w, i) => `<span class="r-wd ${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}">${w}</span>`).join('')}
+      ${'<span></span>'.repeat(pad)}${cells.join('')}</div>
+    <p class="r-key"><span><i class="ok">○</i>空きあり</span><span><i class="few">△</i>残りわずか</span><span><i>×</i>満席</span><span><i>休</i>定休日</span></p>`;
 }
 
 function rsvTimesHtml() {
@@ -233,6 +264,13 @@ function rsvClick(e) {
   if (!b) return;
   const act = b.dataset.r;
   if (act === 'reload') { $('#rsv').innerHTML = '<p class="hint">空き状況を読み込んでいます…</p>'; return rsvStart(); }
+  if (act === 'month') {   // 前の月・次の月（押したボタンに、そのまま指が残るように）
+    if (b.disabled) return;
+    rsv.month = rsvAddMonth(rsv.month, Number(b.dataset.dir));
+    $('#r-days').innerHTML = rsvDaysHtml();
+    const nb = $(`#r-days [data-dir="${b.dataset.dir}"]`);
+    return (nb && !nb.disabled ? nb : $('#r-days [data-dir]:not(:disabled)'))?.focus();
+  }
   if (act === 'next') {
     const v = rsvValues(), err = rsvCheck(v);
     if (err) { const m = $('#r-msg'); m.textContent = err; m.hidden = false; m.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
@@ -243,7 +281,7 @@ function rsvClick(e) {
     return window.scrollTo(0, 0);
   }
   if (act === 'back') { rsv.step = 'form'; rsvDraw(); return; }
-  if (act === 'again') { rsv = { ...rsv, step: 'form', done: null, people: 0, date: '', time: '', v: null }; $('#rsv').innerHTML = '<p class="hint">空き状況を読み込んでいます…</p>'; return rsvStart(); }
+  if (act === 'again') { rsv = { ...rsv, step: 'form', done: null, people: 0, date: '', time: '', month: '', v: null }; $('#rsv').innerHTML = '<p class="hint">空き状況を読み込んでいます…</p>'; return rsvStart(); }
   if (act === 'send' && !rsv.busy) rsvSend();
 }
 
@@ -257,7 +295,7 @@ function rsvSend() {
       DB.set('reserves', [...DB.get('reserves', []), { no: r.no, date: r.date, time: r.time, people: r.people, sentAt: new Date().toISOString() }]);
       Object.assign(ME, { name: rsv.v.name, tel: rsv.v.tel, email: rsv.v.email });
       DB.set('member', ME);
-      rsv = { ...rsv, step: 'done', done: r, v: null, people: 0, date: '', time: '', busy: false, avail: null };
+      rsv = { ...rsv, step: 'done', done: r, v: null, people: 0, date: '', time: '', month: '', busy: false, avail: null };
       rsvDraw();
       window.scrollTo(0, 0);
     })

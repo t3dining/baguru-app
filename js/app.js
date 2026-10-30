@@ -58,7 +58,7 @@ function render(keepScroll = false) {
   const v = (ROUTES[name] || viewHome)(arg && decodeURIComponent(arg));
   if (!v) return;
   const y = window.scrollY;
-  $('#title').innerHTML = v.title ? esc(v.title) : `<img src="img/logo.png" alt="">${esc(SHOP.name)}`;
+  $('#title').innerHTML = v.title ? esc(v.title) : `<img src="img/logo.png" alt="">${esc(SHOP.fullName)}`;
   $('#back').hidden = !v.back;
   $('#back').dataset.to = v.back || '';
   view.innerHTML = v.html;
