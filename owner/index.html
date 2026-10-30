@@ -9,7 +9,20 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="バグる Owner">
 <meta name="theme-color" content="#1f1916">
-<link rel="manifest" href="manifest.json">
+<script>
+  // ホーム画面の設定（manifest）を、ブラウザで選びます（2026-10-30。くわしくは README の「範囲（scope）」）
+  //   Chrome の仲間（Mac・Android の Chrome、Edge）… manifest.json（scope は ./ ＝ owner/ だけ）。
+  //     公式アプリの範囲（/baguru-app/）より狭くしないと、公式アプリの窓の中で開いてしまい、別のアプリとして入れられない
+  //   それ以外（iPhone・iPad・Mac の Safari。iPhone の Chrome も中身は Safari）… manifest-safari.json（scope は / ＝ t3dining.github.io 全体）。
+  //     Safari は、ほかのアプリと範囲が重なっても困らない。範囲を広くしないと、予約ボード（/baguru-yoyaku/）がブラウザの枠つきで開く
+  //   見分けは navigator.userAgentData（Chrome の仲間にだけある。iPhone の Chrome には無い）
+  (function () {
+    var link = document.createElement('link');
+    link.rel = 'manifest';
+    link.href = navigator.userAgentData ? 'manifest.json' : 'manifest-safari.json';
+    document.head.appendChild(link);
+  })();
+</script>
 <link rel="apple-touch-icon" href="img/owner-icon-180.png">
 <link rel="icon" type="image/png" sizes="64x64" href="img/owner-icon-64.png">
 <title>バグる Owner｜炭焼ハンバーグ バグる</title>
