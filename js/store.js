@@ -427,7 +427,8 @@ $('#dOk').addEventListener('click', async () => {
 
 /* ---------------------------------------------------------------------
  *  電話・店頭の注文を入れる（受け付けた形で入る：調理中か受付済み。お客様のアプリには出ない）
- *  品物と値段は、公式アプリと同じ（data.js の ITEMS、common.js の priceOf）。テイクアウトだけ（配達・大量注文は申請から）
+ *  品物と値段は、公式アプリと同じ（data.js の ITEMS に、バグるマネージで直した分を重ねたもの。common.js の priceOf）。テイクアウトだけ（配達・大量注文は申請から）
+ *  バグるマネージで止めたものは、お客様のアプリと同じ扱い：出さないものは並べず、売り切れは選べない（2026-10-31 ko-dai さんの指示）
  * --------------------------------------------------------------------- */
 
 let phone = null;   // 入れている注文 { lines: [{ id, name, opts, unit, qty }], rid }。rid は送り直しで2つにならない印
@@ -450,8 +451,9 @@ function openPhone() {
   $('#pDay').value = $('#pDay').min = dateKey(new Date());
   $('#pDay').value = dateKey(slot);
   $('#pHm').value = hhmm(slot);
-  $('#pItem').innerHTML = '<option value="">品物を選んでください</option>' + CATEGORIES.map(c => `<optgroup label="${esc(c.name)}">${
-    ITEMS.filter(i => i.cat === c.id).map(i => `<option value="${i.id}">${esc(i.full || i.name)}（${yen(i.price)}${i.groups.length ? '〜' : ''}）</option>`).join('')}</optgroup>`).join('');
+  paintItems();
+  // 開いたときに、バグるマネージの値段・売り切れも読み直す（CONTENT_EVERY に1回まで）。まだ品物を選んでいなければ、並べ直す
+  refreshContent().then(changed => { if (changed && $('#phoneDlg').open && !$('#pItem').value) paintItems(); });
   $('#pQty').value = 1;
   $('#pSend').disabled = false;
   paintOpts();
@@ -460,22 +462,32 @@ function openPhone() {
   $('#phoneDlg').showModal();
 }
 
-/** 選んだ品物の、選ぶ項目（ソース・ご飯の量など） */
+/** 品物の選ぶ欄。出さないものは並べず、売り切れは「売り切れ」と出して選べないようにする */
+function paintItems() {
+  const label = i => `${esc(i.full || i.name)}（${i.soldOut ? '売り切れ' : yen(i.price) + (i.groups.length ? '〜' : '')}）`;
+  $('#pItem').innerHTML = '<option value="">品物を選んでください</option>' + CATEGORIES.map(c => {
+    const shown = ITEMS.filter(i => i.cat === c.id && !i.hidden);
+    return shown.length ? `<optgroup label="${esc(c.name)}">${shown.map(i => `<option value="${i.id}" ${i.soldOut ? 'disabled' : ''}>${label(i)}</option>`).join('')}</optgroup>` : '';
+  }).join('');
+}
+
+/** 選んだ品物の、選ぶ項目（ソース・ご飯の量など）。売り切れの項目は選べない */
 function paintOpts() {
   const item = ITEM_BY_ID[$('#pItem').value];
-  const plus = c => c.p ? `（+${yen(c.p)}）` : '';
+  const plus = c => c.soldOut ? '（売り切れ）' : c.p ? `（+${yen(c.p)}）` : '';
   $('#pOpts').innerHTML = !item ? '' : item.groups.map(g => {
     if (g.type === 'one') {
-      const def = g.choices.findIndex(c => c.plain);   // 「普通」「なし」があれば、はじめからそれ。ソースなどは選んでもらう
+      const def = g.choices.findIndex(c => c.plain && !c.soldOut);   // 「普通」「なし」があれば、はじめからそれ。ソースなどは選んでもらう
       return `<label class="f-opt"><span>${esc(g.name)}</span><select data-g="${g.id}">${def < 0 ? '<option value="">選んでください</option>' : ''}${
-        g.choices.map((c, i) => `<option value="${i}" ${i === def ? 'selected' : ''}>${esc(c.n)}${plus(c)}</option>`).join('')}</select></label>`;
+        g.choices.map((c, i) => `<option value="${i}" ${i === def ? 'selected' : ''} ${c.soldOut ? 'disabled' : ''}>${esc(c.n)}${plus(c)}</option>`).join('')}</select></label>`;
     }
     if (g.type === 'many') {
       return `<div class="f-opt"><span>${esc(g.name)}（なければ選ばない）</span><div class="f-checks">${
-        g.choices.map((c, i) => c.none ? '' : `<label><input type="checkbox" data-g="${g.id}" value="${i}">${esc(c.n)}${plus(c)}</label>`).join('')}</div></div>`;
+        g.choices.map((c, i) => c.none ? '' : `<label><input type="checkbox" data-g="${g.id}" value="${i}" ${c.soldOut ? 'disabled' : ''}>${esc(c.n)}${plus(c)}</label>`).join('')}</div></div>`;
     }
     if (g.type === 'count') {
-      return `<label class="f-opt"><span>${esc(g.name)}（1つ ${yen(g.choices[0].p)}）</span><input type="number" data-g="${g.id}" min="0" max="${g.max || 10}" value="0" inputmode="numeric"></label>`;
+      const c = g.choices[0];
+      return `<label class="f-opt"><span>${esc(g.name)}（${c.soldOut ? '売り切れ' : `1つ ${yen(c.p)}`}）</span><input type="number" data-g="${g.id}" min="0" max="${g.max || 10}" value="0" inputmode="numeric" ${c.soldOut ? 'disabled' : ''}></label>`;
     }
     return '';
   }).join('');
@@ -517,6 +529,7 @@ $$('#phoneDlg input[name="pWhen"]').forEach(r => r.addEventListener('change', pa
 $('#pAdd').addEventListener('click', () => {
   const item = ITEM_BY_ID[$('#pItem').value];
   if (!item) return phoneErr('品物を選んでください');
+  if (item.soldOut || item.hidden) return phoneErr('この品物は、いま売り切れです');
   const p = priceOf(item, readSel(item));
   if (p.missing) return phoneErr(`「${p.missing.name}」を選んでください`);
   const qty = Math.max(1, Math.min(99, parseInt($('#pQty').value, 10) || 1));
@@ -716,7 +729,7 @@ $('#soundGate').addEventListener('click', soundOnNow);
 // タブレットを起こした・ほかのアプリから戻ったときは、音をもう一度出せるようにする（出せなければ「画面をタッチ」が出る）。注文も読み直す
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && soundOn && audio) audio.resume().catch(() => {});
-  if (document.visibilityState === 'visible') pull();
+  if (document.visibilityState === 'visible') { pull(); refreshContent(); }
   setTimeout(checkSound, 500);
 });
 
@@ -726,8 +739,12 @@ DB.onChange(key => {
 });
 // T3Works の営業日も読み直す（30分に1回まで。変わっていたら描き直す）
 const syncDays = () => refreshDays().then(changed => changed && render());
-setInterval(() => { render(); syncDays(); }, 30000);
+setInterval(() => { render(); syncDays(); refreshContent(); }, 30000);
 $('#cookBefore').textContent = TAKEOUT.cookBefore;   // 「受付済み」の見出しの「◯分前」
+// バグるマネージで直した値段・売り切れ（../js/content.js）を重ねる。電話・店頭の注文の窓を、公式アプリとそろえるため（2026-10-31 ko-dai さんの指示）。
+// 前に読んだ分をすぐ重ね、そのあと受け口から読み直す（CONTENT_EVERY に1回まで）。読めないときは、前の控え（無ければ data.js）のまま
+applyContent(contentNow()?.content);
+refreshContent();
 render();
 syncDays();
 // 受け口につないだときは、15秒ごとに注文を読み直す。電波が戻ったときもすぐ読む。合言葉がまだなら、合言葉の画面を出す
