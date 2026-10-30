@@ -72,7 +72,7 @@ const POLL_EVERY = 15000;   // 受け口に頼まれた 10〜20秒
 const net = { orders: [], accepting: true, at: 0, error: '', gen: 0, loading: null };
 const STAFF_MSG = {
   bad_pin: '合言葉が違います。',
-  locked: '合言葉を何度も間違えたので、10分止まっています。少し待ってから入れ直してください。',
+  locked: '受け口が止まっています（合言葉を何度も間違えた人がいたため。10分で戻ります）。',
   conflict: 'ほかの端末で、この注文が先に変わっていました。いまの様子を出したので、もう一度確かめてください。',
   not_found: 'この注文が見つかりませんでした。「更新」を押して確かめてください。',
   bad_date: '受け取りの日時を確かめてください。',
@@ -86,12 +86,14 @@ const STAFF_MSG = {
   offline: 'つながりませんでした。Wi-Fi・電波を確かめてください。',
 };
 const staffText = e => STAFF_MSG[e?.code] || STAFF_MSG.offline;
-const quiet = e => e?.code === 'bad_pin' || e?.code === 'locked';   // 合言葉の画面に出すので、ほかには出さない
+const quiet = e => e?.code === 'bad_pin';   // 合言葉の画面に出すので、ほかには出さない
 
 function pinGet() { try { return localStorage.getItem(PIN_KEY) || ''; } catch (e) { return ''; } }
 function pinSet(v) { try { if (v) localStorage.setItem(PIN_KEY, v); else localStorage.removeItem(PIN_KEY); } catch (e) {} }
 
-/** 合言葉を付けて受け口に送る。合言葉が違う・止まっているときは、合言葉の画面を出す */
+/** 合言葉を付けて受け口に送る。合言葉が違うと言われたら、合言葉の画面を出す。
+ *  ★止まっている（locked）ときは、合言葉を消さない（2026-10-31 ko-dai さんの指示。予約ボードと同じ）。だれかが間違えて止まっているだけで、この端末の合言葉は正しい。
+ *  消すと同じブラウザの予約ボードの合言葉も消える。上の帯を赤くして読み直しつづけ、戻ったら元の画面に戻る */
 async function staffPost(payload) {
   try {
     return await orderPost({ ...payload, pin: pinGet() });
