@@ -773,7 +773,7 @@ function viewStamp() {
         </div>
         <div class="sc-grid">${cells}</div>
         <div class="sc-bar" aria-hidden="true"><i style="--p:${pct}%"></i></div>
-        <p class="sc-next">${next ? `あと <b>${next.at - on}</b> 個で「${esc(couponTitle(next.options))}」` : 'ゴール！ 次のスタンプから新しいカードになります。'}</p>
+        <p class="sc-next">${next ? `あと <b>${next.at - on}</b> 個で「${esc(couponTitle(next))}」` : 'ゴール！ 次のスタンプから新しいカードになります。'}</p>
       </div>
       <button class="btn btn-main btn-block" data-act="stamp" ${doneToday ? 'disabled' : ''}>${doneToday ? '今日のスタンプはもらいました' : `${ICON.qr}QRを読んでスタンプをもらう`}</button>
       <p class="hint">お店に置いてあるQRを読むと、1個たまります。お店の中（駐車場を含む）にいるときだけ読めます（位置情報を使います）。テイクアウトは、受け取りのときに自動で1個たまります。スタンプは1日${STAMP.perDay}個までです（初回登録の${STAMP.welcome.points}ポイントは別）。</p>
@@ -781,15 +781,17 @@ function viewStamp() {
         <h2 class="sec">使える特典</h2>
         ${useOk ? '' : `<p class="notice">${ICON.check}<span>今日はもう特典を使いました。<small>特典は1日${STAMP.couponsPerDay}枚までです（他の特典とは一緒に使えません）。また次のご来店でどうぞ。</small></span></p>`}
         <div class="coupons">${coupons.map(c => `
-          <div class="coupon">${ICON.gift}<div><b>${esc(c.title)}</b><small>${esc(c.label || `${c.at}個たまった特典`)}</small></div><button class="btn btn-small" data-act="coupon" data-arg="${c.id}" ${useOk ? '' : 'disabled'}>使う</button></div>`).join('')}
+          <div class="coupon">${ICON.gift}<div><b>${esc(couponName(c))}</b><small>${esc(c.label || `${c.at}個たまった特典`)}</small></div><button class="btn btn-small" data-act="coupon" data-arg="${c.id}" ${useOk ? '' : 'disabled'}>使う</button></div>`).join('')}
         </div>
         <p class="hint">特典は1日${STAMP.couponsPerDay}枚まで。他の特典とは一緒に使えません。</p>` : ''}
       <h2 class="sec" data-en="REWARDS">特典</h2>
       <ul class="rewards">
-        <li class="${ME.registeredAt ? 'done' : ''}"><span>登録</span><b>${STAMP.welcome.points}ポイント ＋ ${esc(couponTitle(STAMP.welcome.options))}</b></li>
-        ${STAMP.rewards.map(r => `<li class="${on >= r.at ? 'done' : ''} ${r.goal ? 'goal' : ''}"><span>${r.at}個${r.goal ? '<small>ゴール</small>' : ''}</span><b>${esc(couponTitle(r.options))}</b></li>`).join('')}
+        <li class="${ME.registeredAt ? 'done' : ''}"><span>登録</span><b>${STAMP.welcome.points}ポイント ＋ ${esc(couponTitle(STAMP.welcome))}</b></li>
+        ${STAMP.rewards.map(r => `<li class="${on >= r.at ? 'done' : ''} ${r.goal ? 'goal' : ''}"><span>${r.at}個${r.goal ? '<small>ゴール</small>' : ''}</span>${r.picks
+          ? `<div class="rw"><b>${esc(couponTitle(r))}</b><p class="rw-picks">${r.picks.map(p => `<i>${esc(p)}</i>`).join('')}</p></div>`
+          : `<b>${r.options.map(esc).join('<i class="or">or</i>')}</b>`}</li>`).join('')}
       </ul>
-      <p class="hint">「または」の特典は、どれか1つをサービスします。使うときに選んでください。</p>
+      <p class="hint">「or」でつないだ特典と、ゴールのハンバーグは、どれか1つをサービスします。使うときに選んでください。</p>
       <h2 class="sec">スタンプの履歴</h2>
       ${s.log.length
         ? `<ul class="hist">${s.log.slice(-10).reverse().map(l => `<li><span>${mdw(new Date(l.at))} ${hhmm(new Date(l.at))}</span><b>${esc(l.via)}</b></li>`).join('')}</ul>`
@@ -805,7 +807,7 @@ function viewStamp() {
 /** 初めての方へ：会員登録（お名前と電話番号）で1ポイントとバニラアイス */
 function welcomeBox() {
   return `<div class="welcome">
-      <div class="w-head">${ICON.gift}<div><b>初めての方へ</b><small>会員登録で <em>${STAMP.welcome.points}ポイント</em> ＋ <em>${esc(couponTitle(STAMP.welcome.options))}</em> をサービス</small></div></div>
+      <div class="w-head">${ICON.gift}<div><b>初めての方へ</b><small>会員登録で <em>${STAMP.welcome.points}ポイント</em> ＋ <em>${esc(couponTitle(STAMP.welcome))}</em> をサービス</small></div></div>
       <p>お名前と電話番号を登録すると、すぐにもらえます。今日お店のQRも読むと、合わせて${STAMP.welcome.points + STAMP.perDay}ポイントになります。</p>
       <label class="field"><span>お名前</span><input id="w-name" autocomplete="name" value="${esc(ME.name)}" placeholder="例：豊田 太郎"></label>
       <label class="field"><span>電話番号</span><input id="w-tel" type="tel" inputmode="tel" autocomplete="tel" value="${esc(ME.tel)}" placeholder="例：090-1234-5678"></label>
@@ -841,7 +843,7 @@ function showStamped(r, title = 'スタンプがたまりました') {
       <p class="sc-count"><em>${FX.calm ? r.on : from}</em> / ${STAMP.goal}</p>
       ${next ? `<p class="st-next">次の特典まで あと <b>${next.at - r.on}</b> 個</p>
         <div class="sc-bar" aria-hidden="true"><i style="--p:${Math.round((r.on - prevAt) / (next.at - prevAt) * 100)}%"></i></div>` : ''}
-      ${r.got.map(g => `<p class="got-gift">${ICON.gift}特典「${esc(g.title)}」をもらいました</p>`).join('')}
+      ${r.got.map(g => `<p class="got-gift">${ICON.gift}特典「${esc(couponName(g))}」をもらいました</p>`).join('')}
       ${title !== 'スタンプがたまりました' && !stampedToday() ? '<p class="hint">今日お店のQRを読むと、もう1ポイントたまります。</p>' : ''}
       <button class="btn btn-main btn-block" data-s="close">閉じる</button>
     </div>`);
@@ -869,7 +871,7 @@ function openCoupon(id) {
     <button class="sheet-x" data-s="close" aria-label="閉じる">×</button>
     <div class="coupon-big">
       <p class="cb-label">特典券${c.label ? `・${esc(c.label)}` : ''}</p>
-      <h2>${opts.length > 1 ? 'どれか1つをサービス' : `${esc(opts[0])}をサービス`}</h2>
+      <h2>${opts.length > 1 ? (c.at === STAMP.goal ? `${esc(couponName(c))}<small>この中のどれか1つをサービスします</small>` : 'どれか1つをサービス') : `${esc(opts[0])}をサービス`}</h2>
       ${opts.length > 1 ? `<div class="choices cb-opts">${opts.map(o => `
         <label class="choice"><input type="radio" name="cb-opt" value="${esc(o)}"><span class="c-name">${esc(o)}</span></label>`).join('')}
       </div>` : ''}
@@ -904,6 +906,13 @@ function openCoupon(id) {
 function viewShop() {
   const q = encodeURIComponent(SHOP.address);
   const row = (icon, label, value, link = '') => `<li>${icon}<div><small>${label}</small><b>${value}</b></div>${link}</li>`;
+  // 配達：1つの文にまとめず、何の話かを小さな見出しにして行を分ける（お支払いと同じ形。2026-10-30 ko-dai さんの指示：「見やすく改行」）
+  const delivery = [
+    ['配達できるところ', `原則${TAKEOUT.deliveryKm}km圏内`],
+    [`${TAKEOUT.deliveryFreeMin}食未満`, '要相談（配達料はお店からお知らせします）'],
+    ['お支払い', 'お届けのときに現金で'],
+    ['ご相談・お申し込み', 'アプリの「配達・大量注文の申請」か、ホームページのお問い合わせフォームから'],
+  ];
   return {
     tab: 'shop', title: 'お店の情報',
     html: `
@@ -920,7 +929,7 @@ function viewShop() {
         ${row(ICON.car, '駐車場', esc(SHOP.parking))}
         ${row(ICON.seat, '席', esc(SHOP.seats), '<a class="mini" href="#reserve">予約</a>')}
         ${row(ICON.wallet, 'お支払い', `現金${SHOP.pay.map(([k, v]) => `<span class="sub-line">${v ? `<em>${esc(k)}</em>${esc(v)}` : esc(k)}</span>`).join('')}`)}
-        ${row(ICON.truck, '配達', esc(TAKEOUT.deliveryNote) + (SHOP.contactUrl ? `<span class="sub-line"><a href="${esc(SHOP.contactUrl)}" target="_blank" rel="noopener">ホームページのお問い合わせフォーム ›</a></span>` : ''), '<a class="mini" href="#request">申請</a>')}
+        ${row(ICON.truck, '配達', `${TAKEOUT.deliveryFreeMin}食以上で無料配達${delivery.map(([k, v]) => `<span class="sub-line"><em>${esc(k)}</em>${esc(v)}</span>`).join('')}` + (SHOP.contactUrl ? `<span class="sub-line"><a href="${esc(SHOP.contactUrl)}" target="_blank" rel="noopener">ホームページのお問い合わせフォーム ›</a></span>` : ''), '<a class="mini" href="#request">申請</a>')}
         ${row(ICON.insta, 'Instagram', '@baguru.hamburg', `<a class="mini" href="${SHOP.instagram}" target="_blank" rel="noopener">見る</a>`)}
       </ul>
       <div class="map"><iframe src="https://www.google.com/maps?q=${q}&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="地図"></iframe></div>
@@ -970,7 +979,7 @@ function viewMe() {
     html: `
       <div class="member"><img src="img/logo.png" alt=""><div><small>会員番号</small><b>${ME.no}</b></div></div>
       <h2 class="sec">${ME.registeredAt ? 'お名前と電話番号' : '会員登録'}</h2>
-      <p class="hint">${ME.registeredAt ? 'テイクアウトの注文のときに、最初から入ります。' : `登録すると、スタンプ${STAMP.welcome.points}ポイントと${esc(couponTitle(STAMP.welcome.options))}のサービス券をお渡しします。テイクアウトの注文のときにも、最初から入ります。`}</p>
+      <p class="hint">${ME.registeredAt ? 'テイクアウトの注文のときに、最初から入ります。' : `登録すると、スタンプ${STAMP.welcome.points}ポイントと${esc(couponTitle(STAMP.welcome))}のサービス券をお渡しします。テイクアウトの注文のときにも、最初から入ります。`}</p>
       <label class="field"><span>お名前</span><input id="m-name" autocomplete="name" value="${esc(ME.name)}"></label>
       <label class="field"><span>電話番号</span><input id="m-tel" type="tel" inputmode="tel" autocomplete="tel" value="${esc(ME.tel)}"></label>
       <button class="btn ${ME.registeredAt ? 'btn-sub' : 'btn-main'}" data-act="register" data-arg="m">${ME.registeredAt ? '保存する' : `登録して${STAMP.welcome.points}ポイントもらう`}</button>

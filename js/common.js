@@ -341,10 +341,13 @@ function stampOnCard(total) {
   return total === 0 ? 0 : ((total - 1) % STAMP.goal) + 1;
 }
 
+/** 特典の名前（ゴールは title。ほかは「唐揚げ2個 or バニラアイス」のように or でつなぐ。2026-10-30 に「または」から or に） */
+const couponTitle = r => r.title || r.options.join(' or ');
+/** 特典券の名前。前に作った券（「または」でつないだ名前を持っている）も、今の書き方で出す */
+const couponName = c => couponTitle(STAMP.rewards.find(r => r.at === c.at) || (c.at ? { options: c.options || [c.title] } : STAMP.welcome));
 /** 特典券を作る。options のどれか1つを、使うときに選ぶ */
-const couponTitle = options => options.join(' または ');
 function makeCoupon(r, label, now) {
-  return { id: `c${now.getTime()}-${r.at || 0}`, at: r.at || 0, label, options: r.options, title: couponTitle(r.options), earnedAt: now.toISOString(), usedAt: null, chose: '' };
+  return { id: `c${now.getTime()}-${r.at || 0}`, at: r.at || 0, label, options: r.options, title: couponTitle(r), earnedAt: now.toISOString(), usedAt: null, chose: '' };
 }
 const rewardLabel = r => r.goal ? 'ゴール特典' : `${r.at}個たまった特典`;
 

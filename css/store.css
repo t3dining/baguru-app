@@ -19,6 +19,7 @@
   --green: #2a8553;
   --green-soft: #e2f2e8;
   --blue: #2f6db3;
+  --later: #5e3f96;       /* 明日より先の受け取り（カードの上の帯）。ほかの色と重ならない紫 */
   --red: #c23a3a;
   --red-soft: #fbe8e6;
 }
@@ -92,11 +93,11 @@ button { font: inherit; cursor: pointer; border: 0; }
 .list { display: flex; flex-direction: column; gap: 10px; }
 .none { color: var(--sub); text-align: center; font-size: 13px; margin: 18px 0; }
 
+/* 1列目：受付待ちと、その下に受付済み（2026-10-30 ko-dai さんの指示） */
+.stack { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 /* 受付済み（調理を始める前）。受け取りの30分前を過ぎると「調理中」に移る */
-.booked { margin: 0 18px 14px; }
 .booked h2 { flex-wrap: wrap; }
 .booked h2 small { font-size: 12px; font-weight: 500; color: var(--sub); }
-.booked .list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
 
 .past { margin: 0 18px 30px; }
 .past .list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
@@ -104,6 +105,11 @@ button { font: inherit; cursor: pointer; border: 0; }
 
 .card { background: var(--paper); border-radius: 14px; padding: 12px 14px; border: 2px solid transparent; box-shadow: 0 1px 2px rgba(15, 40, 28, .1); }
 .card.fresh { border-color: var(--accent); animation: glow 1s ease-in-out 4; }
+/* カードのいちばん上の帯：本日の受け取りか、明日より先か（2026-10-30 ko-dai さんの指示。注文が入ったときに、ひと目でわかるように）。
+   明日より先は、すぐ作らない注文なので、濃い紫で目立たせる */
+.c-day { margin: -12px -14px 10px; padding: 5px 14px; border-radius: 12px 12px 0 0; font-size: 15px; font-weight: 800; letter-spacing: .02em; }
+.c-day.today { background: var(--green-soft); color: #1f6440; }
+.c-day.later { background: var(--later); color: #fff; }
 .card.late .c-time em { background: var(--red); color: #fff; }
 @keyframes glow { 50% { background: var(--accent-soft); } }
 .c-top { display: flex; align-items: center; gap: 12px; }

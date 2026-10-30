@@ -722,6 +722,17 @@ button.link-card { width: 100%; text-align: left; }
 .cell.goal b { font-size: 11px; letter-spacing: .04em; }
 .rewards li.goal span { color: var(--ember); }
 .rewards span small { display: block; font-size: 10.5px; }
+/* ゴール特典：何がもらえるかを大きく、選べるものを小さな札で（2026-10-30 ko-dai さんの指示：「長くてぱっと見分かりにくい」） */
+.rewards { overflow: hidden; }
+.rewards li.goal { background: linear-gradient(90deg, var(--ember-soft), rgba(251, 233, 228, 0) 85%); }
+.rw { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.rw b { font-size: 15.5px; }
+.rw-picks { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; }
+.rw-picks i { font-style: normal; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); color: var(--ink); white-space: nowrap; }
+.rewards li.done .rw-picks i { color: var(--sub); }
+.rewards b i.or { font-style: normal; font: 600 12px/1 var(--en); letter-spacing: .06em; color: var(--flame); margin: 0 6px; vertical-align: 1px; }   /* 「唐揚げ2個 or バニラアイス」の or を小さく、だいだいで */
+.rewards li.done b i.or { color: var(--sub); }
+.coupon-big h2 small { display: block; margin-top: 4px; font-size: 13px; font-weight: 500; color: var(--sub); }
 .cb-opts { margin: 4px 0 14px; text-align: left; }
 .btn-small:disabled { opacity: .35; cursor: default; }
 

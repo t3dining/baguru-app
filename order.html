@@ -13,7 +13,7 @@
 <link rel="manifest" href="manifest-store.json">
 <link rel="icon" href="img/store-icon-192.png">
 <link rel="apple-touch-icon" href="img/store-apple-touch-icon.png">
-<link rel="stylesheet" href="css/store.css?v=41501287">
+<link rel="stylesheet" href="css/store.css?v=0d54ab64">
 </head>
 <body>
 <header class="s-top">
@@ -36,16 +36,18 @@
 </section>
 
 <main class="board">
-  <section class="col" data-col="new"><h2>受付待ち<span class="n"></span></h2><div class="list"></div></section>
+  <!-- 1列目は、受付待ちと、その下に受付済み（2026-10-30 ko-dai さんの指示で、3列の下から移した） -->
+  <div class="stack">
+    <section class="col" data-col="new"><h2>受付待ち<span class="n"></span></h2><div class="list"></div></section>
+    <!-- 受け付けた・承認したが、まだ調理を始める前の注文。受け取り・お届けの30分前（data.js の TAKEOUT.cookBefore）を過ぎると「調理中」に移る（2026-10-30 ko-dai さん） -->
+    <section class="booked">
+      <h2>受付済み<span class="n"></span><small>受け取り・お届けの<span id="cookBefore">30</span>分前になると「調理中」に移ります</small></h2>
+      <div class="list"></div>
+    </section>
+  </div>
   <section class="col" data-col="accepted"><h2>調理中<span class="n"></span></h2><div class="list"></div></section>
   <section class="col" data-col="ready"><h2>できあがり・お渡し待ち<span class="n"></span></h2><div class="list"></div></section>
 </main>
-
-<!-- 受け付けた・承認したが、まだ調理を始める前の注文。受け取り・お届けの30分前（data.js の TAKEOUT.cookBefore）を過ぎると「調理中」に移る（2026-10-30 ko-dai さん） -->
-<section class="booked">
-  <h2>受付済み<span class="n"></span><small>受け取り・お届けの<span id="cookBefore">30</span>分前になると「調理中」に移ります</small></h2>
-  <div class="list"></div>
-</section>
 
 <section class="past">
   <h2>今日のお渡し済み・取り消し<span class="n"></span></h2>
@@ -119,11 +121,11 @@
   <div class="dlg-btns"><button type="button" class="b-sub" data-close>やめる</button><button type="button" id="pSend" class="b-main">この注文を入れる</button></div>
 </dialog>
 
-<script src="js/data.js?v=15501efb"></script>
+<script src="js/data.js?v=308ff8e3"></script>
 <script src="js/db.js?v=feb3337d"></script>
-<script src="js/common.js?v=18536022"></script>
+<script src="js/common.js?v=e9d0b010"></script>
 <!-- 受け口とのやりとり（公式アプリと同じもの。切り替え ORDERS_ONLINE・受け口の場所・送り方）。公式アプリのセッションの持ち物 -->
 <script src="js/order-api.js?v=a0a24de9"></script>
-<script src="js/store.js?v=16d72217"></script>
+<script src="js/store.js?v=141bd227"></script>
 </body>
 </html>

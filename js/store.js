@@ -235,9 +235,27 @@ function ring(on) {
   if (!on && ringTimer) { clearInterval(ringTimer); ringTimer = null; }
 }
 
+/** 受け取りの日が、今日から何日後か（0＝本日。過ぎた日はマイナス） */
+function daysAhead(t, now = new Date()) {
+  const a = new Date(now); a.setHours(0, 0, 0, 0);
+  const b = new Date(t); b.setHours(0, 0, 0, 0);
+  return Math.round((b - a) / 86400000);
+}
+
+/** カードのいちばん上の帯：本日の受け取りか、明日より先か（2026-10-30 ko-dai さんの指示。注文が入ったときに、ひと目でわかるように）。
+ *  進めている注文（受付待ち・申請・受付済み・調理中・できあがり）にだけ付ける */
+function dayStrip(o, t) {
+  const d = daysAhead(t);
+  const word = `の${whenWord(o)}${o.status === 'request' ? '（希望）' : ''}`;
+  if (d === 0) return `<div class="c-day today">本日${word}</div>`;
+  const text = d === 1 ? `明日 ${mdw(t)}${word}` : d > 1 ? `${mdw(t)}${word}・${d}日後` : `${mdw(t)}${word}（過ぎた日）`;
+  return `<div class="c-day later">${text}</div>`;
+}
+
 function card(o) {
   const t = new Date(o.pickupAt);
   const isToday = dateKey(t) === dateKey(new Date());
+  const live = ACTIVE.includes(o.status);   // 進めている注文には、上の帯（本日か明日より先か）を付ける。日付は帯に出す
   const late = ACTIVE.includes(o.status) && t < new Date();
   // 受付済みでも、今日の分は早くできたときのために「できあがり」を出す。明日より先の分は出さない
   const next = isBooked(o) && !isToday ? null : NEXT[o.status];
@@ -252,9 +270,10 @@ function card(o) {
   const pay = o.kind !== 'delivery' ? '（店頭で支払い）'
     : `（お届けのときに現金で${o.fee != null ? `・配達料 ${yen(o.fee)} は別` : needsFee(o) ? '・配達料は承認のときに決めます' : ''}）`;
   return `<article class="card ${fresh.has(o.id) ? 'fresh' : ''} ${late ? 'late' : ''} ${o.kind === 'delivery' ? 'is-delivery' : ''}">
+      ${live ? dayStrip(o, t) : ''}
       <div class="c-top">
         <b class="c-no">${esc(o.no)}</b>
-        <div class="c-time"><small>${isToday ? '今日' : mdw(t)} ${whenWord(o)}${o.status === 'request' ? '（希望）' : ''}</small><b>${hhmm(t)}${o.asap ? '<i>頃</i>' : ''}</b>${ACTIVE.includes(o.status) && o.status !== 'request' ? `<em>${untilText(o.pickupAt)}</em>` : ''}</div>
+        <div class="c-time"><small>${live ? '' : `${isToday ? '今日' : mdw(t)} `}${whenWord(o)}${o.status === 'request' ? '（希望）' : ''}</small><b>${hhmm(t)}${o.asap ? '<i>頃</i>' : ''}</b>${ACTIVE.includes(o.status) && o.status !== 'request' ? `<em>${untilText(o.pickupAt)}</em>` : ''}</div>
       </div>
       ${tags ? `<div class="c-tags">${tags}</div>` : ''}
       <div class="c-who"><b>${esc(who(o))}</b>${o.tel ? `<a href="tel:${esc(o.tel)}">${esc(o.tel)}</a>` : ''}</div>
