@@ -196,7 +196,7 @@ function viewMenu() {
         <section class="cat-sec" id="cat-${c.id}">
           <h2 class="sec">${esc(c.name)}</h2>
           ${c.id === 'hamburg' || c.id === 'teishoku' ? setNote : ''}
-          ${c.id === 'side' ? `<p class="cat-note">サイドの${esc(SIDE_PHOTO_NOTE)}</p>` : ''}
+          ${c.id === 'side' ? `<p class="cat-note">${esc(SIDE_CAT_NOTE)}</p>` : ''}
           <div class="items">${ITEMS.filter(i => i.cat === c.id).map(itemRow).join('')}</div>
         </section>`).join('')}
       <a class="link-card" href="#request">${ICON.truck}<span><b>配達・大量注文はこちら</b><small>配達は${TAKEOUT.deliveryFreeMin}食以上で無料（原則${TAKEOUT.deliveryKm}km圏内）・${TAKEOUT.deliveryFreeMin}食未満は要相談。大量注文は${TAKEOUT.bulkMin}食以上。申請して、お店が承認したら確定です</small></span></a>`,

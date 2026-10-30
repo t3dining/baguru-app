@@ -61,7 +61,8 @@ const TAKEOUT = {
   // 「時間を指定」で、何か月先の同じ日まで選べるか（定休日・臨時休業は選べない）。2026-10-30 ko-dai さんの指示で、3日先から1か月先にした
   monthsAhead: 1,
   // ★注文・申請を受け口（予約ボードの受け口）に送るか（js/order-api.js。2026-10-30 ko-dai さんの決めで作った）。
-  // 受け口の 2026-10-30e 以降が Google に入ってから true にする。false のあいだは、前のとおりブラウザの中だけ（試作）
+  // 受け口の 2026-10-30e 以降が Google に入り、★Order受付も受け口につないでから、2つ一緒に true にする（Order受付のセッションに声をかける）。
+  // Order受付をつながないまま true にすると、お客さまの注文がお店の画面に届かない。false のあいだは、前のとおりブラウザの中だけ（試作）
   online: false,
   // 配達・大量注文は、すぐには確定せず「申請」にする。お店が承認したら確定
   bulkMin: 15,                  // この食数からは大量注文（ふつうの注文はできず、申請だけ）
@@ -162,8 +163,10 @@ function acai(id, name, desc, img, mini, regular) {
   };
 }
 // サイドの写真は、お店でお皿に盛ったときのもの（2026-10-30。ホームページと同じ断り書きを、商品を選ぶ画面に出す）
+// シーザーサラダだけは、テイクアウトの容器の写真なので断り書きをつけない（note に '' を渡す）
 const SIDE_PHOTO_NOTE = '写真は、お店でお出しするときのものです。テイクアウトは容器に入れてお渡しします。';
-function side(id, name, price, img = '') { return { id, cat: 'side', name, price, groups: [], ...(img ? { img, photoNote: SIDE_PHOTO_NOTE } : {}) }; }
+const SIDE_CAT_NOTE = 'サラダ以外の写真は、お店でお出しするときのものです。テイクアウトは容器に入れてお渡しします。';   // メニューのサイドの見出しの下（ホームページのサイドの写真カードの下と同じ言葉）
+function side(id, name, price, img = '', note = SIDE_PHOTO_NOTE) { return { id, cat: 'side', name, price, groups: [], ...(img ? { img, ...(note ? { photoNote: note } : {}) } : {}) }; }
 
 const ITEMS = [
   {
@@ -209,7 +212,7 @@ const ITEMS = [
   side('s_menchi', 'ゴロゴロ和牛メンチカツ（2個）', 660, 'side_menchi.jpg'),
   side('s_potato', '揚げたてポテトフライ', 660, 'side_potato.jpg'),
   side('s_sausage', '炭焼ソーセージ（2本）', 660, 'side_sausage.jpg'),
-  side('s_salad', 'シーザーサラダ', 660),
+  side('s_salad', 'シーザーサラダ', 660, 'tk_salad.jpg', ''),
   side('d_pepsi', 'ペプシコーラ（350ml）', 250),
   side('d_oolong', 'サントリー烏龍茶（350ml）', 250),
 ];
