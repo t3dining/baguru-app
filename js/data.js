@@ -165,8 +165,10 @@ function acai(id, name, desc, img, mini, regular) {
 // サイドの写真は、お店でお皿に盛ったときのもの（2026-10-30。ホームページと同じ断り書きを、商品を選ぶ画面に出す）
 // シーザーサラダだけは、テイクアウトの容器の写真なので断り書きをつけない（note に '' を渡す）
 const SIDE_PHOTO_NOTE = '写真は、お店でお出しするときのものです。テイクアウトは容器に入れてお渡しします。';
-const SIDE_CAT_NOTE = 'サラダ以外の写真は、お店でお出しするときのものです。テイクアウトは容器に入れてお渡しします。';   // メニューのサイドの見出しの下（ホームページのサイドの写真カードの下と同じ言葉）
+const SIDE_CAT_NOTE = '唐揚げ・メンチカツ・ポテト・ソーセージの写真は、お店でお出しするときのものです。テイクアウトは容器に入れてお渡しします。';   // メニューのサイドの見出しの下（ホームページのサイドの写真カードの下と同じ言葉）
 function side(id, name, price, img = '', note = SIDE_PHOTO_NOTE) { return { id, cat: 'side', name, price, groups: [], ...(img ? { img, ...(note ? { photoNote: note } : {}) } : {}) }; }
+// ドリンクの写真は、商品の写真の背景を切り抜いたもの（2026-10-30。cut：画面では、あたたかい色の下地に全体を見せる）
+const drink = (id, name, price, img) => ({ ...side(id, name, price, img, ''), cut: true });
 
 const ITEMS = [
   {
@@ -213,8 +215,8 @@ const ITEMS = [
   side('s_potato', '揚げたてポテトフライ', 660, 'side_potato.jpg'),
   side('s_sausage', '炭焼ソーセージ（2本）', 660, 'side_sausage.jpg'),
   side('s_salad', 'シーザーサラダ', 660, 'tk_salad.jpg', ''),
-  side('d_pepsi', 'ペプシコーラ（350ml）', 250),
-  side('d_oolong', 'サントリー烏龍茶（350ml）', 250),
+  drink('d_pepsi', 'ペプシコーラ（350ml）', 250, 'drink_pepsi.webp'),
+  drink('d_oolong', 'サントリー烏龍茶（350ml）', 250, 'drink_oolong.webp'),
 ];
 
 const ITEM_BY_ID = Object.fromEntries(ITEMS.map(i => [i.id, i]));

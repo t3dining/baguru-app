@@ -259,6 +259,11 @@ main { padding: 0 16px; }
 .item-photo { width: calc(100% + 32px); margin: 0 -16px; height: 230px; object-fit: cover; border-radius: 20px 20px 0 0; }
 .item-photo.noimg { height: 120px; }
 .item-photo.noimg img { width: 90px; }
+/* 背景を切り抜いた写真（ドリンク）：切らずに全体を見せ、まわりをあたたかい色の下地にする */
+.thumb.cut, .item-photo.cut { object-fit: contain; background: radial-gradient(ellipse at 50% 55%, #fff 0%, #f8eee2 60%, #efdcc6 100%); }
+.thumb.cut { padding: 6px; }
+.thumb.sm.cut { padding: 4px; }
+.item-photo.cut { padding: 20px 0 16px; }
 .item-head { padding: 14px 2px 4px; }
 .item-head h2 { margin: 0; font-size: 20px; }
 .item-head .sub { margin: 2px 0 0; color: var(--sub); font-size: 13px; }

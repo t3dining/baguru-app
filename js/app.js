@@ -94,7 +94,7 @@ const cartTotal = () => cart.map(cartLine).reduce((s, l) => s + l.unit * l.qty, 
 const cartMeals = () => mealCount(cart);
 
 const photo = (i, cls = 'thumb') => i.img
-  ? `<img class="${cls}" src="img/menu/${i.img}" alt="" loading="lazy">`
+  ? `<img class="${cls}${i.cut ? ' cut' : ''}" src="img/menu/${i.img}" alt="" loading="lazy">`
   : `<span class="${cls} noimg"><img src="img/logo.png" alt=""></span>`;
 
 function linesHtml(lines, total) {
