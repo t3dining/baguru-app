@@ -4,7 +4,7 @@
   "description": "バグるの公式アプリ・バグるOrder受付・予約ボードなどの入口（オーナー用）",
   "id": "/baguru-app/owner/",
   "start_url": "./",
-  "scope": "../",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#faf6f0",
   "theme_color": "#1f1916",

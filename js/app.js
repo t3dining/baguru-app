@@ -788,7 +788,7 @@ function viewStamp() {
       <ul class="rewards">
         <li class="${ME.registeredAt ? 'done' : ''}"><span>登録</span><b>${STAMP.welcome.points}ポイント ＋ ${esc(couponTitle(STAMP.welcome))}</b></li>
         ${STAMP.rewards.map(r => `<li class="${on >= r.at ? 'done' : ''} ${r.goal ? 'goal' : ''}"><span>${r.at}個${r.goal ? '<small>ゴール</small>' : ''}</span>${r.picks
-          ? `<div class="rw"><b>${esc(couponTitle(r))}</b><p class="rw-picks">${r.picks.map(p => `<i>${esc(p)}</i>`).join('')}</p></div>`
+          ? `<div class="rw"><b>${esc(couponTitle(r))}</b><p class="rw-picks">${r.picks.map(p => { const k = p.lastIndexOf(' '); return k < 0 ? `<i>${esc(p)}</i>` : `<i>${esc(p.slice(0, k))}<em>${esc(p.slice(k + 1))}</em></i>`; }).join('')}</p></div>`
           : `<b>${r.options.map(esc).join('<i class="or">or</i>')}</b>`}</li>`).join('')}
       </ul>
       <p class="hint">「or」でつないだ特典と、ゴールのハンバーグは、どれか1つをサービスします。使うときに選んでください。</p>
