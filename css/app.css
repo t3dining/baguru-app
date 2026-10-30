@@ -733,12 +733,14 @@ button.link-card { width: 100%; text-align: left; }
 .rewards li.goal { background: linear-gradient(90deg, var(--ember-soft), rgba(251, 233, 228, 0) 85%); }
 .rw { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }   /* 横いっぱいに広げて、札を大きく */
 .rw b { font-size: 15.5px; }
-/* 選べるハンバーグは、大きめの札を 2つ×2段 に（2026-10-30 ko-dai さんの指示）。名前と数（3個・1枚）を分けて見せる */
+/* 選べるハンバーグは、大きめの札を 2つ×2段 に（2026-10-30 ko-dai さんの指示）。数（3個・1枚）は名前の横に、赤い字で
+ * （狭い画面で入りきらないときだけ、数が下の行に回る） */
 .rw-picks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 2px 0 0; }
-.rw-picks i { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-height: 52px; padding: 6px 4px; border-radius: 12px; background: var(--paper); border: 1.5px solid rgba(199, 54, 29, .28); box-shadow: 0 1px 3px rgba(31, 24, 20, .06); font-style: normal; font-size: 14.5px; font-weight: 700; line-height: 1.25; color: var(--ink); text-align: center; }
+.rw-picks i { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 0 5px; min-height: 40px; padding: 8px 4px; border-radius: 12px; align-content: center; background: var(--paper); border: 1.5px solid rgba(199, 54, 29, .28); box-shadow: 0 1px 3px rgba(31, 24, 20, .06); font-style: normal; font-size: 14.5px; font-weight: 700; line-height: 1.25; color: var(--ink); text-align: center; }
 .rw-picks em { font-style: normal; font-family: var(--en); font-size: 14px; font-weight: 600; letter-spacing: .03em; color: var(--ember); }
 .rewards li.done .rw-picks i { color: var(--sub); border-color: var(--line); }
 .rewards li.done .rw-picks em { color: var(--sub); }
+@media (max-width: 359px) { .rw-picks i { font-size: 13px; gap: 0 3px; padding: 8px 2px; } .rw-picks em { font-size: 13px; } }   /* 小さいスマホでも1行に入るように */
 .rewards b i.or { font-style: normal; font: 600 12px/1 var(--en); letter-spacing: .06em; color: var(--flame); margin: 0 6px; vertical-align: 1px; }   /* 「唐揚げ2個 or バニラアイス」の or を小さく、だいだいで */
 .rewards li.done b i.or { color: var(--sub); }
 .coupon-big h2 small { display: block; margin-top: 4px; font-size: 13px; font-weight: 500; color: var(--sub); }
