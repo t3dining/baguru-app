@@ -3,6 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script>
+  /* バグる Owner の中から開いたとき（?from=owner）だけ、viewport-fit=cover を外す（2026-11-01。予約ボードと同じ）。
+     iPhone のホーム画面のアプリで別のページへ移ると、cover のままでは、使える高さが時計の帯のぶん短いのに上の端が時計の下にもぐり、
+     下にすき間ができて全体が上に寄る。ホーム画面から直接開くときは、今までのまま。くわしくは バグる Owner の README */
+  (function () {
+    var owner = /[?&]from=owner\b/.test(location.search);
+    try { owner = owner || sessionStorage.getItem('bg.fromOwner') === '1'; } catch (e) {}
+    if (!owner) return;
+    var v = document.querySelector('meta[name="viewport"]');
+    v.setAttribute('content', v.getAttribute('content').replace(/,\s*viewport-fit=cover/, ''));
+    addEventListener('pageshow', function (e) { if (!e.persisted) scrollTo(0, 0); });   // 切り替えたときのずれが残らないように
+  })();
+</script>
 <meta name="robots" content="noindex, nofollow">   <!-- 試作のあいだは検索に出さない（2026-10-29 決定。本番で外す） -->
 <meta name="theme-color" content="#1f1916">
 <meta name="apple-mobile-web-app-capable" content="yes">
