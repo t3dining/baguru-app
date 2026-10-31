@@ -66,6 +66,7 @@ function render(keepScroll = false) {
   view.classList.remove('enter');
   if (!keepScroll) { void view.offsetWidth; view.classList.add('enter'); }
   v.after?.();   // 描いたあとに動かすもの（ネット予約の空き状況・演出）
+  if (!keepScroll) FX.reveal(view);   // スクロールで順に出す（js/fx.js。1分ごとの描き直しでは動かさない）
   view.dataset.route = name || 'home';     // ヨコ画面のとき、メニューだけ横に広げる（app.css の最後）
   $$('.tabs a').forEach(a => a.classList.toggle('on', a.dataset.tab === v.tab));
   drawCart();
@@ -73,6 +74,7 @@ function render(keepScroll = false) {
 }
 
 let cartCount = null;
+let cartShown = 0;
 function drawCart() {
   const n = cart.reduce((s, c) => s + c.qty, 0);
   const badge = $('#cartBtn .badge');
@@ -82,7 +84,12 @@ function drawCart() {
   cartCount = n;
   const bar = $('#cartbar');
   bar.hidden = !(n && routeName() === 'menu');
-  if (!bar.hidden) bar.innerHTML = `<span>${ICON.cart}カートを見る<small>${n}点</small></span><b>${yen(cartTotal())}</b>`;
+  const total = cartTotal();
+  if (!bar.hidden) {
+    bar.innerHTML = `<span>${ICON.cart}カートを見る<small>${n}点</small></span><b>${yen(cartShown)}</b>`;
+    FX.count($('b', bar), cartShown, total, 450, yen);   // 合計は、増えるところを見せる
+  }
+  cartShown = total;
 }
 
 /** カートの1行が、売り切れ・出さないもの（バグるマネージで止めたもの）か。商品か、選んだものの1つでも売り切れなら true */
@@ -155,8 +162,14 @@ function viewHome() {
       <ul class="news">${NEWS.map(n => `
         <li><time>${n.date.slice(5).replace('-', '/')}</time><b>${esc(n.title)}</b><p>${esc(n.body)}</p></li>`).join('')}
       </ul>
-      <a class="link-card" href="${SHOP.instagram}" target="_blank" rel="noopener">${ICON.insta}<span><b>最新情報は Instagram で</b><small>@baguru.hamburg</small></span></a>`,
-    after: () => FX.embers($('.hero')),
+      <a class="link-card" href="${SHOP.instagram}" target="_blank" rel="noopener">${ICON.insta}<span><b>最新情報は Instagram で</b><small>@baguru.hamburg</small></span></a>
+      <footer class="home-foot">
+        <img src="img/logo.png" alt="">
+        <p class="hf-catch">${esc(SHOP.catch)}</p>
+        <p class="hf-name">${esc(SHOP.name)}</p>
+        <p class="hf-en">CHARCOAL GRILLED HAMBURG</p>
+      </footer>`,
+    after: () => { FX.embers($('.hero')); FX.embers($('.home-foot'), 8); },
   };
 }
 
@@ -222,7 +235,10 @@ function viewMenu() {
           <div class="items">${shown(c).map(itemRow).join('')}</div>
         </section>`).join('')}
       <a class="link-card" href="#request">${ICON.truck}<span><b>配達・大量注文はこちら</b><small>配達は${TAKEOUT.deliveryFreeMin}食以上で無料（原則${TAKEOUT.deliveryKm}km圏内）・${TAKEOUT.deliveryFreeMin}食未満は要相談。大量注文は${TAKEOUT.bulkMin}食以上。申請して、お店が承認したら確定です</small></span></a>`,
-    after: () => { if (ORDERS_ONLINE) refreshAccepting().then(changed => changed && render(true)).catch(() => {}); },
+    after: () => {
+      FX.spy($('.cats'));
+      if (ORDERS_ONLINE) refreshAccepting().then(changed => changed && render(true)).catch(() => {});
+    },
   };
 }
 
@@ -344,6 +360,7 @@ function openItem(id) {
       if (same) same.qty += qty;
       else cart.push({ key: 'k' + Date.now(), itemId: item.id, sel, qty });
       saveCart();
+      FX.fly($('img.item-photo', sheetBody), $('#cartBtn'));
       closeSheet();
       drawCart();
       toast('カートに入れました');
@@ -786,7 +803,7 @@ function viewStamp() {
     const mark = n <= on ? '<img src="img/logo.png" alt="">' : r?.goal ? '<b>GOAL</b>' : r ? ICON.gift : n;
     const isNew = fresh && n > from && n <= on;
     // 押したスタンプは、マスごとに少しずつ傾ける（手で押したように）
-    return `<span class="cell ${n <= on ? 'got' : ''} ${r ? 'gift' : ''} ${r?.goal ? 'goal' : ''} ${isNew ? 'new' : ''}" style="--rot:${(n * 47) % 23 - 18}deg${isNew ? `;animation-delay:${(n - from - 1) * 0.15}s` : ''}">${mark}</span>`;
+    return `<span class="cell ${n <= on ? 'got' : ''} ${r ? 'gift' : ''} ${r?.goal ? 'goal' : ''} ${isNew ? 'new' : ''}" style="--rot:${(n * 47) % 23 - 18}deg;--n:${n}${isNew ? `;animation-delay:${(n - from - 1) * 0.15}s` : ''}">${mark}</span>`;
   }).join('');
   return {
     tab: 'stamp', title: 'スタンプカード',
@@ -1231,6 +1248,8 @@ const syncContent = () => refreshContent().then(changed => {
 });
 
 $$('[data-icon]').forEach(el => el.insertAdjacentHTML('afterbegin', ICON[el.dataset.icon]));
+FX.parallax();
+FX.ripples();
 render();
 startTexts();   // バグるマネージで直した文章に置きかえる（js/content.js）
 syncDays();

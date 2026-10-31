@@ -924,16 +924,13 @@ button.link-card { width: 100%; text-align: left; }
 .cat-note { border: 1px dashed rgba(184, 145, 75, .55); }
 
 /* 画面を移ったとき：上から順に、ふわっと出る（app.js の render が、画面を移ったときだけ #view に enter を付ける） */
-#view.enter > * { animation: rise .45s both; }
+#view.enter > *:not(.rv):not(.rv-in) { animation: rise .45s backwards; }
 #view.enter > *:nth-child(2) { animation-delay: .05s; }
 #view.enter > *:nth-child(3) { animation-delay: .1s; }
 #view.enter > *:nth-child(4) { animation-delay: .15s; }
 #view.enter > *:nth-child(5) { animation-delay: .2s; }
 #view.enter > *:nth-child(6) { animation-delay: .25s; }
 #view.enter > *:nth-child(n+7) { animation-delay: .3s; }
-#view.enter .items > *:nth-child(2) { animation: rise .45s .08s both; }
-#view.enter .items > *:nth-child(3) { animation: rise .45s .14s both; }
-#view.enter .items > *:nth-child(n+4) { animation: rise .45s .2s both; }
 
 /* 下から出る画面：はずむように */
 .sheet-body { transition: transform .38s cubic-bezier(.2, .95, .25, 1.06); }
@@ -1061,8 +1058,112 @@ button.link-card { width: 100%; text-align: left; }
 .tabs a.on { color: var(--ember); }
 .tabs a.on::before { background: var(--ember-soft); }
 
+/* =====================================================================
+ *  もっと装飾と動きを（2026-11-01 ko-dai さんの指示）。スマホで重くならないよう、動かすのは位置と濃さだけ。JS は js/fx.js の後半
+ * ===================================================================== */
+
+/* スクロールで順に出す（js/fx.js の reveal） */
+.rv { opacity: 0; }
+.rv-in { animation: rise .55s var(--rv-d, 0s) cubic-bezier(.2, .7, .3, 1) backwards; }
+.item.rv-in .thumb { animation: thumb-in .6s var(--rv-d, 0s) var(--spring) backwards; }
+.item.rv-in .plus { animation: pop .5s calc(var(--rv-d, 0s) + .18s) var(--spring) backwards; }
+.link-card.rv-in svg { animation: pop .5s calc(var(--rv-d, 0s) + .12s) var(--spring) backwards; }
+.sec.rv-in::before { animation: bar-up .5s var(--rv-d, 0s) var(--spring) backwards; transform-origin: bottom; }
+.sec.rv-in::after { animation: fade-in .7s calc(var(--rv-d, 0s) + .15s) backwards; }
+
+/* 上の帯：炭火の線が、ゆっくり流れる */
+.top::after { background: linear-gradient(90deg, var(--ember), var(--flame) 30%, #ffc27a 50%, var(--flame) 70%, var(--ember)); background-size: 200% 100%; animation: line-flow 7s linear infinite; }
+
+/* ホームの写真：煙がゆっくり流れ、店名に光が走る */
+.hero::before { content: ""; position: absolute; inset: -20% -30%; z-index: 1; pointer-events: none; background: radial-gradient(40% 35% at 30% 60%, rgba(255, 255, 255, .13), transparent 70%), radial-gradient(35% 30% at 70% 45%, rgba(255, 235, 215, .1), transparent 70%); animation: smoke 13s ease-in-out infinite alternate; }
+.hero-name { background: linear-gradient(100deg, #fff 30%, #ffe1a8 45%, #fff 60%); background-size: 240% 100%; -webkit-background-clip: text; background-clip: text; animation: name-shine 6s ease-in-out infinite; }
+#view.enter .hero-en { animation: track-in .9s .1s cubic-bezier(.2, .7, .3, 1) backwards; }
+#view.enter .hero-logo { animation: logo-in .7s .1s var(--spring) backwards, float 5s 1s ease-in-out infinite; }
+.state-open i { animation: ripple 2s ease-out infinite; }
+
+/* ホームの大きなボタン：炭火のようにゆらぐ */
+.q-order::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(70% 60% at 88% 10%, rgba(255, 130, 50, .4), transparent 70%); animation: flicker 3.4s ease-in-out infinite; }
+.q-order > * { position: relative; }
+.q-order svg { animation: float 3.6s ease-in-out infinite; }
+
+/* 押したところから波紋（js/fx.js の ripples） */
+.fx-host { position: relative; overflow: hidden; }
+.fx-rip { position: absolute; border-radius: 50%; background: currentColor; opacity: .16; pointer-events: none; animation: rip .6s ease-out forwards; }
+
+/* 商品がカートへ飛ぶ（js/fx.js の fly） */
+.fx-fly { position: fixed; z-index: 70; border-radius: 16px; object-fit: cover; pointer-events: none; border: 2px solid #fff; background: #fff; }
+.cart-btn.fx-bump svg { animation: bump .45s var(--spring); }
+
+/* メニュー：見ている見出しのボタンが光る。写真は押すと少し寄る */
+.cats button { transition: background .25s, color .25s, border-color .25s, transform .2s var(--spring); }
+.cats button.on { background: var(--coal); border-color: var(--coal); color: #fff; }
+.choice:has(input:checked) { animation: pick .32s var(--spring); }
+.none-chip:has(input:checked) { animation: pick .32s var(--spring); }
+.mode.on, .chip.on, .slot.on { animation: pick .32s var(--spring); }
+.stepper b { display: inline-block; }
+
+/* 下から出る画面 */
+.sheet.show .item-photo { animation: fade-in .45s backwards; }
+.sheet.show .g { animation: rise .4s .05s backwards; }
+.sheet.show .g + .g { animation-delay: .12s; }
+
+/* おしらせ：ぽんと降りてくる */
+.toast { transition: opacity .2s, transform .4s var(--spring); }
+
+/* 注文の様子：線がのび、丸が順に出る */
+#view.enter .track li::before { transform-origin: left; animation: line-in .5s calc(var(--tn, 0) * .22s) ease-out backwards; }
+#view.enter .track i { animation: pop .45s calc(var(--tn, 0) * .22s + .12s) var(--spring) backwards; }
+.track li:nth-child(2) { --tn: 1; }
+.track li:nth-child(3) { --tn: 2; }
+.track li:nth-child(4) { --tn: 3; }
+#view.enter .ticket { animation: ticket-in .6s var(--spring) backwards; }
+#view.enter .t-no { animation: pop .5s .25s var(--spring) backwards; }
+
+/* スタンプカード：カードが起き上がり、マスが順に出る。棒の中を光が流れる */
+#view.enter .stampcard { animation: card-in .7s cubic-bezier(.2, .8, .3, 1) backwards; transform-origin: 50% 100%; }
+#view.enter .cell:not(.new) { animation: cell-in .4s calc(var(--n) * 28ms + .2s) var(--spring) backwards; }
+#view.enter .cell.gift:not(.new) { animation: cell-in .4s calc(var(--n) * 28ms + .2s) var(--spring) backwards, gift-glow 2.6s 1.2s ease-in-out infinite; }
+#view.enter .cell.goal:not(.new) { animation: cell-in .4s calc(var(--n) * 28ms + .2s) var(--spring) backwards, goal-pulse 1.8s 1.2s ease-in-out infinite; }
+.sc-bar { position: relative; }
+.sc-bar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 40%; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .6), transparent); animation: bar-shine 2.8s ease-in-out infinite; }
+.sc-next b { display: inline-block; animation: float 2.4s ease-in-out infinite; }
+
+/* ネット予約：月が横にすべって変わり、選んだ日がはねる */
+.r-cal.go-next { animation: from-right .3s ease-out; }
+.r-cal.go-prev { animation: from-left .3s ease-out; }
+.r-day input:checked + span, .r-chip input:checked + span { animation: pick .32s var(--spring); }
+#r-times .r-times { animation: rise .35s backwards; }
+
+/* ホームのいちばん下の飾りの帯（炭の黒に、真鍮の市松） */
+.home-foot { position: relative; overflow: hidden; margin: 22px -16px -16px; padding: 30px 16px 28px; text-align: center; color: #fff; background: radial-gradient(90% 90% at 50% 120%, rgba(199, 54, 29, .5), transparent 70%), var(--coal); }
+.home-foot::before { content: ""; position: absolute; inset: 0 0 auto; height: 8px; background: repeating-linear-gradient(90deg, var(--brass) 0 16px, transparent 16px 32px); }
+.home-foot img { width: 62px; height: 62px; margin: 0 auto 8px; padding: 3px; border-radius: 50%; background: #fff; object-fit: contain; }
+.home-foot p { position: relative; z-index: 2; margin: 0; }
+.hf-catch { font-size: 12.5px; letter-spacing: .12em; color: #e7dccf; }
+.hf-name { font-size: 26px; font-weight: 900; letter-spacing: .14em; line-height: 1.3; }
+.hf-en { font: 600 10.5px/1.6 var(--en); letter-spacing: .24em; color: var(--flame); }
+.order-only .home-foot { display: none; }
+
+@keyframes thumb-in { from { transform: scale(.82); opacity: 0; } }
+@keyframes bar-up { from { transform: scaleY(0); } }
+@keyframes line-flow { to { background-position: -200% 0; } }
+@keyframes smoke { from { transform: translate(-6%, 3%); } to { transform: translate(7%, -5%); } }
+@keyframes name-shine { 0%, 55% { background-position: 110% 0; } 100% { background-position: -30% 0; } }
+@keyframes track-in { from { letter-spacing: .7em; opacity: 0; } }
+@keyframes logo-in { from { transform: scale(.4) rotate(-30deg); opacity: 0; } }
+@keyframes flicker { 0%, 100% { opacity: .75; } 30% { opacity: 1; } 47% { opacity: .6; } 62% { opacity: .95; } 80% { opacity: .7; } }
+@keyframes rip { from { transform: scale(.1); opacity: .22; } to { transform: scale(2.4); opacity: 0; } }
+@keyframes pick { 40% { transform: scale(1.035); } }
+@keyframes line-in { from { transform: scaleX(0); } }
+@keyframes ticket-in { from { transform: translateY(16px) rotate(-1.5deg) scale(.97); opacity: 0; } }
+@keyframes card-in { from { transform: perspective(700px) rotateX(24deg) translateY(16px); opacity: 0; } }
+@keyframes cell-in { from { transform: scale(.4); opacity: 0; } }
+@keyframes bar-shine { from { transform: translateX(-120%); } to { transform: translateX(280%); } }
+@keyframes from-right { from { transform: translateX(26px); opacity: 0; } }
+@keyframes from-left { from { transform: translateX(-26px); opacity: 0; } }
+
 /* 「動きを減らす」の設定の人には、動きを出さない（光・火の粉・紙ふぶきも出さない） */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
-  .ember, .btn-main::after, .q-order::after, .cartbar::after, .coupon::after, .stampcard::before { display: none; }
+  .ember, .btn-main::after, .q-order::after, .cartbar::after, .coupon::after, .stampcard::before, .hero::before, .sc-bar::after { display: none; }
 }

@@ -71,14 +71,14 @@ const FX = {
     if (b) FX.confetti({ x: b.left + b.width / 2, y: b.top + b.height / 2, kind });
   },
 
-  /** 数字を from から to へ、少しずつ増やして見せる（終わると、ぽんとはねる） */
-  count(el, from, to, ms = 650) {
+  /** 数字を from から to へ、少しずつ増やして見せる（終わると、ぽんとはねる）。fmt … 見せ方（値段なら yen） */
+  count(el, from, to, ms = 650, fmt = n => n) {
     if (!el) return;
-    if (FX.calm || from === to) { el.textContent = to; return; }
+    if (FX.calm || from === to) { el.textContent = fmt(to); return; }
     const t0 = performance.now();
     const tick = (t) => {
       const k = Math.min(1, (t - t0) / ms);
-      el.textContent = Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3)));
+      el.textContent = fmt(Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3))));
       if (k < 1) requestAnimationFrame(tick);
       else { el.classList.remove('fx-bump'); void el.offsetWidth; el.classList.add('fx-bump'); }
     };
@@ -100,5 +100,95 @@ const FX = {
       s.style.cssText = `left:${(i * 61) % 100}%;--d:${4 + (i % 5) * 1.3}s;--w:${(i * 37) % 9 - 4}vw;--s:${2 + (i % 3)}px;animation-delay:-${(i * 0.7) % 6}s`;
       box.append(s);
     }
+  },
+
+  /* ---- ここから 2026-11-01 ko-dai さんの指示：「もっと装飾やアニメーションを増やす」 ---- */
+
+  /** スクロールで画面に入ったものを、上から順にふわっと出す（ホームページの出かたと同じ考え方）。画面を移ったときだけ呼ぶ */
+  reveal(root) {
+    FX.revealIO?.disconnect();
+    if (FX.calm || !('IntersectionObserver' in window)) return;
+    const io = FX.revealIO = new IntersectionObserver(list => {
+      let n = 0;
+      list.forEach(e => {
+        if (!e.isIntersecting) return;
+        e.target.style.setProperty('--rv-d', `${Math.min(n++, 6) * 55}ms`);
+        e.target.classList.replace('rv', 'rv-in');
+        io.unobserve(e.target);
+      });
+    }, { rootMargin: '0px 0px -5% 0px' });
+    root.querySelectorAll('.sec, .item, .link-card, .news li, .rows li, .dine details, .rewards li, .hist li, .orders li, .coupon, .cat-note, .home-foot').forEach(el => {
+      el.classList.add('rv');
+      io.observe(el);
+    });
+  },
+
+  /** ホームの写真を、スクロールより少しゆっくり動かす */
+  parallax() {
+    if (FX.calm) return;
+    let wait = false;
+    addEventListener('scroll', () => {
+      if (wait) return;
+      wait = true;
+      requestAnimationFrame(() => {
+        wait = false;
+        const img = document.querySelector('.hero > img');
+        if (img && scrollY < 400) img.style.translate = `0 ${Math.round(scrollY * 0.28)}px`;
+      });
+    }, { passive: true });
+  },
+
+  /** 押したところから波紋を広げる（ボタン・カード） */
+  ripples() {
+    if (FX.calm) return;
+    addEventListener('pointerdown', e => {
+      const el = e.target.closest?.('.btn, .quick-btn, .link-card, .item, .cats button, .chip, .slot, .tabs a, .r-cal-move, .mode');
+      if (!el || el.disabled) return;
+      el.classList.add('fx-host');
+      const b = el.getBoundingClientRect(), r = Math.max(b.width, b.height);
+      const s = document.createElement('span');
+      s.className = 'fx-rip';
+      s.style.cssText = `left:${e.clientX - b.left - r / 2}px;top:${e.clientY - b.top - r / 2}px;width:${r}px;height:${r}px`;
+      s.addEventListener('animationend', () => s.remove());
+      el.append(s);
+    }, { passive: true });
+  },
+
+  /** 商品の写真を、カートのところまで飛ばす */
+  fly(from, to) {
+    if (FX.calm || !from || !to) return;
+    const a = from.getBoundingClientRect(), b = to.getBoundingClientRect();
+    if (!a.width || !b.width) return;
+    const size = 72, im = document.createElement('img');
+    im.src = from.currentSrc || from.src || 'img/logo.png';
+    im.className = 'fx-fly';
+    im.style.cssText = `left:${a.left + a.width / 2 - size / 2}px;top:${a.top + a.height / 2 - size / 2}px;width:${size}px;height:${size}px`;
+    document.body.append(im);
+    const dx = b.left + b.width / 2 - (a.left + a.width / 2), dy = b.top + b.height / 2 - (a.top + a.height / 2);
+    im.animate([
+      { transform: 'translate(0, 0) scale(1.5) rotate(0)', opacity: 1 },
+      { transform: `translate(${dx * 0.55}px, ${dy * 0.35 - 40}px) scale(1) rotate(-12deg)`, opacity: 1, offset: 0.55 },
+      { transform: `translate(${dx}px, ${dy}px) scale(.2) rotate(-24deg)`, opacity: .4 },
+    ], { duration: 650, easing: 'cubic-bezier(.4, 0, .4, 1)' }).onfinish = () => {
+      im.remove();
+      to.classList.remove('fx-bump'); void to.offsetWidth; to.classList.add('fx-bump');
+    };
+  },
+
+  /** メニューの上のボタンのうち、いま見ている見出しのものを光らせる */
+  spy(nav) {
+    FX.spyIO?.disconnect();
+    if (!nav || !('IntersectionObserver' in window)) return;
+    const mark = id => {
+      nav.querySelectorAll('button').forEach(b => {
+        const on = b.dataset.arg === id;
+        if (on && !b.classList.contains('on')) nav.scrollTo({ left: b.offsetLeft - 16, behavior: FX.calm ? 'auto' : 'smooth' });
+        b.classList.toggle('on', on);
+      });
+    };
+    FX.spyIO = new IntersectionObserver(list => list.forEach(e => { if (e.isIntersecting) mark(e.target.id.replace('cat-', '')); }), { rootMargin: '-30% 0px -65% 0px' });
+    const secs = document.querySelectorAll('.cat-sec');
+    if (secs[0]) mark(secs[0].id.replace('cat-', ''));   // 開いたときは、いちばん上の見出し
+    secs.forEach(s => FX.spyIO.observe(s));
   },
 };

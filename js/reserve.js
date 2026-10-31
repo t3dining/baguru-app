@@ -290,6 +290,7 @@ function rsvClick(e) {
     if (b.disabled) return;
     rsv.month = rsvAddMonth(rsv.month, Number(b.dataset.dir));
     $('#r-days').innerHTML = rsvDaysHtml();
+    $('#r-days .r-cal').classList.add(b.dataset.dir === '1' ? 'go-next' : 'go-prev');   // 月が横にすべって変わる
     const nb = $(`#r-days [data-dir="${b.dataset.dir}"]`);
     return (nb && !nb.disabled ? nb : $('#r-days [data-dir]:not(:disabled)'))?.focus();
   }
