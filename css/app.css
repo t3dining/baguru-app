@@ -724,6 +724,8 @@ button.link-card { width: 100%; text-align: left; }
 .st-request { background: #e7eefb; color: #2f5fa3; }
 .st-declined { background: var(--red-soft); color: var(--red); }
 .ob-request .ob-st { background: #e7eefb; color: #2f5fa3; }
+.ob-declined, .ob-canceled { border-color: var(--red); }
+.ob-declined .ob-st, .ob-canceled .ob-st { background: var(--red-soft); color: var(--red); }
 
 /* ---- スタンプ：初回登録・ゴール・特典をえらぶ ---- */
 .welcome { margin-top: 14px; padding: 16px; border-radius: var(--r); background: var(--brass-soft); border: 1.5px solid var(--brass); }

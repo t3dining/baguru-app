@@ -3,14 +3,14 @@
  *  人数 → 日にち → 時間 → お客様のこと → 確認 → 受け付けました
  *
  *  ・ホームページの「ご予約」と同じ受け口（予約ボードの受け口・コード.gs）に、リクエストを送る。
- *    お店が予約ボードの「予約受付」で承認すると、確定のメールが届く（だからメールアドレスは必須）
+ *    お店が予約ボードの「予約受付」で承認すると、確定のメールが届く（だからメールアドレスは必須）。アプリでも分かる（下の「予約の様子」）
  *  ・受け口の場所と、やりとりの道具は、予約ボードの公開先から読む（data.js の SHOP.reserveBase の config.js・api.js）。
  *    ★このアプリに受け口のアドレスを写さない（受け口が変わっても、予約ボードの側を直すだけで済むように）
  *  ・送る中身は、ホームページの予約フォーム（ホームページ/公開用/js/reserve.js）と同じにする。受け口が受け取る形を変えたら、こちらも直す
  *  ・送るときに「受付の印（rid）」を付ける。返事が途中で切れて送り直しても、リクエストは1件にしかならない
  *  ・★この Mac で試すときは、にせの受け口（予約ボード/受け口/にせの受け口.py。ポート 8131）から開いて、アドレスに ?test を付ける
  *    （予約ボードの config.js が、にせの受け口につなぎ替える）。本物の受け口にリクエストを送って試さない
- *  ・送ったリクエストは、この端末にも控える（マイページ）。確定・お断りは、お店からメールで届く
+ *  ・送ったリクエストは、この端末にも控える（マイページ）。確定・お断りは、お店からメールで届き、アプリを開いたときにも出る
  * ===================================================================== */
 
 const RSV_MSG = {
@@ -58,7 +58,7 @@ function viewReserve() {
   return {
     tab: 'home', title: 'ネット予約', back: '#home',
     html: `
-      <p class="notice">${ICON.cal}<span>席のご予約の<b>リクエスト</b>です<small>お店が確かめて承認すると、確定のメールが届きます（それまでは確定ではありません）。お急ぎの方は、お電話でどうぞ。</small></span></p>
+      <p class="notice">${ICON.cal}<span>席のご予約の<b>リクエスト</b>です<small>お店が確かめて承認すると、確定のメールが届き、このアプリでも分かります（それまでは確定ではありません）。お急ぎの方は、お電話でどうぞ。</small></span></p>
       <div id="rsv"><p class="hint">空き状況を読み込んでいます…</p></div>`,
     after: rsvStart,
   };
@@ -251,7 +251,7 @@ function rsvSummary(v) {
 function rsvConfirmHtml() {
   return `<h2 class="sec">この内容で送ります</h2>
     ${rsvSummary(rsv.v)}
-    <p class="hint">送ると、お店に「リクエスト」が届きます。お店が確かめて承認すると、確定のメールが届きます。</p>
+    <p class="hint">送ると、お店に「リクエスト」が届きます。お店が確かめて承認すると、確定のメールが届き、このアプリでも分かります。</p>
     <p class="notice warn" id="r-cmsg" hidden></p>
     <div class="foot foot-2">
       <button class="btn btn-main btn-block" data-r="send" ${rsv.busy ? 'disabled' : ''}>${rsv.busy ? '送っています…' : 'この内容で送る'}</button>
@@ -261,7 +261,7 @@ function rsvConfirmHtml() {
 
 function rsvDoneHtml() {
   const r = rsv.done;
-  return `<div class="thanks">${ICON.check}<div><b>リクエストを受け付けました</b><small>まだ確定していません。お店が確かめて承認すると、確定のメールが届きます</small></div></div>
+  return `<div class="thanks">${ICON.check}<div><b>リクエストを受け付けました</b><small>まだ確定していません。お店が確かめて承認すると、確定のメールが届き、このアプリのマイページでも分かります</small></div></div>
     <div class="ticket"><div><small>受付番号</small><b class="t-no">${esc(r.no)}</b></div><div><small>ご来店</small><b>${rsvDay(r.date)} ${esc(r.time)}</b><small>${r.people}名</small></div></div>
     <p class="hint">${r.mailed ? '受け付けたことを伝えるメールを、今お送りしました。届かないときは、迷惑メールのフォルダも見てください。' : '★受け付けのメールを送れませんでした。メールアドレスが合っているか、お電話でお問い合わせください。'}</p>
     <div class="row-btns">
@@ -316,8 +316,8 @@ function rsvSend() {
   const { sei, mei, seiKana, meiKana, ...send } = rsv.v;   // 4欄の分けたものは、この画面のためだけ。受け口には name（苗字 名前）・kana（セイ メイ）で送る
   BaguruApi.post({ action: 'reserve', rid: rsv.rid, via: 'アプリ', ...send })
     .then(r => {
-      // この端末にも控える（マイページの「ご予約のリクエスト」）。お名前・電話・メールは、次に入れる手間を省くため会員の情報に
-      DB.set('reserves', [...DB.get('reserves', []), { no: r.no, date: r.date, time: r.time, people: r.people, sentAt: new Date().toISOString() }]);
+      // この端末にも控える（マイページの「ご予約のリクエスト」）。id と token は、様子を読むときの鍵。お名前・電話・メールは、次に入れる手間を省くため会員の情報に
+      DB.set('reserves', [...DB.get('reserves', []), { id: r.id, token: r.token, state: 'request', no: r.no, date: r.date, time: r.time, people: r.people, sentAt: new Date().toISOString() }]);
       Object.assign(ME, { name: rsv.v.name, tel: rsv.v.tel, email: rsv.v.email, ...(rsv.v.kana ? { kana: rsv.v.kana } : {}) });
       DB.set('member', ME);
       rsv = { ...rsv, step: 'done', done: r, v: null, people: 0, date: '', time: '', month: '', busy: false, avail: null };
@@ -345,14 +345,65 @@ window.addEventListener('hashchange', () => {
   if (routeName() !== 'reserve' && rsv.step === 'done') rsv = { ...rsv, step: 'form', done: null };
 });
 
+/* ---------------------------------------------------------------------
+ *  予約の様子（2026-11-01 ko-dai さんの指示：確定のお知らせをメールとアプリで。予約ボードのセッションから。受け口の版 2026-11-01h から）
+ *  ・受け口の myReserves に、控えの id と token を渡して読む（鍵が合う予約だけ返る）。★token は端末の中だけ。アドレスに載せない
+ *  ・プッシュのしくみは無いので、アプリを閉じている間は知らせられない。開いたときに読んで、ホームの帯とマイページに出す
+ *  ・id の無い前からの控えは読めないので、今までの文のまま
+ * --------------------------------------------------------------------- */
+
+const RSV_EVERY = 180000;   // 開いている間に読み直す間隔
+const RSV_GAP = 60000;      // 開き直すたびに読みすぎないように、これより短い間隔では読まない
+
+const RSV_STATE = {
+  request: { label: '確認中', css: 'request', note: 'お店が確かめています。確定したらメールでお知らせします。このアプリでも、開いたときに分かります' },
+  ok: { label: '確定', css: 'ready', note: 'ご予約が確定しました。ご来店をお待ちしております' },
+  no: { label: 'お受けできません', css: 'declined', note: '申し訳ありません。ご希望の日時ではお受けできませんでした' },
+  canceled: { label: '取り消し', css: 'canceled', note: 'このご予約は取り消しになりました' },
+};
+const RSV_OLD = { label: 'リクエスト済み', css: 'request', note: '確定・お断りは、お店からメールでお知らせします' };
+const rsvState = r => (r.id ? RSV_STATE[r.state] || RSV_STATE.request : RSV_OLD);
+const rsvAhead = r => r.date >= dateKey(new Date());
+
+/** 受け口から様子を読んで、控えを書きかえる。様子が変わった控えを返す（確定・お断りのあとは読まないものもある。読むものが無いときは受け口に聞かない） */
+async function syncReserves() {
+  const list = DB.get('reserves', []).filter(r => r.id && r.token && rsvAhead(r) && !['no', 'canceled'].includes(r.state))
+    .slice(-30).map(({ id, token }) => ({ id, token }));
+  if (!list.length) return [];
+  const got = (await orderPost({ action: 'myReserves', list })).reserves || [];
+  const changed = [];
+  DB.set('reserves', DB.get('reserves', []).map(r => {
+    const s = got.find(x => x.id === r.id);
+    if (!s) return r;
+    const now = { ...r, no: s.no, date: s.date, time: s.time, people: s.people, state: s.state };
+    if (s.state !== r.state) { now.fresh = true; changed.push(now); }   // fresh … マイページを見るまで、ホームに帯を出す
+    return now;
+  }));
+  return changed;
+}
+
+/** ホームの帯（様子が変わって、まだマイページで見ていない予約） */
+function rsvBanners() {
+  return DB.get('reserves', []).filter(r => r.fresh && rsvAhead(r)).map(r => `<a class="obanner ob-${rsvState(r).css}" href="#me">
+      <span class="ob-st">${rsvState(r).label}</span>
+      <span class="ob-main"><b>ご予約 受付番号 ${esc(r.no)}</b><small>${rsvDay(r.date)} ${esc(r.time)}・${r.people}名</small></span>
+      <span class="ob-go">›</span>
+    </a>`).join('');
+}
+
+/** マイページで見たら、ホームの帯を消す */
+function reservesSeen() {
+  const all = DB.get('reserves', []);
+  if (all.some(r => r.fresh)) DB.set('reserves', all.map(({ fresh, ...r }) => r));
+}
+
 /** マイページの「ご予約のリクエスト」（この端末から送ったもの。今日より前のものは出さない） */
 function reservesHtml() {
-  const today = dateKey(new Date());
-  const list = DB.get('reserves', []).filter(r => r.date >= today).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  const list = DB.get('reserves', []).filter(rsvAhead).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
   if (!list.length) return '<p class="hint">まだありません。<a href="#reserve">ネット予約</a>から、席の予約のリクエストを送れます。</p>';
   return `<ul class="orders">${list.map(r => `<li><a href="#reserve">
-      <span class="o-top"><b>受付番号 ${esc(r.no)}</b><em class="st st-request">リクエスト済み</em></span>
+      <span class="o-top"><b>受付番号 ${esc(r.no)}</b><em class="st st-${rsvState(r).css}">${rsvState(r).label}</em></span>
       <small>${rsvDay(r.date)} ${esc(r.time)}・${r.people}名</small>
-      <small>確定・お断りは、お店からメールでお知らせします</small>
+      <small>${rsvState(r).note}</small>
     </a></li>`).join('')}</ul>`;
 }

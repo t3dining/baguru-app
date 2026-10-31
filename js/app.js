@@ -150,12 +150,13 @@ function viewHome() {
       ${stateHtml(st)}
       ${noticeHtml()}
       ${active.map(orderBanner).join('')}
+      ${rsvBanners()}
       <div class="quick">
         <a class="quick-btn q-order" href="#menu">${ICON.bag}<b>テイクアウト注文</b><small>できしだい・時間指定</small></a>
         <a class="quick-btn q-stamp" href="#stamp">${ICON.card}<b>スタンプカード</b><small>${ME.registeredAt ? `<em>${stampOnCard(s.total)}</em> / ${STAMP.goal}${coupons ? `・特典${coupons}枚` : ''}` : '登録で1ポイント＋アイス'}</small></a>
       </div>
       ${callBtn()}
-      <a class="link-card" href="#reserve">${ICON.cal}<span><b>ネット予約（席のご予約）</b><small>空いている日と時間を選んで、リクエストを送れます。お店が確かめて、確定をメールでお知らせします</small></span></a>
+      <a class="link-card" href="#reserve">${ICON.cal}<span><b>ネット予約（席のご予約）</b><small>空いている日と時間を選んで、リクエストを送れます。お店が確かめて、確定をメールとアプリでお知らせします</small></span></a>
       <a class="link-card" href="#request">${ICON.truck}<span><b>配達・大量注文の申請</b><small>配達は${TAKEOUT.deliveryFreeMin}食以上で無料（原則${TAKEOUT.deliveryKm}km圏内）・${TAKEOUT.deliveryFreeMin}食未満は要相談。大量注文は${TAKEOUT.bulkMin}食以上。お店が確認してから確定します</small></span></a>
       ${installCard()}
       <h2 class="sec" data-en="NEWS">お知らせ</h2>
@@ -1030,7 +1031,7 @@ function viewMe() {
       <label class="field"><span>電話番号</span><input id="m-tel" type="tel" inputmode="tel" autocomplete="tel" value="${esc(ME.tel)}"></label>
       <button class="btn ${ME.registeredAt ? 'btn-sub' : 'btn-main'}" data-act="register" data-arg="m">${ME.registeredAt ? '保存する' : `登録して${STAMP.welcome.points}ポイントもらう`}</button>
       <h2 class="sec">ご予約のリクエスト</h2>
-      ${reservesHtml()}
+      <div id="myRsv">${reservesHtml()}</div>
       <h2 class="sec">注文の履歴</h2>
       ${mine.length ? `<ul class="orders">${mine.map(o => {
         const t = new Date(o.pickupAt);
@@ -1047,6 +1048,7 @@ function viewMe() {
         <p>この Mac で試すときだけ出ます（公開先には出ません）。</p>
         <button class="btn btn-sub danger" data-act="reset">試作のデータを全部消す</button>
       </div>` : ''}`,
+    after: () => { reservesSeen(); pullReserves(); },
   };
 }
 
@@ -1180,6 +1182,15 @@ function ordersChanged() {
   if (stampDoneOrders()) stampsChanged();
 }
 
+/** ネット予約の様子が変わったら知らせる（js/reserve.js の syncReserves が返した控え） */
+function reservesChanged(list) {
+  list.forEach(r => {
+    if (r.state === 'ok') { toast(`ご予約 ${r.no} が確定しました`, 'good'); FX.buzz([120, 80, 120]); FX.confetti({ kind: 'pop' }); }
+    if (r.state === 'no') toast(`ご予約 ${r.no} は、お受けできませんでした`, 'warn');
+    if (r.state === 'canceled') toast(`ご予約 ${r.no} は取り消しになりました`, 'warn');
+  });
+}
+
 function stampsChanged() {
   const s = getStamps();
   // お店がお渡し済みにして、スタンプがたまったとき（スタンプカードを開いていれば、新しいマスを押す動きも出る）
@@ -1205,6 +1216,23 @@ function pullOrders() {
 if (ORDERS_ONLINE && !PREVIEW) {
   setInterval(pullOrders, SYNC_EVERY);
   document.addEventListener('visibilitychange', pullOrders);
+}
+
+// ネット予約の様子を読む（js/reserve.js）。開いたとき・戻ってきたとき・開いている間は RSV_EVERY ごと。マイページは入力欄があるので、予約の所だけ書きかえる
+let reservesAt = 0;
+function pullReserves() {
+  if (ORDER_ONLY || PREVIEW || document.visibilityState !== 'visible' || Date.now() - reservesAt < RSV_GAP) return;
+  reservesAt = Date.now();
+  syncReserves().then(changed => {
+    if (!changed.length) return;
+    reservesChanged(changed);
+    if (routeName() === 'home' && !sheet.classList.contains('show')) render(true);
+    if (routeName() === 'me') { $('#myRsv').innerHTML = reservesHtml(); reservesSeen(); }
+  }).catch(() => {});   // つながらないときは、次の回に
+}
+if (!ORDER_ONLY && !PREVIEW) {
+  setInterval(pullReserves, RSV_EVERY);
+  document.addEventListener('visibilitychange', pullReserves);
 }
 
 // T3Works の営業日を読み直す（30分に1回まで）。変わっていたら描き直す
@@ -1256,6 +1284,7 @@ syncDays();
 if (PREVIEW) setTimeout(previewFocus, 700);   // バグるマネージの「アプリで見る」。画面が出そろってから、確かめている文へ
 else {
   pullOrders();
+  pullReserves();
   syncContent();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) syncContent(); });
 }
