@@ -1025,12 +1025,11 @@ function viewMe() {
           </a></li>`;
       }).join('')}</ul>` : '<p class="hint">まだありません。</p>'}
       ${installRow()}
-      <h2 class="sec">この試作版について</h2>
+      ${DEV_HOST ? `<h2 class="sec">この試作版について</h2>
       <div class="about">
-        <p>データはこの端末のブラウザの中だけに保存しています。本物のお店にはまだ注文が届きません。</p>
-        <p>同じブラウザで <a href="order.html" target="_blank">お店の画面（order.html）</a> を開くと、注文を受けて「できあがり」にする流れを試せます。</p>
+        <p>この Mac で試すときだけ出ます（公開先には出ません）。</p>
         <button class="btn btn-sub danger" data-act="reset">試作のデータを全部消す</button>
-      </div>`,
+      </div>` : ''}`,
   };
 }
 
@@ -1123,7 +1122,7 @@ const ACTIONS = {
   'install-hide': () => hideInstallCard(),
   register: p => register(p),
   reset: () => {
-    if (!confirm('注文・スタンプ・会員番号など、試作のデータを全部消します。よろしいですか？')) return;
+    if (!DEV_HOST || !confirm('注文・スタンプ・会員番号など、試作のデータを全部消します。よろしいですか？')) return;
     DB.clearAll();
     location.hash = '#home';
     location.reload();

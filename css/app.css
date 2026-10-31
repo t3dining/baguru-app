@@ -77,7 +77,7 @@ small { font-size: 12px; }
 .top {
   position: sticky; top: 0; z-index: 20;
   display: flex; align-items: center; gap: 6px;
-  height: 54px; padding: 0 8px;
+  height: calc(54px + var(--safe-t)); padding: var(--safe-t) 8px 0;   /* ホーム画面のアプリで、時計の下から始める */
   background: var(--coal); color: #fff;
 }
 .top h1 {
@@ -219,14 +219,14 @@ main { padding: 0 16px; }
 
 /* ---- メニュー ---- */
 .cats {
-  position: sticky; top: 54px; z-index: 10;
+  position: sticky; top: calc(54px + var(--safe-t)); z-index: 10;
   display: flex; gap: 8px; overflow-x: auto; margin: 0 -16px; padding: 10px 16px;
   background: var(--cream); border-bottom: 1px solid var(--line); scrollbar-width: none;
 }
 .cats::-webkit-scrollbar { display: none; }
 .cats button { flex: none; height: 34px; padding: 0 14px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); font-size: 13px; font-weight: 700; color: var(--coal); }
 .cats button:active { background: var(--brass-soft); }
-.cat-sec { scroll-margin-top: 112px; }
+.cat-sec { scroll-margin-top: calc(112px + var(--safe-t)); }
 .cat-note { margin: -4px 0 10px; padding: 8px 12px; border-radius: 10px; background: var(--brass-soft); color: var(--brass-dark); font-size: 12.5px; font-weight: 600; }
 
 .items { display: flex; flex-direction: column; gap: 8px; }

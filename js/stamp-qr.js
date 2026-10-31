@@ -8,6 +8,7 @@
  *  ※ app.js より先に読む（openSheet などは app.js にあるが、使うのは押されたあと）
  * ===================================================================== */
 
+const DEV_HOST = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);   // この Mac で試すときだけ。★公開先では、試作のボタン（QRを読んだことにする など）を出さない
 let camera = null;        // 動いているカメラ（閉じるときに止める）
 let scanTimer = 0;
 let scanId = 0;           // 止めるたびに変わる（閉じたあとに届いたカメラや読み取りを使わないため）
@@ -64,14 +65,14 @@ async function openScanner({ line = false } = {}) {
       <div class="scan-view"><video playsinline muted></video><i class="scan-frame"></i></div>
       <p class="scan-msg">カメラを準備しています…</p>
       <p class="hint">カメラが使えないときは、スマホのカメラアプリでQRを読んでも${line ? '引き継げます' : 'スタンプがたまります'}。</p>
-      <p class="demo-hint">試作版：パソコンで試すときは ${line ? '<button data-s="demo-line">5ポイントの引き継ぎのQRを読んだことにする</button>' : '<button data-s="demo">QRを読んだことにする</button>'}</p>
+      ${DEV_HOST ? `<p class="demo-hint">試作版：パソコンで試すときは ${line ? '<button data-s="demo-line">5ポイントの引き継ぎのQRを読んだことにする</button>' : '<button data-s="demo">QRを読んだことにする</button>'}</p>` : ''}
     </div>`);
   sheetBody.onchange = null;
   sheetBody.onclick = e => {
     const k = e.target.closest('[data-s]')?.dataset.s;
     if (k === 'close') closeSheet();
-    if (k === 'demo') { stopCamera(); claimStamp(qrToken()); }
-    if (k === 'demo-line') { stopCamera(); claimLine(lineToken(5)); }
+    if (DEV_HOST && k === 'demo') { stopCamera(); claimStamp(qrToken()); }
+    if (DEV_HOST && k === 'demo-line') { stopCamera(); claimLine(lineToken(5)); }
   };
   const video = $('video', sheetBody);
   const stillOpen = () => id === scanId;
@@ -184,13 +185,13 @@ function stampProblem(title, body, { retry = false, demo = false } = {}) {
       <p>${esc(body)}</p>
       ${retry ? '<button class="btn btn-main btn-block" data-s="retry">もう一度試す</button>' : ''}
       <button class="btn btn-sub btn-block" data-s="close">閉じる</button>
-      ${demo ? '<p class="demo-hint">試作版：お店の外で試すときは <button data-s="demo">お店にいることにする</button></p>' : ''}
+      ${demo && DEV_HOST ? '<p class="demo-hint">試作版：お店の外で試すときは <button data-s="demo">お店にいることにする</button></p>' : ''}
     </div>`);
   sheetBody.onchange = null;
   sheetBody.onclick = e => {
     const k = e.target.closest('[data-s]')?.dataset.s;
     if (k === 'close') closeSheet();
     if (k === 'retry') claimStamp(pendingToken);
-    if (k === 'demo') giveStamp();
+    if (DEV_HOST && k === 'demo') giveStamp();
   };
 }
