@@ -46,6 +46,8 @@ const SHOP = {
   // ネット予約（席の予約のリクエスト）の受け口は、予約ボードの公開先から読む（そこの config.js と api.js。js/reserve.js）。
   // ★受け口のアドレスは、このアプリに写さない。予約ボードを公開する場所が変わったら、ここを直す（2026-10-30）
   reserveBase: 'https://t3dining.github.io/baguru-yoyaku/',
+  // ネット予約のお名前を4欄（苗字・名前・セイ・メイ）にする（2026-11-01 ko-dai さんの指示。予約ボードのセッションから）。受け口の版 2026-11-01e から
+  reserveKana: true,
   hero: 'img/menu/arabiki1.jpg',
   shopPhoto: 'img/menu/teppan1.jpg',
 };

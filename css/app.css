@@ -832,6 +832,8 @@ button.link-card { width: 100%; text-align: left; }
 .r-time span { width: 100%; min-width: 0; padding: 9px 2px; font-size: 14px; font-variant-numeric: tabular-nums; }
 .r-check { display: flex; align-items: center; gap: 8px; margin: 0 2px 12px; font-weight: 600; }
 .r-check input { width: 20px; height: 20px; accent-color: var(--ember); }
+.r-names { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }   /* お名前の4欄：苗字・名前／セイ・メイ */
+.r-names input { min-width: 0; }
 .r-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 #rsv .ticket .t-no { font-size: 26px; white-space: nowrap; }   /* 予約の受付番号（1103-01）は、注文番号より長い */
 

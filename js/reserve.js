@@ -22,6 +22,8 @@ const RSV_MSG = {
   bad_date: '日にちと時間を選んでください。',
   bad_people: '人数を選んでください。',
   need_name: 'お名前を入れてください。',
+  need_kana: 'セイ・メイを入れてください。',
+  bad_kana: 'セイ・メイはカタカナで入れてください。',
   bad_tel: '電話番号を正しく入れてください（例：090-1234-5678）。',
   need_email: 'メールアドレスを入れてください（確定のお知らせをお送りします）。',
   bad_email: 'メールアドレスの形が違います。',
@@ -30,6 +32,13 @@ const RSV_MSG = {
   offline: 'つながりませんでした。電波の良い所で、もう一度お試しください。',
   no_answer: 'つながりませんでした。時間を置いてもう一度お試しいただくか、お電話でどうぞ。',
 };
+
+// お名前を4欄にするか（data.js の SHOP.reserveKana。この Mac で ?test を付けて開いたときは、にせの受け口が新しい版なのでオン）
+const RSV_KANA = !!SHOP.reserveKana || (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && /[?&]test\b/.test(location.search));
+/** ひらがな・半角カナをカタカナにする（空白は入れない。受け口は「セイ メイ」を半角の空白でつないで受ける） */
+const toKatakana = s => s.normalize('NFKC').replace(/[\u3041-\u3096]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60)).replace(/\s/g, '');
+/** 「苗字 名前」を2つに分ける（マイページの控えから入れるとき。分けられなければ、全部を前の欄に） */
+const twoParts = s => { const [a = '', ...b] = String(s || '').trim().split(/\s+/); return [a, b.join('')]; };
 
 let rsv = { avail: null, people: 0, date: '', time: '', month: '', v: null, rid: '', step: 'form', done: null, err: '', busy: false };   // month：カレンダーで見せている月（'2026-10'）
 
@@ -119,7 +128,8 @@ function rsvDraw() {
     return;
   }
   if (!rsv.avail.accepting) { box.innerHTML = `<p class="notice warn">${esc(RSV_MSG.not_accepting)}</p>${tel}`; return; }
-  const v = rsv.v || { name: ME.name, tel: ME.tel, email: ME.email || '', kids: false, dessert: false, plateMsg: '', note: '' };
+  const [sei, mei] = twoParts(ME.name), [seiKana, meiKana] = twoParts(ME.kana);
+  const v = rsv.v || { name: ME.name, sei, mei, seiKana, meiKana, tel: ME.tel, email: ME.email || '', kids: false, dessert: false, plateMsg: '', note: '' };
   const max = rsv.avail.maxPeople;
   box.innerHTML = `
     <h2 class="sec">人数</h2>
@@ -130,7 +140,12 @@ function rsvDraw() {
     <h2 class="sec">時間</h2>
     <div id="r-times">${rsvTimesHtml()}</div>
     <h2 class="sec">お客様のこと</h2>
-    <label class="field"><span>お名前</span><input id="r-name" autocomplete="name" maxlength="40" value="${esc(v.name)}" placeholder="例：豊田 太郎"></label>
+    ${RSV_KANA ? `<div class="r-names">
+      <label class="field"><span>苗字</span><input id="r-sei" autocomplete="family-name" maxlength="19" value="${esc(v.sei)}" placeholder="例：豊田"></label>
+      <label class="field"><span>名前</span><input id="r-mei" autocomplete="given-name" maxlength="19" value="${esc(v.mei)}" placeholder="例：太郎"></label>
+      <label class="field"><span>セイ（カタカナ）</span><input id="r-sei-kana" autocomplete="off" maxlength="19" value="${esc(v.seiKana)}" placeholder="例：トヨタ"></label>
+      <label class="field"><span>メイ（カタカナ）</span><input id="r-mei-kana" autocomplete="off" maxlength="19" value="${esc(v.meiKana)}" placeholder="例：タロウ"></label>
+    </div>` : `<label class="field"><span>お名前</span><input id="r-name" autocomplete="name" maxlength="40" value="${esc(v.name)}" placeholder="例：豊田 太郎"></label>`}
     <label class="field"><span>電話番号</span><input id="r-tel" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" value="${esc(v.tel)}" placeholder="例：090-1234-5678"></label>
     <label class="field"><span>メールアドレス（確定のお知らせをお送りします）</span><input id="r-email" type="email" inputmode="email" autocomplete="email" maxlength="120" value="${esc(v.email)}"></label>
     <label class="r-check"><input type="checkbox" id="r-kids" ${v.kids ? 'checked' : ''}>お子様連れ</label>
@@ -196,9 +211,12 @@ function rsvTimesHtml() {
 
 function rsvValues() {
   const dessert = $('input[name="r-dessert"]:checked')?.value === 'yes';
+  const part = id => $(id).value.replace(/\s/g, '');
+  const names = RSV_KANA ? { sei: part('#r-sei'), mei: part('#r-mei'), seiKana: toKatakana($('#r-sei-kana').value), meiKana: toKatakana($('#r-mei-kana').value) } : null;
   return {
     people: rsv.people, date: rsv.date, time: rsv.time,
-    name: $('#r-name').value.trim(), tel: toHalf($('#r-tel').value.trim()), email: $('#r-email').value.trim(),
+    ...(names ? { ...names, name: `${names.sei} ${names.mei}`, kana: `${names.seiKana} ${names.meiKana}` } : { name: $('#r-name').value.trim() }),
+    tel: toHalf($('#r-tel').value.trim()), email: $('#r-email').value.trim(),
     kids: $('#r-kids').checked, note: $('#r-note').value.trim(), website: $('#r-website').value,
     dessert, plateMsg: dessert ? $('#r-plate').value.trim() : '',
   };
@@ -206,7 +224,11 @@ function rsvValues() {
 function rsvCheck(v) {
   if (!v.people) return RSV_MSG.bad_people;
   if (!v.date || !v.time) return RSV_MSG.bad_date;
-  if (!v.name) return RSV_MSG.need_name;
+  if (RSV_KANA) {
+    if (!v.sei || !v.mei) return RSV_MSG.need_name;
+    if (!v.seiKana || !v.meiKana) return RSV_MSG.need_kana;
+    if (!/^[\u30a1-\u30f6\u30fc]+$/.test(v.seiKana + v.meiKana)) return RSV_MSG.bad_kana;   // 受け口と同じ確かめ
+  } else if (!v.name) return RSV_MSG.need_name;
   if (!/^0\d{9,10}$/.test(v.tel.replace(/[^\d]/g, ''))) return RSV_MSG.bad_tel;
   if (!v.email) return RSV_MSG.need_email;
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.email)) return RSV_MSG.bad_email;
@@ -217,7 +239,7 @@ function rsvSummary(v) {
   return `<dl class="info">
       <dt>日時</dt><dd>${rsvDay(v.date)} ${esc(v.time)}</dd>
       <dt>人数</dt><dd>${v.people}名</dd>
-      <dt>お名前</dt><dd>${esc(v.name)} 様</dd>
+      <dt>お名前</dt><dd>${esc(v.name)} 様${v.kana ? `<br><small>${esc(v.kana)}</small>` : ''}</dd>
       <dt>電話番号</dt><dd>${esc(v.tel)}</dd>
       ${v.email ? `<dt>メール</dt><dd>${esc(v.email)}</dd>` : ''}
       ${v.kids ? '<dt>お子様連れ</dt><dd>あり</dd>' : ''}
@@ -290,11 +312,12 @@ function rsvSend() {
   rsv.busy = true;
   rsvDraw();
   // via … どこから来たか（受け口が読めるようになったら、予約ボードの「経路」に「アプリ」と出る。いまの受け口は読まずに「ホームページ」とする）
-  BaguruApi.post({ action: 'reserve', rid: rsv.rid, via: 'アプリ', ...rsv.v })
+  const { sei, mei, seiKana, meiKana, ...send } = rsv.v;   // 4欄の分けたものは、この画面のためだけ。受け口には name（苗字 名前）・kana（セイ メイ）で送る
+  BaguruApi.post({ action: 'reserve', rid: rsv.rid, via: 'アプリ', ...send })
     .then(r => {
       // この端末にも控える（マイページの「ご予約のリクエスト」）。お名前・電話・メールは、次に入れる手間を省くため会員の情報に
       DB.set('reserves', [...DB.get('reserves', []), { no: r.no, date: r.date, time: r.time, people: r.people, sentAt: new Date().toISOString() }]);
-      Object.assign(ME, { name: rsv.v.name, tel: rsv.v.tel, email: rsv.v.email });
+      Object.assign(ME, { name: rsv.v.name, tel: rsv.v.tel, email: rsv.v.email, ...(rsv.v.kana ? { kana: rsv.v.kana } : {}) });
       DB.set('member', ME);
       rsv = { ...rsv, step: 'done', done: r, v: null, people: 0, date: '', time: '', month: '', busy: false, avail: null };
       rsvDraw();
