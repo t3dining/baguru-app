@@ -147,6 +147,8 @@ main { padding: 0 16px; }
 .notice small { display: block; color: var(--sub); }
 .notice.warn { background: var(--red-soft); border-color: #f2c9c4; color: var(--red); font-weight: 600; }
 /* バグるマネージで直したもの（2026-10-30）：お店からの一言・売り切れ */
+.t-br { white-space: pre-line; }   /* マネージの文章で改行した文（js/content.js の textNode） */
+.t-flash { outline: 2.5px solid var(--flame); outline-offset: 3px; border-radius: 4px; }   /* マネージの「アプリで見る」で、確かめている文 */
 .notice.shop-notice { background: var(--ember-soft); border-color: rgba(199, 54, 29, .3); }
 .notice.shop-notice svg { color: var(--ember); }
 .notice.shop-notice b { color: var(--ember); }
@@ -207,7 +209,7 @@ main { padding: 0 16px; }
 .news li { padding: 12px 14px; border-top: 1px solid var(--line); }
 .news li:first-child { border-top: 0; }
 .news time { font-size: 12px; color: var(--brass); font-weight: 700; margin-right: 8px; }
-.news p { margin: 2px 0 0; font-size: 13px; color: var(--sub); }
+.news p { margin: 2px 0 0; font-size: 13px; color: var(--sub); white-space: pre-line; }   /* マネージで改行したとおりに出す */
 
 .link-card {
   display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 14px;

@@ -282,6 +282,7 @@ function rsvClick(e) {
   }
   if (act === 'back') { rsv.step = 'form'; rsvDraw(); return; }
   if (act === 'again') { rsv = { ...rsv, step: 'form', done: null, people: 0, date: '', time: '', month: '', v: null }; $('#rsv').innerHTML = '<p class="hint">空き状況を読み込んでいます…</p>'; return rsvStart(); }
+  if (act === 'send' && PREVIEW) return toast('見え方を確かめる画面なので、ここでは動きません', 'warn');
   if (act === 'send' && !rsv.busy) rsvSend();
 }
 

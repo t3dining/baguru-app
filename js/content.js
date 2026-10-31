@@ -124,6 +124,13 @@ function textNode(n) {
   const r = textOf(v);
   if (r !== v) n.nodeValue = r;
   TEXT_SEEN.set(n, r);
+  // マネージで改行した文は、改行したとおりに出す（親にまとめて指定すると、タグの間の改行まで出てしまうので、この字だけを包む）
+  if (r !== v && r.trim().includes('\n') && !n.parentNode?.classList?.contains('t-br')) {
+    const box = document.createElement('span');
+    box.className = 't-br';
+    n.parentNode.insertBefore(box, n);
+    box.append(n);
+  }
 }
 function textEl(el) {
   const seen = TEXT_SEEN.get(el) || {};
@@ -161,6 +168,32 @@ function startTexts() {
       else m.addedNodes.forEach(n => applyTexts(n));
     }
   }).observe(document.body, { childList: true, subtree: true, characterData: true });
+}
+
+/* ---- バグるマネージの「アプリで見る」（2026-11-01 ko-dai さんの指示：改行などの見え方を、保存する前に確かめる） ----
+ *  マネージが、公式アプリを画面の中に開く（iframe・?preview）。保存前の直しは sessionStorage の bg.preview（同じ場所のページだけが読める）。
+ *  ★見え方を確かめるだけ：受け口から読み直さず、この端末の保存も変えず（DB はこの画面の中だけ）、注文などは動かさない（app.js の PREVIEW_STOP） */
+const PREVIEW = window.parent !== window && /[?&]preview\b/.test(location.search);
+const previewContent = () => { try { return JSON.parse(sessionStorage.getItem('bg.preview') || 'null'); } catch (e) { return null; } };
+if (PREVIEW && typeof DB === 'object') {
+  const mem = new Map(), read = DB.get.bind(DB);
+  DB.get = (k, fallback) => (mem.has(k) ? mem.get(k) : read(k, fallback));
+  DB.set = (k, v) => { mem.set(k, v); };
+}
+/** 確かめている文までスクロールして、枠で示す。見つからなかったことはマネージに知らせる */
+function previewFocus() {
+  let focus = '';
+  try { focus = (sessionStorage.getItem('bg.previewFocus') || '').trim(); } catch (e) {}
+  if (!focus) return;
+  const find = text => {
+    const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let n = w.nextNode(); n; n = w.nextNode()) if (n.nodeValue.includes(text) && !/SCRIPT|STYLE/.test(n.parentNode.nodeName)) return n.parentNode;
+    return null;
+  };
+  const el = find(focus) || find(focus.split('\n')[0].trim());   // 文全体で探し、無ければ1行目で
+  el?.scrollIntoView({ block: 'center' });
+  el?.classList.add('t-flash');
+  parent.postMessage({ type: 'baguru-preview', found: !!el }, location.origin);
 }
 
 /* ---- 公式アプリ：この端末の控えと、受け口から読み直す ---- */

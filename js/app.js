@@ -1130,10 +1130,13 @@ const ACTIONS = {
   close: () => closeSheet(),
 };
 
+// バグるマネージの「アプリで見る」の中では、注文・スタンプ・特典・登録など、動かすと本物に残るものは止める（js/content.js の PREVIEW）
+const PREVIEW_STOP = new Set(['submit', 'request', 'cancel', 'stamp', 'lineScan', 'coupon', 'register', 'reset', 'install-guide']);
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
   if (!el) return;
   e.preventDefault();
+  if (PREVIEW && PREVIEW_STOP.has(el.dataset.act)) return toast('見え方を確かめる画面なので、ここでは動きません', 'warn');
   ACTIONS[el.dataset.act]?.(el.dataset.arg, el);
 });
 
@@ -1182,7 +1185,7 @@ function pullOrders() {
     if (!NO_LIVE.includes(routeName()) && !sheet.classList.contains('show')) render(true);
   }).catch(() => {});   // つながらないときは、次の回に
 }
-if (ORDERS_ONLINE) {
+if (ORDERS_ONLINE && !PREVIEW) {
   setInterval(pullOrders, SYNC_EVERY);
   document.addEventListener('visibilitychange', pullOrders);
 }
@@ -1219,7 +1222,7 @@ if (OWNER_MODE && $('#ownerHome')) {
 }
 
 // バグるマネージで直した中身（js/content.js）。前に読んだ分をすぐ重ねてから描き、そのあと受け口から読み直す（変わっていたら描き直す）
-applyContent(contentNow()?.content);
+applyContent(PREVIEW ? previewContent() : contentNow()?.content);
 const syncContent = () => refreshContent().then(changed => {
   if (!changed) return;
   if (!sheet.classList.contains('show')) render(true);
@@ -1231,8 +1234,11 @@ $$('[data-icon]').forEach(el => el.insertAdjacentHTML('afterbegin', ICON[el.data
 render();
 startTexts();   // バグるマネージで直した文章に置きかえる（js/content.js）
 syncDays();
-pullOrders();
-syncContent();
-document.addEventListener('visibilitychange', () => { if (!document.hidden) syncContent(); });
+if (PREVIEW) setTimeout(previewFocus, 700);   // バグるマネージの「アプリで見る」。画面が出そろってから、確かめている文へ
+else {
+  pullOrders();
+  syncContent();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) syncContent(); });
+}
 if (stampParam) claimStamp(stampParam);
 else if (lineParam && !ORDER_ONLY) claimLine(lineParam);

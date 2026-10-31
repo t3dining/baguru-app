@@ -58,6 +58,9 @@ function mergeOrders(list) {
   saveOrders(all);
 }
 
+/** 名前をマネージで改行していても、お店には1行で届ける */
+const oneLine = s => textOf(s, true).replace(/\s*\n\s*/g, ' ');
+
 /** 注文・申請を送る。うまくいったら、この端末に写しと鍵を残して、受け口がつけた番号・合計の入った注文を返す。
  *  rid（送り直しで2つにならない印）は、この端末で作った注文の id */
 async function sendOrder(o) {
@@ -65,7 +68,7 @@ async function sendOrder(o) {
     action: 'order', kind: o.kind, asap: !!o.asap, pickupAt: o.pickupAt, name: o.name, tel: o.tel,
     address: o.address || '', address2: o.address2 || '', meals: o.meals, note: o.memo || '', member: o.member,
     // バグるマネージで名前を直していたら、お店にも直した名前で届くように（js/content.js の textOf）
-    lines: o.lines.map(({ id, name, opts, unit, qty }) => ({ id, name: textOf(name, true), opts: opts.map(x => textOf(x, true)), unit, qty })),
+    lines: o.lines.map(({ id, name, opts, unit, qty }) => ({ id, name: oneLine(name), opts: opts.map(oneLine), unit, qty })),
     rid: o.id, website: '',
   });
   DB.set('orderKeys', { ...orderKeys(), [r.order.id]: r.token });
