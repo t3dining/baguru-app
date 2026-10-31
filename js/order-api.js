@@ -42,8 +42,9 @@ function baguruLib() {
 }
 const orderPost = payload => baguruLib().then(() => BaguruApi.post(payload));
 
-/** 受け口の注文を、この端末の形にする（ご要望は、受け口では note・この端末では memo） */
-const fromServer = o => ({ ...o, memo: o.note || '' });
+/** 受け口の注文を、この端末の形にする（ご要望は、受け口では note・この端末では memo）。
+ *  注文番号は3桁で見せる（スプレッドシートが 001 を数の 1 にして返すため。2026-11-01 に本物で見つけた。にせの受け口では起きない） */
+const fromServer = o => ({ ...o, memo: o.note || '', no: /^\d+$/.test(String(o.no)) ? String(o.no).padStart(3, '0') : o.no });
 const orderKeys = () => DB.get('orderKeys', {});
 
 /** この端末の写しを、受け口の注文で書きかえる（無いものは足す） */
