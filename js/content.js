@@ -13,6 +13,9 @@
  *    choices: { 'グループid/名前': { p, soldOut } }            … ご飯の量・セット・トッピングなど。同じグループを使う商品すべてに効く
  *    dine:    { '見出し/名前': { p, sizes: [値段…], hidden } } … 店内のメニュー（sizes は data.js の sizes と同じ順）
  *    rewards: { マス: { options: [..], title, picks: [..] } }  … スタンプの特典（title・picks はゴールだけ）
+ *    texts:   { 元の文: { to: 新しい文, s: 1 | 0 } }           … 画面に出る文章（マネージの「文章」のタブ。元の文の一覧は 道具/文章を集める.py が作る）
+ *             s が 1 なら文の一部としても置きかえる（前後に数字などが入る文）。0 なら、字のかたまり全体が同じときだけ
+ *             ★画面に出た字（テキストノード）を置きかえるだけなので、アプリの動きは変わらない。HTML としては読まない（字のまま出る）
  * ===================================================================== */
 
 const CONTENT_EVERY = 3 * 60000;   // 受け口に読みに行くのは、この間隔に1回まで
@@ -84,10 +87,80 @@ function applyContent(c) {
     if (b.title !== undefined) r.title = text(o.title, 40) || b.title;
     if (b.picks) r.picks = list(o.picks, 20) || b.picks.slice();
   });
+  // 画面の文章
+  setTexts(c.texts);
   // お店からの一言（until の日を過ぎたら出さない）
   const n = obj(c.notice), now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   APP_NOTICE = text(n.text, 200) && !(/^\d{4}-\d{2}-\d{2}$/.test(n.until) && n.until < today) ? { text: text(n.text, 200), until: /^\d{4}-\d{2}-\d{2}$/.test(n.until) ? n.until : '' } : null;
+}
+
+/* ---- 画面の文章：直した文に置きかえる（texts） ---- */
+let TEXT_MAP = new Map(), TEXT_PART = null, TEXT_LOOSE = null, textsStarted = false;
+const TEXT_SEEN = new WeakMap();                                                 // 置きかえたあとの字を覚える（同じ字を二度置きかえない）
+const TEXT_ATTRS = ['placeholder', 'aria-label', 'title', 'data-en'];
+
+function setTexts(c) {
+  const list = Object.entries(c && typeof c === 'object' && !Array.isArray(c) ? c : {})
+    .filter(([k, v]) => k.length <= 800 && v && typeof v.to === 'string' && v.to.trim() && v.to.length <= 800);
+  TEXT_MAP = new Map(list.map(([k, v]) => [k, v.to]));
+  const re = keys => (keys.length ? new RegExp(keys.sort((a, b) => b.length - a.length).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g') : null);
+  TEXT_PART = re(list.filter(([, v]) => v.s).map(([k]) => k));
+  TEXT_LOOSE = re(list.filter(([k]) => k.length >= 2).map(([k]) => k));
+}
+
+/** 字を置きかえる。loose … 全体が同じでなくても置きかえる（注文の文のように、言葉がつながっているもの） */
+function textOf(s, loose = false) {
+  if (!TEXT_MAP.size || !s) return s;
+  const t = s.trim();
+  if (TEXT_MAP.has(t)) return s.replace(t, () => TEXT_MAP.get(t));
+  const re = loose ? TEXT_LOOSE : TEXT_PART;
+  return re ? s.replace(re, m => TEXT_MAP.get(m)) : s;
+}
+
+function textNode(n) {
+  const v = n.nodeValue;
+  if (TEXT_SEEN.get(n) === v) return;
+  const r = textOf(v);
+  if (r !== v) n.nodeValue = r;
+  TEXT_SEEN.set(n, r);
+}
+function textEl(el) {
+  const seen = TEXT_SEEN.get(el) || {};
+  for (const a of TEXT_ATTRS) {
+    const v = el.getAttribute?.(a);
+    if (!v || seen[a] === v) continue;
+    const r = textOf(v);
+    if (r !== v) el.setAttribute(a, r);
+    seen[a] = r;
+  }
+  TEXT_SEEN.set(el, seen);
+}
+/** root の中の字を置きかえる。入力欄の中（お客様が書いた字）と、スクリプトには触らない */
+function applyTexts(root = document.body) {
+  if (!TEXT_MAP.size || !root) return;
+  if (root.nodeType === 3) { if (!/^(SCRIPT|STYLE|TEXTAREA)$/.test(root.parentNode?.nodeName || '')) textNode(root); return; }
+  if (root.nodeType !== 1) return;
+  textEl(root);
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+    acceptNode: n => (n.nodeType === 1 && /^(SCRIPT|STYLE|TEXTAREA)$/.test(n.nodeName) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+  });
+  for (let n = w.nextNode(); n; n = w.nextNode()) { if (n.nodeType === 3) textNode(n); else textEl(n); }
+  document.title = textOf(document.title);
+}
+/** 公式アプリの起動のときに1回。★直した文が無いあいだは何も置きかえない。あとから増えたもの（画面の描き直し・おしらせ）は見張って置きかえる */
+function startTexts() {
+  if (textsStarted) return applyTexts();
+  textsStarted = true;
+  for (const f of ['confirm', 'alert']) { const o = window[f].bind(window); window[f] = m => o(textOf(String(m))); }
+  applyTexts();
+  new MutationObserver(list => {
+    if (!TEXT_MAP.size) return;
+    for (const m of list) {
+      if (m.type === 'characterData') applyTexts(m.target);
+      else m.addedNodes.forEach(n => applyTexts(n));
+    }
+  }).observe(document.body, { childList: true, subtree: true, characterData: true });
 }
 
 /* ---- 公式アプリ：この端末の控えと、受け口から読み直す ---- */

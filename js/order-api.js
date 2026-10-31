@@ -64,7 +64,8 @@ async function sendOrder(o) {
   const r = await orderPost({
     action: 'order', kind: o.kind, asap: !!o.asap, pickupAt: o.pickupAt, name: o.name, tel: o.tel,
     address: o.address || '', address2: o.address2 || '', meals: o.meals, note: o.memo || '', member: o.member,
-    lines: o.lines.map(({ id, name, opts, unit, qty }) => ({ id, name, opts, unit, qty })),
+    // バグるマネージで名前を直していたら、お店にも直した名前で届くように（js/content.js の textOf）
+    lines: o.lines.map(({ id, name, opts, unit, qty }) => ({ id, name: textOf(name, true), opts: opts.map(x => textOf(x, true)), unit, qty })),
     rid: o.id, website: '',
   });
   DB.set('orderKeys', { ...orderKeys(), [r.order.id]: r.token });

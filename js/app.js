@@ -1224,10 +1224,12 @@ const syncContent = () => refreshContent().then(changed => {
   if (!changed) return;
   if (!sheet.classList.contains('show')) render(true);
   drawCart();
+  applyTexts();
 });
 
 $$('[data-icon]').forEach(el => el.insertAdjacentHTML('afterbegin', ICON[el.dataset.icon]));
 render();
+startTexts();   // バグるマネージで直した文章に置きかえる（js/content.js）
 syncDays();
 pullOrders();
 syncContent();
