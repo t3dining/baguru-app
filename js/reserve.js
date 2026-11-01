@@ -298,7 +298,7 @@ function rsvClick(e) {
     const v = rsvValues(), err = rsvCheck(v);
     if (err) { const m = $('#r-msg'); m.textContent = err; m.hidden = false; m.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
     rsv.v = v;
-    rsv.rid = BaguruApi.rid();   // 確認の画面を開くたびに新しい印。送り直しのときは同じ印を使う
+    rsv.rid = randomRid('r');   // 確認の画面を開くたびに新しい印。送り直しのときは同じ印を使う
     rsv.step = 'confirm';
     rsvDraw();
     return window.scrollTo(0, 0);

@@ -42,6 +42,9 @@ function baguruLib() {
 }
 const orderPost = payload => baguruLib().then(() => BaguruApi.post(payload));
 
+/** 再送の印（rid）。受け口は同じ印の注文・予約を返すので、推測されないよう暗号の乱数で作る（時刻を使わない。2026-11-01 の Codex のレビュー） */
+const randomRid = head => head + [...crypto.getRandomValues(new Uint8Array(16))].map(b => b.toString(16).padStart(2, '0')).join('');
+
 /** 受け口の注文を、この端末の形にする（ご要望は、受け口では note・この端末では memo）。
  *  注文番号は3桁で見せる（スプレッドシートが 001 を数の 1 にして返すため。2026-11-01 に本物で見つけた。にせの受け口では起きない）
  *  お箸・スプーンの有無は、note の頭の「カトラリーあり／なし」を読んで o.cutlery（true／false）にする。頭に無い注文は undefined */

@@ -76,6 +76,8 @@ const cookNow = new Set();   // 受付済みから調理中に移ったばかり
 
 const PIN_KEY = 'baguru.daicho.pin';
 const POLL_EVERY = 15000;   // 受け口に頼まれた 10〜20秒
+const ASK_LIMIT = 30000;    // 受け口の返事を待つ長さ（ミリ秒）
+const STALE_AFTER = 60000;  // これだけ注文を読めていないと、わけが分からなくても上の帯を赤くする
 // orders：受け口の注文／accepting：受付中か／at：最後に読めた時刻／error：読めなかったわけ
 // gen：進めた回数。読んでいるあいだに進めたら、その読んだ答えは古いので使わない
 const net = { orders: [], accepting: true, at: 0, error: '', gen: 0, loading: null };
@@ -100,12 +102,21 @@ const quiet = e => e?.code === 'bad_pin';   // 合言葉の画面に出すので
 function pinGet() { try { return localStorage.getItem(PIN_KEY) || ''; } catch (e) { return ''; } }
 function pinSet(v) { try { if (v) localStorage.setItem(PIN_KEY, v); else localStorage.removeItem(PIN_KEY); } catch (e) {} }
 
+/** 受け口に送る。ASK_LIMIT 待っても返事が無ければ、あきらめる（2026-11-01。Codex のレビューの指摘）。
+ *  ★通信が終わらないまま待ち続けると、読み直しが止まるのに帯は緑のままになり、新しい注文も音も来なくなる。
+ *  あきらめても受け口には届いていることがある。進める操作は expect、電話の注文は rid が付くので、押し直しても二重にならない */
+function ask(payload) {
+  let timer;
+  const limit = new Promise((_, ng) => { timer = setTimeout(() => ng(Object.assign(new Error('no_answer'), { code: 'no_answer' })), ASK_LIMIT); });
+  return Promise.race([orderPost(payload), limit]).finally(() => clearTimeout(timer));
+}
+
 /** 合言葉を付けて受け口に送る。合言葉が違うと言われたら、合言葉の画面を出す。
  *  ★止まっている（locked）ときは、合言葉を消さない（2026-10-31 ko-dai さんの指示。予約ボードと同じ）。だれかが間違えて止まっているだけで、この端末の合言葉は正しい。
  *  消すと同じブラウザの予約ボードの合言葉も消える。上の帯を赤くして読み直しつづけ、戻ったら元の画面に戻る */
 async function staffPost(payload) {
   try {
-    return await orderPost({ ...payload, pin: pinGet() });
+    return await ask({ ...payload, pin: pinGet() });
   } catch (e) {
     if (quiet(e)) askPin(staffText(e));
     throw e;
@@ -179,11 +190,14 @@ async function change(o, patch) {
 /** 注文の受付を止める・始める */
 async function setAccepting(on) {
   if (!ORDERS_ONLINE) { DB.set('accepting', on); return; }
+  net.gen++;   // 読んでいる途中の答えの受付中・停止は古いので使わない（スイッチが元に戻らないように）
   try {
     const r = await staffPost({ action: 'setTakeout', accepting: on });
     net.accepting = r.accepting !== false;
   } catch (e) {
     if (!quiet(e)) alert(staffText(e));
+  } finally {
+    net.gen++;
   }
 }
 
@@ -197,8 +211,9 @@ function paintNet() {
   }
   const test = TAKEOUT.online ? '' : '試し（にせの受け口）・';
   const last = net.at ? `最後に読めたのは ${hhmm(new Date(net.at))}。` : '';
-  bar.className = `net-bar ${net.error ? 'ng' : 'ok'}`;
-  bar.textContent = net.error ? `⚠ ${test}${net.error}${last}新しい注文が届いていないかもしれません。`
+  const stale = net.at && Date.now() - net.at > STALE_AFTER;
+  bar.className = `net-bar ${net.error || stale ? 'ng' : 'ok'}`;
+  bar.textContent = net.error || stale ? `⚠ ${test}${net.error || '注文を読めていません。'}${last}新しい注文が届いていないかもしれません。`
     : net.at ? `${test}${hhmm(new Date(net.at))} に注文を読みました（${POLL_EVERY / 1000}秒ごとに読み直します）`
     : `${test}読み込んでいます…`;
 }
@@ -441,12 +456,12 @@ document.addEventListener('click', async e => {
  * --------------------------------------------------------------------- */
 
 const canAdjust = o => o.asap && (o.status === 'new' || o.status === 'accepted');
-let timing = null;   // { id, from: いまの時刻（ミリ秒）, at: 動かしている時刻（ミリ秒） }
+let timing = null;   // { id, from: いまの時刻（ミリ秒）, at: 動かしている時刻（ミリ秒）, updatedAt: 窓を開いたときの更新日時 }
 
 function openTime(o) {
   const from = new Date(o.pickupAt).getTime();
   // 時刻がもう過ぎた注文は、次の5分きざみから動かす
-  timing = { id: o.id, from, at: Math.max(from, Math.ceil(Date.now() / 300000) * 300000) };
+  timing = { id: o.id, from, at: Math.max(from, Math.ceil(Date.now() / 300000) * 300000), updatedAt: o.updatedAt };
   $('#tWho').textContent = `注文番号 ${o.no}（${who(o)}）・いまの時間 ${hhmm(new Date(from))}頃`;
   paintTime();
   $('#timeDlg').showModal();
@@ -476,9 +491,10 @@ $('#tOk')?.addEventListener('click', async () => {
   const o = list().find(x => x.id === timing?.id);
   if (!o || !canAdjust(o)) { $('#timeDlg').close(); return alert('この注文は、もう先に進んでいます。時間は変えられません。'); }
   $('#tOk').disabled = true;
-  const ok = await change(o, { pickupAt: new Date(timing.at).toISOString() });
+  // expect は窓を開いたときの値で送る。開いているあいだにほかの端末が変えていたら、黙って上書きしない
+  const ok = await change({ ...o, updatedAt: timing.updatedAt }, { pickupAt: new Date(timing.at).toISOString() });
   $('#tOk').disabled = false;
-  if (ok) $('#timeDlg').close();
+  if (ok || list().find(x => x.id === o.id)?.updatedAt !== timing.updatedAt) $('#timeDlg').close();
 });
 
 /* ---------------------------------------------------------------------
@@ -487,10 +503,10 @@ $('#tOk')?.addEventListener('click', async () => {
  *  ・配達で TAKEOUT.deliveryFreeMin 食より少ないとき（要相談）は、承認のときに配達料（fee）を入れる。お客様のアプリに出る
  * --------------------------------------------------------------------- */
 
-let deciding = null;   // { id, approve }
+let deciding = null;   // { id, approve, updatedAt: 窓を開いたときの更新日時 }
 
 function openDecide(o, approve) {
-  deciding = { id: o.id, approve };
+  deciding = { id: o.id, approve, updatedAt: o.updatedAt };
   const t = new Date(o.pickupAt);
   const fee = approve && needsFee(o);
   $('#dTitle').textContent = `${KIND[o.kind]}の申請 ${o.no} を${approve ? '承認する' : 'お断りする'}`;
@@ -519,9 +535,9 @@ $('#dOk').addEventListener('click', async () => {
   }
   $('#dOk').disabled = true;
   fresh.delete(o.id);
-  const ok = await change(o, patch);
+  const ok = await change({ ...o, updatedAt: deciding.updatedAt }, patch);   // 窓を開いたときの内容で返事をする（時間の調整と同じ）
   $('#dOk').disabled = false;
-  if (ok || list().find(x => x.id === o.id)?.status !== 'request') $('#decideDlg').close();
+  if (ok || list().find(x => x.id === o.id)?.updatedAt !== deciding.updatedAt) $('#decideDlg').close();
 });
 
 /* ---------------------------------------------------------------------
@@ -705,7 +721,7 @@ $('#pinGate').addEventListener('submit', async e => {
   btn.disabled = true;
   $('#pinErr').hidden = true;
   try {
-    const r = await orderPost({ action: 'orders', pin });
+    const r = await ask({ action: 'orders', pin });
     pinSet(pin);
     $('#pin').value = '';
     $('#pinGate').hidden = true;

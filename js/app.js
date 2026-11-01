@@ -486,6 +486,7 @@ function viewCheckout() {
   return {
     tab: 'menu', title: '受け取りとお名前', back: '#cart',
     html: `
+      ${jstOk() ? '' : `<p class="notice warn">${JST_WARN}</p>`}
       <h2 class="sec">受け取りの時間</h2>
       <div class="modes">
         <button class="mode ${pick.mode === 'asap' ? 'on' : ''}" data-act="mode" data-arg="asap" ${asap ? '' : 'disabled'}>
@@ -564,16 +565,28 @@ function readContact(p) {
   return { name, tel, memo };
 }
 
+/** 再送の印は、推測されないよう乱数で作る（時刻から作ると、当てられたときに他人の注文が読める。2026-11-01 の Codex のレビュー）。
+ *  返事が切れて押し直しても、10分の間に同じ内容なら同じ印で送る（お店に届いていたら、受け口が前の注文を返すので2件にならない） */
+function orderRid(o) {
+  const key = hashOf(JSON.stringify([o.kind, o.asap || o.pickupAt, o.name, o.tel, o.memo, o.cutlery, o.lines]));
+  const p = DB.get('orderSending');
+  if (p?.key === key && Date.now() - p.at < 600000) return p.rid;
+  const rid = randomRid('o');
+  DB.set('orderSending', { key, rid, at: Date.now() });
+  return rid;
+}
+
 /** 注文（申請）を作って保存し、注文の様子の画面へ。
  *  受け口につなぐとき（ORDERS_ONLINE。js/order-api.js）は、受け口に送ってから。番号と合計は受け口がつけ直す。btn は押したボタン（送っているあいだ止める） */
 async function placeOrder(fields, btn) {
   const now = new Date();
   const lines = cart.map(cartLine).map(l => ({ id: l.item.id, name: l.name, opts: l.opts, unit: l.unit, qty: l.qty }));
   let order = {
-    id: 'o' + now.getTime(), no: nextOrderNo(now), date: dateKey(now), createdAt: now.toISOString(),
+    no: nextOrderNo(now), date: dateKey(now), createdAt: now.toISOString(),
     lines, total: cartTotal(), meals: cartMeals(), member: ME.no, ...fields,
     times: { [fields.status]: now.toISOString() },
   };
+  order.id = orderRid(order);
   if (ORDERS_ONLINE) {
     const label = btn?.textContent;
     if (btn) { btn.disabled = true; btn.textContent = '送っています…'; }
@@ -584,6 +597,9 @@ async function placeOrder(fields, btn) {
       if (e.code === 'not_accepting') DB.set('accepting', false);
       return toast(orderMessage(e), 'warn');
     }
+    DB.set('orderSending', null);
+    // 端末に保存できなかったとき（容量がいっぱいなど）。注文はお店に届いているので、番号だけは伝える
+    if (!getOrders().some(o => o.id === order.id)) alert(`ご注文を受け付けました。注文番号は ${order.no} です。この端末に控えを残せなかったので、番号を控えてください。`);
   } else {
     saveOrders([...getOrders(), order]);
   }
@@ -598,7 +614,12 @@ async function placeOrder(fields, btn) {
   location.hash = '#order/' + order.id;
 }
 
+/** 端末の時計が日本時間でないと、受け取りの時刻がずれて届く（画面の時刻は端末の時計で作っている）ので、送らない */
+const jstOk = () => new Date().getTimezoneOffset() === -540;
+const JST_WARN = 'この端末の時計が日本時間ではないため、受け取りの時刻が正しく届きません。日本時間に合わせるか、お電話でご注文ください。';
+
 function submitOrder(btn) {
+  if (!jstOk()) return toast(JST_WARN, 'warn');
   if (cartOut().length) { location.hash = '#cart'; return toast('売り切れになったものがあります。カートから削除してください', 'warn'); }
   if (cartMeals() >= TAKEOUT.bulkMin) { location.hash = '#request'; return; }
   const lead = checkoutLead();
@@ -673,6 +694,7 @@ function viewRequest() {
     tab: 'menu', title: '配達・大量注文の申請', back: '#cart',
     html: `
       ${rules}
+      ${jstOk() ? '' : `<p class="notice warn">${JST_WARN}</p>`}
       <h2 class="sec">受け取り方</h2>
       <div class="choices">
         ${choice('delivery', '配達してほしい', free ? `${meals}食なので無料・原則${TAKEOUT.deliveryKm}km圏内` : `${meals}食なので要相談（${TAKEOUT.deliveryFreeMin}食から無料）。配達料は、承認のときにお店からお知らせします`)}
@@ -705,6 +727,7 @@ function viewRequest() {
 }
 
 function submitRequest(btn) {
+  if (!jstOk()) return toast(JST_WARN, 'warn');
   if (cartOut().length) { location.hash = '#cart'; return toast('売り切れになったものがあります。カートから削除してください', 'warn'); }
   const meals = cartMeals();
   const kind = $('input[name="r-kind"]:checked')?.value;
@@ -1173,7 +1196,8 @@ const ACTIONS = {
     if (!['new', 'request'].includes(o.status)) return toast(cancelMsg(o) || '取り消せません', 'warn');
     if (!confirm(`${o.status === 'request' ? '申請' : '注文'}番号 ${o.no} を取り消します。よろしいですか？`)) return;
     const done = () => { lastStatus[id] = getOrders().find(x => x.id === id)?.status; render(true); };
-    if (ORDERS_ONLINE && orderKeys()[id]) {
+    if (ORDERS_ONLINE) {
+      if (!orderKeys()[id]) return toast('この端末からは取り消せません。お店にお電話ください', 'warn');   // 鍵が無いと受け口に届かない。取り消したように見せない
       return cancelOrderOnline(id)
         .then(() => { done(); toast('注文を取り消しました'); })
         .catch(e => { done(); toast(e.code === 'already' ? cancelMsg(getOrders().find(x => x.id === id)) || orderMessage(e) : orderMessage(e), 'warn'); });   // 押す前にお店が受け付けていたとき
