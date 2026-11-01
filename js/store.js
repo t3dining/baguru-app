@@ -371,6 +371,19 @@ function priceCheck(o) {
 const cutlery = o => o.cutlery === true ? '<p class="c-cut yes">🍴 カトラリーを付ける</p>'
   : o.cutlery === false ? '<p class="c-cut no">✕ カトラリーは付けない</p>' : '';
 
+/** 画面に出す選択（2026-11-02 ko-dai さんの指示）。ご飯の「普通」は公式アプリが注文に書かない（data.js の plain）ので、ご飯の字が無ければ「ご飯普通」を足す。
+ *  出すだけで、注文の中身（l.opts）は変えない。値段の確かめは l.opts のまま */
+function shownOpts(l) {
+  const groups = ITEM_BY_ID[l.id]?.groups || [];
+  const rice = groups.find(g => g.id === 'rice');
+  const plain = rice?.choices.find(c => c.plain);
+  if (!plain || l.opts.some(x => x.startsWith(rice.label))) return l.opts;
+  // 注文の中と同じ並び（ソースの次）に入れる
+  const before = groups.slice(0, groups.indexOf(rice));
+  const at = l.opts.filter(x => before.some(g => g.choices.some(c => sameOpt((g.label || '') + c.n, x)))).length;
+  return [...l.opts.slice(0, at), rice.label + plain.n, ...l.opts.slice(at)];
+}
+
 function card(o) {
   const t = new Date(o.pickupAt);
   const isToday = dateKey(t) === dateKey(new Date());
@@ -399,7 +412,7 @@ function card(o) {
       <div class="c-who"><b>${esc(who(o))}</b>${o.tel ? `<a href="tel:${esc(o.tel)}">${esc(o.tel)}</a>` : ''}</div>
       ${o.kind === 'delivery' ? `<p class="c-addr">お届け先：${esc(o.address)}${o.address2 ? `　${esc(o.address2)}` : ''}<a href="${map}" target="_blank" rel="noopener">地図</a></p>` : ''}
       <ul class="c-lines">${o.lines.map(l => `
-        <li><b>${esc(l.name)}</b><span class="q">×${l.qty}</span>${l.opts.length ? `<div class="c-opts">${l.opts.map(x => `<span>${esc(x)}</span>`).join('')}</div>` : ''}</li>`).join('')}
+        <li><b>${esc(l.name)}</b><span class="q">×${l.qty}</span>${shownOpts(l).length ? `<div class="c-opts">${shownOpts(l).map(x => `<span>${esc(x)}</span>`).join('')}</div>` : ''}</li>`).join('')}
       </ul>
       ${cutlery(o)}
       ${o.memo ? `<p class="c-memo">ご要望：${esc(o.memo)}</p>` : ''}
@@ -675,7 +688,7 @@ function readSel(item) {
 function paintPhone() {
   $('#pLines').innerHTML = phone.lines.length ? phone.lines.map((l, i) => `
     <li><b>${esc(l.name)}</b><span class="q">×${l.qty}</span><span class="p-sum">${yen(l.unit * l.qty)}</span><button type="button" class="p-del" data-del="${i}" aria-label="消す">✕</button>${
-      l.opts.length ? `<small>${esc(l.opts.join(' / '))}</small>` : ''}</li>`).join('') : '<li class="none">まだ品物がありません</li>';
+      shownOpts(l).length ? `<small>${esc(shownOpts(l).join(' / '))}</small>` : ''}</li>`).join('') : '<li class="none">まだ品物がありません</li>';
   $('#pTotal').textContent = yen(phone.lines.reduce((s, l) => s + l.unit * l.qty, 0));
   const asap = phoneWhen() === 'asap';
   $('#pTime').hidden = asap;
