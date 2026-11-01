@@ -419,7 +419,9 @@ document.addEventListener('click', async e => {
   let patch = null;
   if (act === 'next' && NEXT[o.status]) patch = { status: NEXT[o.status].to };
   if (act === 'back' && backOf(o)) patch = { status: backOf(o) };
-  if (act === 'cancel' && confirm(`注文番号 ${o.no}（${who(o)}）を取り消します。お客様にはお電話でもお伝えください。`)) {
+  // 調理を始めたあと（調理中・できあがり）は、キャンセル規定の一言を足す（2026-11-01 ko-dai さんの指示。規定は公式アプリに載っている）。お店の都合なら、これまでどおり取り消せる
+  const cooked = o.status === 'ready' || (o.status === 'accepted' && !isBooked(o));
+  if (act === 'cancel' && confirm(`注文番号 ${o.no}（${who(o)}）を取り消します。${cooked ? '\n\n★調理を始めたあとの、お客様の都合のキャンセルはお断りする決まりです。お店の都合のときだけ取り消してください。\n\n' : ''}お客様にはお電話でもお伝えください。`)) {
     patch = { status: 'canceled', canceledBy: 'お店' };
   }
   if (!patch) return;
