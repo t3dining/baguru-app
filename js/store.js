@@ -6,6 +6,7 @@
  *  電話・店頭の注文も、ここから入れる。
  *  ★テイクアウトの操作は、すべてこの画面でする（2026-10-30 ko-dai さん。予約ボードのテイクアウトの画面は見るだけ）
  *  ★お店に置くスタンプのQRを出す・印刷する・作り直すボタンは、2026-10-30 に外した（ko-dai さんの指示）
+ *  ★LINE のポイントの引き継ぎのQRを出すボタンは、2026-11-01 に外した（ko-dai さんの指示）
  *
  *  注文の置き場所は、公式アプリと同じ切り替え ORDERS_ONLINE（data.js の TAKEOUT.online を ../js/order-api.js が読む）で変わる
  *  ・false（試作）：このブラウザの中の注文（DB 'orders'）。お客様の画面を同じブラウザで開くと届く
@@ -690,81 +691,6 @@ async function addPhoneOrder(row) {
     render();
   }
 }
-
-/* ---------------------------------------------------------------------
- *  LINE のポイントの引き継ぎ（2026-10-30 ko-dai さんの指示：店頭で引き継ぐ形。公式アプリのセッションに頼まれた）
- *  LINE は、お店の側から一人ずつのポイント数を見られない。会計のときにお客様の LINE のショップカードを見て数を確かめ、
- *  その数のQRを出す。お客様が公式アプリで読むと、同じ数がたまる（スタンプを押すのはお客様のアプリ。ここでは押さない）。
- *  QRの中身（common.js の lineUrl）・決まり（data.js の STAMP.lineMove：1回に max まで・作ってから validMin 分だけ使える）は公式アプリのもの
- * --------------------------------------------------------------------- */
-
-let lineN = 0;          // 選んだ数
-let lineTimer = null;   // 残りの時間を数える（時間が過ぎたらQRを消す）
-
-function openLine() {
-  lineN = 0;
-  $('#lineNums').innerHTML = Array.from({ length: STAMP.lineMove.max }, (_, i) =>
-    `<button type="button" role="radio" aria-checked="false" data-n="${i + 1}">${i + 1}</button>`).join('');
-  $('#lineMake').disabled = true;
-  $('#lineMake').textContent = 'QRを出す';
-  clearLine();
-  lineErr('');
-  $('#lineDlg').showModal();
-}
-function lineErr(text) { $('#lineErr').textContent = text; $('#lineErr').hidden = !text; }
-function clearLine() {
-  clearInterval(lineTimer);
-  lineTimer = null;
-  $('#lineOut').hidden = true;
-  $('#lineQr').innerHTML = '';
-}
-
-$('#lineNums').addEventListener('click', e => {
-  const b = e.target.closest('[data-n]');
-  if (!b) return;
-  lineN = Number(b.dataset.n);
-  $$('#lineNums [data-n]').forEach(x => x.setAttribute('aria-checked', String(x === b)));
-  $('#lineMake').disabled = false;
-  $('#lineMake').textContent = `${lineN}ポイントのQRを出す`;
-  clearLine();   // 数を選び直したら、前のQRは消す（違う数のQRを読ませないため）
-});
-
-$('#lineMake').addEventListener('click', async () => {
-  if (!lineN) return;
-  const n = lineN, made = Date.now(), until = made + STAMP.lineMove.validMin * 60000;
-  $('#lineMake').disabled = true;
-  lineErr('');
-  try {
-    await loadScript(LIB.qrMake);   // QRを描く道具（qrcode-generator。common.js の LIB）。使うときだけ読む
-  } catch (e) {
-    $('#lineMake').disabled = false;
-    return lineErr('QRを描く道具を読めませんでした。Wi-Fi・電波を確かめて、もう一度押してください。');
-  }
-  const q = qrcode(0, 'M');
-  q.addData(lineUrl(n, new Date(made)));
-  q.make();
-  clearLine();
-  $('#lineQr').innerHTML = q.createSvgTag({ cellSize: 6, margin: 2 });
-  $('#lineN').textContent = `${n}ポイント`;
-  $('#lineOut').hidden = false;
-  $('#lineOut').scrollIntoView({ block: 'nearest' });   // 窓が画面より高いとき（横にしたタブレットなど）も、QRが見えるように
-  $('#lineMake').disabled = false;
-  const tick = () => {
-    if (!$('#lineDlg').open) return clearLine();   // 窓を閉じたら、QRも消す
-    const left = Math.ceil((until - Date.now()) / 1000);
-    if (left <= 0) {
-      clearLine();
-      return lineErr('時間が過ぎたので、QRを消しました。もう一度「QRを出す」を押してください。');
-    }
-    $('#lineLeft').textContent = `このQRは${STAMP.lineMove.validMin}分だけ使えます（あと ${Math.floor(left / 60)}分${String(left % 60).padStart(2, '0')}秒）`;
-  };
-  tick();
-  lineTimer = setInterval(tick, 1000);
-});
-$('#lineBtn').addEventListener('click', openLine);
-// 閉じたらQRを消す（置きっぱなしにしない）。「閉じる」・Esc のどちらでも
-$('#lineDlg').addEventListener('close', clearLine);
-$('#lineDlg [data-close]').addEventListener('click', clearLine);
 
 /* ---------------------------------------------------------------------
  *  合言葉の画面（受け口につないだときだけ）

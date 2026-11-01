@@ -26,7 +26,7 @@
 <link rel="manifest" href="manifest-store.json">
 <link rel="icon" href="img/store-icon-192.png">
 <link rel="apple-touch-icon" href="img/store-apple-touch-icon.png">
-<link rel="stylesheet" href="css/store.css?v=74022394">
+<link rel="stylesheet" href="css/store.css?v=c1ab3e2a">
 </head>
 <body>
 <header class="s-top">
@@ -35,8 +35,7 @@
   <button id="homeBtn" class="s-btn" hidden>🏠 ホーム</button>
   <!-- 電話・店頭の注文を入れる（2026-10-30。テイクアウトの操作は、すべて Order受付でする決まりになったため） -->
   <button id="phoneBtn" class="s-btn">＋ 電話・店頭の注文</button>
-  <!-- LINE のショップカードのポイントを、公式アプリに引き継ぐQRを出す（2026-10-30 ko-dai さんの指示：店頭で引き継ぐ形。公式アプリのセッションに頼まれた） -->
-  <button id="lineBtn" class="s-btn">LINEの引き継ぎ</button>
+  <!-- 「LINEの引き継ぎ」のボタン（QRを出す）は、2026-11-01 に外した（ko-dai さんの指示） -->
   <!-- 画面を読み直す。ホーム画面に置いたアプリには、ブラウザの更新ボタンが無いため（2026-10-30 ko-dai さん） -->
   <button id="reloadBtn" class="s-btn">↻ 更新</button>
   <!-- 「スタンプのQR」のボタン（QRを出す・印刷する・作り直す）は、2026-10-30 に外した（ko-dai さんの指示） -->
@@ -121,21 +120,6 @@
   <div class="dlg-btns"><button type="button" class="b-sub" data-close>やめる</button><button type="button" id="tOk" class="b-main">この時間にする</button></div>
 </dialog>
 
-<!-- LINE のポイントの引き継ぎ。お客様の LINE のショップカードで数を確かめ、その数のQRを出す。お客様が公式アプリ（かスマホのカメラ）で読む -->
-<dialog id="lineDlg" class="dlg">
-  <h3>LINEのポイントの引き継ぎ</h3>
-  <p class="f-note">お客様の <b>LINE のショップカード</b>の画面で、ポイント数を確かめてください。その数を選んで「QRを出す」を押し、お客様の公式アプリ（「引き継ぎのQRを読む」かスマホのカメラ）で読んでもらいます。引き継げるのは、1台のスマホで1回だけです。</p>
-  <div id="lineNums" class="num-grid" role="radiogroup" aria-label="ポイント数"></div>
-  <div class="dlg-btns line-go"><button type="button" id="lineMake" class="b-main" disabled>QRを出す</button></div>
-  <div id="lineOut" class="line-out" hidden>
-    <div id="lineQr" class="line-qr"></div>
-    <b id="lineN" class="line-n"></b>
-    <p id="lineLeft" class="line-left"></p>
-  </div>
-  <p id="lineErr" class="dlg-err" hidden></p>
-  <div class="dlg-btns"><button type="button" class="b-sub" data-close>閉じる</button></div>
-</dialog>
-
 <!-- 電話・店頭の注文を入れる。受け付けた形で入り、お客様のアプリには出ない -->
 <dialog id="phoneDlg" class="dlg wide">
   <h3>電話・店頭の注文を入れる</h3>
@@ -179,6 +163,6 @@
 <script src="js/content.js?v=b4609d7d"></script>
 <!-- 受け口とのやりとり（公式アプリと同じもの。切り替え ORDERS_ONLINE・受け口の場所・送り方）。公式アプリのセッションの持ち物 -->
 <script src="js/order-api.js?v=9d63de01"></script>
-<script src="js/store.js?v=ac7b8fe8"></script>
+<script src="js/store.js?v=06327515"></script>
 </body>
 </html>
