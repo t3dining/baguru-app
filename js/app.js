@@ -45,16 +45,21 @@ const saveCart = () => DB.set('cart', cart);
 
 const ROUTES = {
   home: viewHome, menu: viewMenu, cart: viewCart, checkout: viewCheckout, request: viewRequest,
-  order: viewOrder, stamp: viewStamp, shop: viewShop, me: viewMe, reserve: viewReserve, privacy: viewPrivacy,
+  order: viewOrder, stamp: viewStamp, shop: viewShop, me: viewMe, reserve: viewReserve, privacy: viewPrivacy, join: viewJoin,
 };
 // 入力の途中で消えないよう、ほかのタブの書き換えでは描き直さない画面
-const NO_LIVE = ['checkout', 'request', 'me', 'reserve'];
+const NO_LIVE = ['checkout', 'request', 'me', 'reserve', 'join'];
 
-const routeName = () => location.hash.replace(/^#/, '').split('/')[0] || (ORDER_ONLY ? 'menu' : 'home');
+// ★会員登録をしていない人には、登録の画面だけを出す（2026-11-02 ko-dai さんの指示）。アプリのどの画面も、予約も注文も、登録のあと。
+// マネージの「アプリで見る」では止めない。受け口では止めていない（ホームページのネット予約が同じ口を使うため）
+const needJoin = () => MEMBER_PLUS && !PREVIEW && !ME.registeredAt;
+const routeName = () => (needJoin() ? 'join' : location.hash.replace(/^#/, '').split('/')[0] || (ORDER_ONLY ? 'menu' : 'home'));
 
 function render(keepScroll = false) {
-  let [name, arg] = location.hash.replace(/^#/, '').split('/');
-  if (ORDER_ONLY && !ORDER_ROUTES.includes(name)) { history.replaceState(null, '', '#menu'); name = 'menu'; arg = ''; }
+  let [name, arg] = needJoin() ? ['join', ''] : location.hash.replace(/^#/, '').split('/');
+  if (name === 'join' && !needJoin() && !PREVIEW) name = '';   // 登録が済んだら、開こうとしていた画面へ
+  if (ORDER_ONLY && !needJoin() && !ORDER_ROUTES.includes(name)) { history.replaceState(null, '', '#menu'); name = 'menu'; arg = ''; }
+  document.body.classList.toggle('joining', needJoin());   // 下のタブとカートを隠す（app.css）
   const v = (ROUTES[name] || viewHome)(arg && decodeURIComponent(arg));
   if (!v) return;
   const y = window.scrollY;
@@ -1152,6 +1157,32 @@ function dineItem(i) {
  *  マイページ
  * --------------------------------------------------------------------- */
 
+/** 登録しないと使えない。入れ直した人が先へ進めるように、前の会員に戻す欄も同じ画面に置く */
+function viewJoin() {
+  const mode = installMode();
+  return {
+    title: '会員登録',
+    html: `
+      <div class="join-head"><img src="img/logo.png" alt=""><h2>ご利用には会員登録が必要です</h2><p>スタンプ、テイクアウトの注文、席のご予約は、会員登録のあとでご利用いただけます。</p></div>
+      ${mode === 'ios' || mode === 'inapp' ? `<p class="notice warn">${ICON.addbox}<span>先にホーム画面に追加して、そこから開いて登録してください。<small>このまま登録してから追加すると、もう一度「前に登録した方」から戻すことになります。</small></span></p>${installCard()}` : ''}
+      ${welcomeBox()}
+      <h2 class="sec">前に登録した方</h2>
+      ${moveFields()}`,
+  };
+}
+
+/** 引き継ぎコードで続きを使う欄と、お名前と電話番号で前の会員に戻す欄（マイページと登録の画面） */
+function moveFields() {
+  return `<label class="field"><span>引き継ぎコード（新しいスマホで入れる）</span><input id="t-code" autocapitalize="characters" autocomplete="off"></label>
+      <label class="field"><span>登録した電話番号（登録していなければ空のまま）</span><input id="t-tel" type="tel" inputmode="tel" autocomplete="tel"></label>
+      <button class="btn btn-sub btn-block" data-act="memberTake">新しいスマホで続きを使う</button>
+      ${MEMBER_PLUS ? `<h3 class="move-head">アプリを入れ直したとき</h3>
+      <p class="hint">登録したお名前と電話番号を入れると、前のスタンプと特典に戻せます。フリガナ・性別・年代・メールアドレスは戻らないので、戻したあとにもう一度入れてください。</p>
+      <label class="field"><span>登録したお名前</span><input id="b-name" autocomplete="name"></label>
+      <label class="field"><span>登録した電話番号</span><input id="b-tel" type="tel" inputmode="tel" autocomplete="tel"></label>
+      <button class="btn btn-sub btn-block" data-act="memberBack">前の会員に戻す</button>` : ''}`;
+}
+
 function viewPrivacy() {
   return { tab: 'me', title: 'プライバシーポリシー', back: '#me', html: privacyHtml() };
 }
@@ -1183,14 +1214,7 @@ function viewMe() {
       ${STAMPS_ONLINE ? `<h2 class="sec">スマホを替えるとき</h2>
       <p class="hint">前のスマホで引き継ぎコードを出して、新しいスマホで入れると、スタンプと特典を続けて使えます。コードは24時間使えます。</p>
       <button class="btn btn-sub btn-block" data-act="memberCode">引き継ぎコードを出す</button>
-      <label class="field"><span>引き継ぎコード（新しいスマホで入れる）</span><input id="t-code" autocapitalize="characters" autocomplete="off"></label>
-      <label class="field"><span>登録した電話番号（登録していなければ空のまま）</span><input id="t-tel" type="tel" inputmode="tel" autocomplete="tel"></label>
-      <button class="btn btn-sub btn-block" data-act="memberTake">新しいスマホで続きを使う</button>
-      ${MEMBER_PLUS ? `<h2 class="sec">アプリを入れ直したとき</h2>
-      <p class="hint">登録したお名前と電話番号を入れると、前のスタンプと特典に戻せます。フリガナ・性別・年代・メールアドレスは戻らないので、戻したあとにもう一度入れてください。会員登録をしていないと戻せません。</p>
-      <label class="field"><span>登録したお名前</span><input id="b-name" autocomplete="name"></label>
-      <label class="field"><span>登録した電話番号</span><input id="b-tel" type="tel" inputmode="tel" autocomplete="tel"></label>
-      <button class="btn btn-sub btn-block" data-act="memberBack">前の会員に戻す</button>` : ''}` : ''}
+      ${moveFields()}` : ''}
       ${privacyLink()}
       ${installRow()}
       ${DEV_HOST ? `<h2 class="sec">この試作版について</h2>
@@ -1325,8 +1349,8 @@ const ACTIONS = {
     if (getStamps().total && !confirm('このスマホのスタンプと特典は、前の会員の内容に置きかわります。よろしいですか？')) return;
     backMember(name, tel).then(() => {
       lastStampTotal = getStamps().total;
-      render(true);
-      toast(MEMBER_PLUS ? '前の会員に戻しました。上の会員情報をもう一度入れてください' : '前の会員に戻しました', 'good');
+      if (routeName() === 'me') render(true); else location.hash = '#me';
+      toast('前の会員に戻しました。会員情報をもう一度入れてください', 'good');
     }).catch(e => toast(stampMessage(e), 'warn'));
   },
   reset: () => {
@@ -1498,4 +1522,4 @@ else {
   syncContent();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) syncContent(); });
 }
-if (stampParam) claimStamp(stampParam);
+if (stampParam && !needJoin()) claimStamp(stampParam);

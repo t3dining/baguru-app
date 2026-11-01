@@ -371,17 +371,21 @@ function priceCheck(o) {
 const cutlery = o => o.cutlery === true ? '<p class="c-cut yes">🍴 カトラリーを付ける</p>'
   : o.cutlery === false ? '<p class="c-cut no">✕ カトラリーは付けない</p>' : '';
 
-/** 画面に出す選択（2026-11-02 ko-dai さんの指示）。ご飯の「普通」は公式アプリが注文に書かない（data.js の plain）ので、ご飯の字が無ければ「ご飯普通」を足す。
+/** 画面に出す選択（2026-11-02 ko-dai さんの指示）。ご飯の「普通」とミートの「並」は公式アプリが注文に書かない（data.js の plain）ので、その字が無ければ「ご飯普通」「ミート並」を足す。
  *  出すだけで、注文の中身（l.opts）は変えない。値段の確かめは l.opts のまま */
+const SHOW_PLAIN = ['rice', 'meat'];
 function shownOpts(l) {
+  const shown = [...l.opts];
   const groups = ITEM_BY_ID[l.id]?.groups || [];
-  const rice = groups.find(g => g.id === 'rice');
-  const plain = rice?.choices.find(c => c.plain);
-  if (!plain || l.opts.some(x => x.startsWith(rice.label))) return l.opts;
-  // 注文の中と同じ並び（ソースの次）に入れる
-  const before = groups.slice(0, groups.indexOf(rice));
-  const at = l.opts.filter(x => before.some(g => g.choices.some(c => sameOpt((g.label || '') + c.n, x)))).length;
-  return [...l.opts.slice(0, at), rice.label + plain.n, ...l.opts.slice(at)];
+  groups.forEach((g, i) => {
+    const plain = SHOW_PLAIN.includes(g.id) && g.choices.find(c => c.plain);
+    if (!plain || shown.some(x => x.startsWith(g.label))) return;
+    // 注文の中と同じ並びに入れる
+    const before = groups.slice(0, i);
+    const at = shown.filter(x => before.some(b => b.choices.some(c => sameOpt((b.label || '') + c.n, x)))).length;
+    shown.splice(at, 0, g.label + plain.n);
+  });
+  return shown;
 }
 
 function card(o) {

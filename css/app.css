@@ -1196,3 +1196,11 @@ button.link-card { width: 100%; text-align: left; }
 .policy dd { margin: 0 0 8px; }
 .policy-date { margin-top: 16px; color: var(--sub); font-size: 13px; text-align: right; }
 
+/* 登録の画面（登録しないと使えない）：下のタブとカートを出さない */
+body.joining .tabs, body.joining #cartBtn, body.joining .cartbar { display: none; }
+.join-head { padding: 8px 4px 4px; text-align: center; }
+.join-head img { width: 72px; height: 72px; margin: 0 auto 8px; }
+.join-head h2 { margin: 0 0 6px; font-size: 19px; }
+.join-head p { margin: 0; color: var(--sub); font-size: 13.5px; }
+.move-head { margin: 18px 2px 6px; font-size: 15px; }
+
