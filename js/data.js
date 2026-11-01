@@ -38,6 +38,14 @@ const SHOP = {
   extraClosed: [],              // 臨時休業の日（例：'2026-12-31'）
   closedNote: '火曜日（祝日・GW・お盆・正月は営業）',
   instagram: 'https://www.instagram.com/baguru.hamburg/',
+  // 系列店（お店の画面の下に出す。ホットペッパーのお店のページへ。2026-11-02 ko-dai さんの指示）
+  sisters: [
+    ['炭焼こじゃれ', 'https://www.hotpepper.jp/strJ003560433/'],
+    ['炭まろ', 'https://www.hotpepper.jp/strJ001250950/'],
+    ['炭火屋ちゃこる', 'https://www.hotpepper.jp/strJ001193911/'],
+    ['Cafe Stand popo', 'https://www.hotpepper.jp/strJ003917376/'],
+    ['おいでんテラス', 'https://www.hotpepper.jp/strJ004577293/'],
+  ],
   // 公開したお客さまの画面のアドレス（お店に置くスタンプのQRの中身になる）。
   // 空なら、お店の画面（order.html）と同じ場所の index.html。会社の GitHub で公開している（道具/公開する.py）
   appUrl: 'https://t3dining.github.io/baguru-app/',

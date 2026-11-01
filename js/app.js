@@ -1126,7 +1126,9 @@ function viewShop() {
           ${c.note ? `<p class="dine-note">${esc(c.note)}</p>` : ''}
           <ul>${c.items.filter(x => !x.hidden).map(dineItem).join('')}</ul>
         </details>`).join('')}
-      </div>`,
+      </div>
+      <h2 class="sec" data-en="OUR SHOPS">系列店</h2>
+      ${SHOP.sisters.map(([n, url]) => `<a class="link-card" href="${esc(url)}" target="_blank" rel="noopener">${ICON.pin}<span><b>${esc(n)}</b><small>ホットペッパーで見る</small></span></a>`).join('')}`,
   };
 }
 
