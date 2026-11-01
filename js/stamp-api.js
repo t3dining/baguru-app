@@ -32,6 +32,7 @@ function couponFill(c) {
 function keepState(st) {
   if (!st) return;
   DB.set('stamps', { total: st.total, log: (st.log || []).slice().reverse(), coupons: (st.coupons || []).map(couponFill), ...(st.lineMovedAt ? { lineMovedAt: st.lineMovedAt } : {}) });
+  if (st.no !== ME.no) saveOrders(getOrders().map(o => (o.member === ME.no ? { ...o, member: st.no } : o)));   // 番号が変わっても、この端末の注文が見えるように
   Object.assign(ME, { no: st.no, ...(st.registeredAt ? { name: st.name, tel: st.tel, registeredAt: st.registeredAt } : {}) });
   DB.set('member', ME);
 }
@@ -76,6 +77,7 @@ async function stampPost(action, extra = {}) {
     return { ...r, got: (r.got || []).map(couponFill) };
   } catch (e) {
     if (e.code === 'bad_member') memberLost();
+    keepState(e.data?.state);   // 断りの答えにも、今の様子が付いてくる
     throw e;
   }
 }

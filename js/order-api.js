@@ -66,7 +66,8 @@ function mergeOrders(list) {
   const all = getOrders();
   list.forEach(s => {
     const i = all.findIndex(o => o.id === s.id);
-    const o = { ...(i >= 0 ? all[i] : {}), ...fromServer(s) };
+    // 会員番号はこの端末のものを残す（受け口は、鍵の合わない番号を残さないので、空や前の番号が返る。myOrders がこの番号で絞る）
+    const o = { ...(i >= 0 ? all[i] : {}), ...fromServer(s), ...(i >= 0 ? { member: all[i].member } : {}) };
     if (i >= 0 && new Date(all[i].pickupAt).getTime() !== new Date(o.pickupAt).getTime()) {
       o.movedFrom = all[i].pickupAt;
       orderMoved.push(o);
@@ -90,7 +91,7 @@ async function sendOrder(o) {
     rid: o.id, website: '',
   });
   DB.set('orderKeys', { ...orderKeys(), [r.order.id]: r.token });
-  mergeOrders([r.order]);
+  mergeOrders([{ ...r.order, member: o.member }]);
   return fromServer(r.order);
 }
 
