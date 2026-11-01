@@ -40,7 +40,7 @@ const SHOP = {
   instagram: 'https://www.instagram.com/baguru.hamburg/',
   // 系列店（お店の画面の下に出す。ホットペッパーのお店のページへ。2026-11-02 ko-dai さんの指示）
   sisters: [
-    ['炭焼こじゃれ', 'https://www.hotpepper.jp/strJ003560433/'],
+    ['炭焼きこじゃれ', 'https://www.hotpepper.jp/strJ003560433/'],
     ['炭まろ', 'https://www.hotpepper.jp/strJ001250950/'],
     ['炭火屋ちゃこる', 'https://www.hotpepper.jp/strJ001193911/'],
     ['Cafe Stand popo', 'https://www.hotpepper.jp/strJ003917376/'],
