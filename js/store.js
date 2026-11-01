@@ -320,6 +320,46 @@ function checkCook(all) {
   setTimeout(() => { ids.forEach(id => cookNow.delete(id)); render(); }, COOK_GLOW);
 }
 
+/* 注文の値段と食数を、この画面でも計算し直して確かめる（2026-11-01。Codex のレビューの指摘。公式アプリのセッションの案）。
+   受け口はメニューを持たず、送られた値段をそのまま受ける。受け口で断ると正しい注文まで断る危険があるので、合わない注文はカードに知らせて、お店の人が見る。
+   バグるマネージで値段を変えた直後は、前の値段の注文にも出ることがある */
+
+/** 1行の正しい単価（common.js の priceOf の逆。opts の字から、選んだものを探す）。分からないものがあれば null */
+function lineUnit(l) {
+  const item = ITEM_BY_ID[l.id];
+  if (!item) return null;
+  let unit = item.price;
+  for (const text of l.opts || []) {
+    let p = null;
+    for (const g of item.groups || []) {
+      if (g.type === 'count') {
+        const m = text.startsWith(`${g.choices[0].n}×`) && Number(text.slice(g.choices[0].n.length + 1));
+        if (m > 0 && m <= (g.max || 10)) p = g.choices[0].p * m;
+      } else {
+        const c = g.choices.find(x => (g.type === 'one' ? g.label || '' : '') + x.n === text);
+        if (c) p = c.p || 0;
+      }
+      if (p !== null) break;
+    }
+    if (p === null) return null;
+    unit += p;
+  }
+  return unit;
+}
+
+/** 値段・食数が合わない注文の知らせ（合っていれば ''）。進めている注文だけ見る */
+function priceCheck(o) {
+  if (!ACTIVE.includes(o.status)) return '';
+  const units = o.lines.map(lineUnit);
+  const meals = mealCount(o.lines);
+  if (units.includes(null)) return '<p class="c-check">⚠ 金額を確認：メニューに無い品物か選択があります</p>';
+  const total = units.reduce((s, u, i) => s + u * o.lines[i].qty, 0);
+  if (total !== o.total) return `<p class="c-check">⚠ 金額を確認：メニューどおりなら ${yen(total)} です</p>`;
+  if (meals !== (o.meals || 0)) return `<p class="c-check">⚠ 食数を確認：品物から数えると ${meals}食 です</p>`;
+  if (o.kind === 'pickup' && meals >= TAKEOUT.bulkMin) return `<p class="c-check">⚠ 食数を確認：${TAKEOUT.bulkMin}食からは大量注文です</p>`;
+  return '';
+}
+
 /** カトラリーの有無（2026-11-01 ko-dai さんの指示。お客様が公式アプリで選ぶ）。o.cutlery が true なら付ける、false なら付けない。
  *  聞いていない注文（電話・店頭、前からの注文）は何も出さない */
 const cutlery = o => o.cutlery === true ? '<p class="c-cut yes">🍴 カトラリーを付ける</p>'
@@ -358,6 +398,7 @@ function card(o) {
       ${cutlery(o)}
       ${o.memo ? `<p class="c-memo">ご要望：${esc(o.memo)}</p>` : ''}
       <div class="c-sum"><span>合計${pay}</span><b>${yen(o.total)}</b></div>
+      ${priceCheck(o)}
       ${o.shopMsg && o.status !== 'declined' ? `<p class="c-msg">お客様への一言：${esc(o.shopMsg)}</p>` : ''}
       ${o.status === 'canceled' ? `<p class="c-cancel">取り消し（${esc(o.canceledBy || '')}）</p>` : ''}
       ${o.status === 'declined' ? `<p class="c-cancel">お断りしました${o.shopMsg || o.declineNote ? `（${esc(o.shopMsg || o.declineNote)}）` : ''}</p>` : ''}

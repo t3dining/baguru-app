@@ -140,6 +140,7 @@ button { font: inherit; cursor: pointer; border: 0; }
 .c-sum span { font-size: 12px; color: var(--sub); }
 .c-sum b { font-size: 18px; }
 .c-cancel { margin: 8px 0 0; color: var(--red); font-weight: 700; font-size: 13px; }
+.c-check { margin: 8px 0 0; padding: 6px 10px; border-radius: 8px; background: var(--red); color: #fff; font-size: 14px; font-weight: 800; }   /* 値段・食数がメニューと合わない注文 */
 .c-msg { margin: 8px 0 0; padding: 6px 10px; border-radius: 8px; background: var(--green-soft); font-size: 13px; }
 .c-btns { display: flex; gap: 8px; margin-top: 10px; }
 .c-btns:empty { display: none; }
