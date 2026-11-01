@@ -116,6 +116,24 @@ function rsvDropUnfit() {
   else if (!d.slots.some(s => s.t === rsv.time && rsvFits(s))) rsv.time = '';
 }
 
+/** お客様のことの入力欄 */
+function rsvFields(v) {
+  return `${RSV_KANA ? `<div class="r-names">
+      <label class="field"><span>苗字</span><input id="r-sei" autocomplete="family-name" maxlength="19" value="${esc(v.sei)}" placeholder="例：豊田"></label>
+      <label class="field"><span>名前</span><input id="r-mei" autocomplete="given-name" maxlength="19" value="${esc(v.mei)}" placeholder="例：太郎"></label>
+      <label class="field"><span>セイ（カタカナ）</span><input id="r-sei-kana" autocomplete="off" maxlength="19" value="${esc(v.seiKana)}" placeholder="例：トヨタ"></label>
+      <label class="field"><span>メイ（カタカナ）</span><input id="r-mei-kana" autocomplete="off" maxlength="19" value="${esc(v.meiKana)}" placeholder="例：タロウ"></label>
+    </div>` : `<label class="field"><span>お名前</span><input id="r-name" autocomplete="name" maxlength="40" value="${esc(v.name)}" placeholder="例：豊田 太郎"></label>`}
+    <label class="field"><span>電話番号</span><input id="r-tel" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" value="${esc(v.tel)}" placeholder="例：090-1234-5678"></label>
+    <label class="field"><span>メールアドレス（確定のお知らせをお送りします）</span><input id="r-email" type="email" inputmode="email" autocomplete="email" maxlength="120" value="${esc(v.email)}"></label>`;
+}
+/** 登録した内容が揃っていれば、たたんで見せる内容（席の予約の入力を省く）。足りないものがあれば [] で、入力欄を出す */
+function rsvSaved(v) {
+  const names = RSV_KANA ? v.sei && v.mei && v.seiKana && v.meiKana : v.name;
+  if (!ME.registeredAt || !names || !v.tel || !v.email) return [];
+  return [`${RSV_KANA ? `${v.sei} ${v.mei}（${v.seiKana} ${v.meiKana}）` : v.name} 様`, v.tel, v.email];
+}
+
 /* ---------- 描く ---------- */
 function rsvDraw() {
   const box = $('#rsv');
@@ -141,14 +159,7 @@ function rsvDraw() {
     <h2 class="sec">時間</h2>
     <div id="r-times">${rsvTimesHtml()}</div>
     <h2 class="sec">お客様のこと</h2>
-    ${RSV_KANA ? `<div class="r-names">
-      <label class="field"><span>苗字</span><input id="r-sei" autocomplete="family-name" maxlength="19" value="${esc(v.sei)}" placeholder="例：豊田"></label>
-      <label class="field"><span>名前</span><input id="r-mei" autocomplete="given-name" maxlength="19" value="${esc(v.mei)}" placeholder="例：太郎"></label>
-      <label class="field"><span>セイ（カタカナ）</span><input id="r-sei-kana" autocomplete="off" maxlength="19" value="${esc(v.seiKana)}" placeholder="例：トヨタ"></label>
-      <label class="field"><span>メイ（カタカナ）</span><input id="r-mei-kana" autocomplete="off" maxlength="19" value="${esc(v.meiKana)}" placeholder="例：タロウ"></label>
-    </div>` : `<label class="field"><span>お名前</span><input id="r-name" autocomplete="name" maxlength="40" value="${esc(v.name)}" placeholder="例：豊田 太郎"></label>`}
-    <label class="field"><span>電話番号</span><input id="r-tel" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" value="${esc(v.tel)}" placeholder="例：090-1234-5678"></label>
-    <label class="field"><span>メールアドレス（確定のお知らせをお送りします）</span><input id="r-email" type="email" inputmode="email" autocomplete="email" maxlength="120" value="${esc(v.email)}"></label>
+    ${savedContact(rsvFields(v), rsvSaved(v))}
     <label class="r-check"><input type="checkbox" id="r-kids" ${v.kids ? 'checked' : ''}>お子様連れ</label>
     <div class="field"><span>デザートプレート（要予約・税込1,100円）</span>
       <div class="r-row"><label class="r-chip"><input type="radio" name="r-dessert" value="no" ${v.dessert ? '' : 'checked'}><span>注文しない</span></label>
@@ -297,6 +308,7 @@ function rsvClick(e) {
   }
   if (act === 'next') {
     const v = rsvValues(), err = rsvCheck(v);
+    if (err && err !== RSV_MSG.bad_people && err !== RSV_MSG.bad_date) openContact();   // お客様のことが足りないときだけ、たたんだ欄を開く
     if (err) { const m = $('#r-msg'); m.textContent = err; m.hidden = false; m.scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
     rsv.v = v;
     rsv.rid = randomRid('r');   // 確認の画面を開くたびに新しい印。送り直しのときは同じ印を使う

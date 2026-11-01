@@ -504,8 +504,8 @@ function viewCheckout() {
       </div>
       ${cutleryHtml()}
       <h2 class="sec">お名前と電話番号</h2>
-      <label class="field"><span>お名前（受け取りのときにお呼びします）</span><input id="f-name" autocomplete="name" value="${esc(ME.name)}" placeholder="例：豊田 太郎"></label>
-      <label class="field"><span>電話番号</span><input id="f-tel" type="tel" inputmode="tel" autocomplete="tel" value="${esc(ME.tel)}" placeholder="例：090-1234-5678"></label>
+      ${savedContact(`<label class="field"><span>お名前（受け取りのときにお呼びします）</span><input id="f-name" autocomplete="name" value="${esc(ME.name)}" placeholder="例：豊田 太郎"></label>
+      <label class="field"><span>電話番号</span><input id="f-tel" type="tel" inputmode="tel" autocomplete="tel" value="${esc(ME.tel)}" placeholder="例：090-1234-5678"></label>`, ME.registeredAt && ME.name && ME.tel ? [`${ME.name} 様`, ME.tel] : [])}
       <label class="field"><span>ご要望（なくても構いません）</span><textarea id="f-memo" rows="2" placeholder="例：お箸を2膳ください"></textarea></label>
       <h2 class="sec">ご注文の内容</h2>
       ${linesHtml(cart.map(cartLine), cartTotal())}
@@ -560,9 +560,50 @@ function readContact(p) {
   const tel = toHalf($(`#${p}-tel`).value.trim());
   const memo = $(`#${p}-memo`)?.value.trim() || '';
   const digits = tel.replace(/[^0-9]/g, '');
-  if (!name) { $(`#${p}-name`).focus(); toast('お名前を入れてください', 'warn'); return null; }
-  if (digits.length < 10 || digits.length > 11) { $(`#${p}-tel`).focus(); toast('電話番号を確かめてください', 'warn'); return null; }
+  if (!name) { openContact(); $(`#${p}-name`).focus(); toast('お名前を入れてください', 'warn'); return null; }
+  if (digits.length < 10 || digits.length > 11) { openContact(); $(`#${p}-tel`).focus(); toast('電話番号を確かめてください', 'warn'); return null; }
   return { name, tel, memo };
+}
+
+/** 登録した内容が揃っていれば、入力欄をたたんで内容だけ見せる（席の予約・テイクアウトの注文の入力を省く）。fields … 入力欄、rows … 見せる内容 */
+function savedContact(fields, rows) {
+  if (!MEMBER_PLUS || !rows.length) return fields;
+  return `<div class="saved-contact" id="savedContact"><b>ご登録の内容で承ります</b>${rows.map(r => `<span>${esc(r)}</span>`).join('')}<button class="mini" data-act="contactEdit">変更する</button></div>
+    <div id="contactFields" hidden>${fields}</div>`;
+}
+function openContact() {
+  $('#savedContact')?.remove();
+  if ($('#contactFields')) $('#contactFields').hidden = false;
+}
+
+/* 会員情報の項目（スタンプ台帳の決めごと.md の12節）。フリガナ・性別・年代は必須、メールアドレスだけ任意。★性別と年代は、一人ずつではなく集計して使う（バグるマネージの「客層」） */
+const GENDERS = ['男性', '女性', 'その他'], AGES = ['10代', '20代', '30代', '40代', '50代', '60代', '70代以上'];
+const pickHtml = (id, label, list, now) => `<label class="field"><span>${label}</span><select id="${id}"><option value="">選んでください</option>${list.map(x => `<option ${x === now ? 'selected' : ''}>${x}</option>`).join('')}</select></label>`;
+function extraFields(p) {
+  if (!MEMBER_PLUS) return '';
+  const [seiKana, meiKana] = twoParts(ME.kana);
+  return `<div class="r-names">
+        <label class="field"><span>セイ（カタカナ）</span><input id="${p}-sei-kana" autocomplete="off" maxlength="19" value="${esc(seiKana)}" placeholder="例：トヨタ"></label>
+        <label class="field"><span>メイ（カタカナ）</span><input id="${p}-mei-kana" autocomplete="off" maxlength="19" value="${esc(meiKana)}" placeholder="例：タロウ"></label>
+      </div>
+      <div class="r-names">${pickHtml(`${p}-gender`, '性別', GENDERS, ME.gender)}${pickHtml(`${p}-age`, '年代', AGES, ME.age)}</div>
+      <label class="field"><span>メールアドレス（なくても構いません）</span><input id="${p}-email" type="email" inputmode="email" autocomplete="email" maxlength="120" value="${esc(ME.email || '')}"></label>
+      <p class="hint">メールアドレスを入れておくと、席のご予約の入力も省けます。性別と年代は、一人ずつではなく集計して、お店のサービスを考える参考にします。</p>`;
+}
+/** 会員情報の残りの項目を読む（足りない・形が違えば知らせて null）。name … お名前（席の予約で苗字と名前に分けるので、スペースが要る） */
+function readExtra(p, name) {
+  if (!MEMBER_PLUS) return {};
+  const ng = (id, text) => { $(`#${p}-${id}`).focus(); toast(text, 'warn'); return null; };
+  if (!twoParts(name)[1]) return ng('name', '苗字と名前のあいだにスペースを入れてください');
+  const sei = toKatakana($(`#${p}-sei-kana`).value), mei = toKatakana($(`#${p}-mei-kana`).value);
+  if (!sei) return ng('sei-kana', 'セイを入れてください');
+  if (!mei) return ng('mei-kana', 'メイを入れてください');
+  if (!/^[\u30a1-\u30f6\u30fc]+$/.test(sei + mei)) return ng('sei-kana', 'フリガナはカタカナで入れてください');
+  const gender = $(`#${p}-gender`).value, age = $(`#${p}-age`).value, email = $(`#${p}-email`).value.trim();
+  if (!gender) return ng('gender', '性別を選んでください');
+  if (!age) return ng('age', '年代を選んでください');
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return ng('email', 'メールアドレスの形を確かめてください');
+  return { email, kana: `${sei} ${mei}`, gender, age };
 }
 
 /** 再送の印は、推測されないよう乱数で作る（時刻から作ると、当てられたときに他人の注文が読める。2026-11-01 の Codex のレビュー）。
@@ -924,9 +965,10 @@ function viewStamp() {
 function welcomeBox() {
   return `<div class="welcome">
       <div class="w-head">${ICON.gift}<div><b>初めての方へ</b><small>会員登録で <em>${STAMP.welcome.points}ポイント</em> ＋ <em>${esc(couponTitle(STAMP.welcome))}</em> をサービス</small></div></div>
-      <p>お名前と電話番号を登録すると、すぐにもらえます。今日お店のQRも読むと、合わせて${STAMP.welcome.points + STAMP.perDay}ポイントになります。</p>
+      <p>${MEMBER_PLUS ? '会員情報' : 'お名前と電話番号'}を登録すると、すぐにもらえます。今日お店のQRも読むと、合わせて${STAMP.welcome.points + STAMP.perDay}ポイントになります。</p>
       <label class="field"><span>お名前</span><input id="w-name" autocomplete="name" value="${esc(ME.name)}" placeholder="例：豊田 太郎"></label>
       <label class="field"><span>電話番号</span><input id="w-tel" type="tel" inputmode="tel" autocomplete="tel" value="${esc(ME.tel)}" placeholder="例：090-1234-5678"></label>
+      ${extraFields('w')}
       <button class="btn btn-main btn-block" data-act="register" data-arg="w">登録して${STAMP.welcome.points}ポイントもらう</button>
     </div>`;
 }
@@ -935,15 +977,17 @@ function welcomeBox() {
 function register(p) {
   const c = readContact(p);
   if (!c) return;
+  const more = readExtra(p, c.name);
+  if (!more) return;
   if (STAMPS_ONLINE) {
-    return stampPost('memberSave', { name: c.name, tel: c.tel }).then(r => {
+    return stampPost('memberSave', { name: c.name, tel: c.tel, ...more }).then(r => {
       lastStampTotal = getStamps().total;
       if (!r.first) return toast('保存しました');
       showStamped(r, '会員登録ありがとうございます');
       render(true);
     }).catch(e => toast(stampMessage(e), 'warn'));
   }
-  Object.assign(ME, { name: c.name, tel: c.tel });
+  Object.assign(ME, { name: c.name, tel: c.tel, ...more });
   const first = !ME.registeredAt;
   if (first) ME.registeredAt = new Date().toISOString();
   DB.set('member', ME);
@@ -1111,10 +1155,11 @@ function viewMe() {
     tab: 'me', title: 'マイページ',
     html: `
       <div class="member"><img src="img/logo.png" alt=""><div><small>会員番号</small><b>${ME.no}</b></div></div>
-      <h2 class="sec">${ME.registeredAt ? 'お名前と電話番号' : '会員登録'}</h2>
-      <p class="hint">${ME.registeredAt ? 'テイクアウトの注文のときに、最初から入ります。' : `登録すると、スタンプ${STAMP.welcome.points}ポイントと${esc(couponTitle(STAMP.welcome))}のサービス券をお渡しします。テイクアウトの注文のときにも、最初から入ります。`}</p>
+      <h2 class="sec">${ME.registeredAt ? (MEMBER_PLUS ? '会員情報' : 'お名前と電話番号') : '会員登録'}</h2>
+      <p class="hint">${ME.registeredAt ? `${MEMBER_PLUS ? '席のご予約やテイクアウトの注文の入力を省けます。' : 'テイクアウトの注文のときに、最初から入ります。'}` : `登録すると、スタンプ${STAMP.welcome.points}ポイントと${esc(couponTitle(STAMP.welcome))}のサービス券をお渡しします。${MEMBER_PLUS ? '席のご予約やテイクアウトの注文の入力も省けます。' : 'テイクアウトの注文のときにも、最初から入ります。'}`}</p>
       <label class="field"><span>お名前</span><input id="m-name" autocomplete="name" value="${esc(ME.name)}"></label>
       <label class="field"><span>電話番号</span><input id="m-tel" type="tel" inputmode="tel" autocomplete="tel" value="${esc(ME.tel)}"></label>
+      ${extraFields('m')}
       <button class="btn ${ME.registeredAt ? 'btn-sub' : 'btn-main'}" data-act="register" data-arg="m">${ME.registeredAt ? '保存する' : `登録して${STAMP.welcome.points}ポイントもらう`}</button>
       <h2 class="sec">ご予約のリクエスト</h2>
       <div id="myRsv">${reservesHtml()}</div>
@@ -1133,7 +1178,12 @@ function viewMe() {
       <button class="btn btn-sub btn-block" data-act="memberCode">引き継ぎコードを出す</button>
       <label class="field"><span>引き継ぎコード（新しいスマホで入れる）</span><input id="t-code" autocapitalize="characters" autocomplete="off"></label>
       <label class="field"><span>登録した電話番号（登録していなければ空のまま）</span><input id="t-tel" type="tel" inputmode="tel" autocomplete="tel"></label>
-      <button class="btn btn-sub btn-block" data-act="memberTake">新しいスマホで続きを使う</button>` : ''}
+      <button class="btn btn-sub btn-block" data-act="memberTake">新しいスマホで続きを使う</button>
+      ${MEMBER_PLUS ? `<h2 class="sec">アプリを入れ直したとき</h2>
+      <p class="hint">登録したお名前と電話番号を入れると、前のスタンプと特典に戻せます。フリガナ・性別・年代・メールアドレスは戻らないので、戻したあとにもう一度入れてください。会員登録をしていないと戻せません。</p>
+      <label class="field"><span>登録したお名前</span><input id="b-name" autocomplete="name"></label>
+      <label class="field"><span>登録した電話番号</span><input id="b-tel" type="tel" inputmode="tel" autocomplete="tel"></label>
+      <button class="btn btn-sub btn-block" data-act="memberBack">前の会員に戻す</button>` : ''}` : ''}
       ${installRow()}
       ${DEV_HOST ? `<h2 class="sec">この試作版について</h2>
       <div class="about">
@@ -1259,6 +1309,17 @@ const ACTIONS = {
       toast('前のスマホの続きを使えるようになりました', 'good');
     }).catch(e => toast(stampMessage(e), 'warn'));
   },
+  contactEdit: () => openContact(),
+  memberBack: () => {
+    const name = $('#b-name').value.trim(), tel = toHalf($('#b-tel').value.trim());
+    if (!name || !tel) return toast('お名前と電話番号を入れてください', 'warn');
+    if (getStamps().total && !confirm('このスマホのスタンプと特典は、前の会員の内容に置きかわります。よろしいですか？')) return;
+    backMember(name, tel).then(() => {
+      lastStampTotal = getStamps().total;
+      render(true);
+      toast(MEMBER_PLUS ? '前の会員に戻しました。上の会員情報をもう一度入れてください' : '前の会員に戻しました', 'good');
+    }).catch(e => toast(stampMessage(e), 'warn'));
+  },
   reset: () => {
     if (!DEV_HOST || !confirm('注文・スタンプ・会員番号など、試作のデータを全部消します。よろしいですか？')) return;
     DB.clearAll();
@@ -1269,7 +1330,7 @@ const ACTIONS = {
 };
 
 // バグるマネージの「アプリで見る」の中では、注文・スタンプ・特典・登録など、動かすと本物に残るものは止める（js/content.js の PREVIEW）
-const PREVIEW_STOP = new Set(['submit', 'request', 'cancel', 'stamp', 'lineMove', 'coupon', 'register', 'reset', 'install-guide', 'memberCode', 'memberTake']);
+const PREVIEW_STOP = new Set(['submit', 'request', 'cancel', 'stamp', 'lineMove', 'coupon', 'register', 'reset', 'install-guide', 'memberCode', 'memberTake', 'memberBack']);
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
   if (!el) return;

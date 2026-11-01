@@ -8,17 +8,19 @@
 
 const LOCAL_TEST = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) && /[?&]test\b/.test(location.search);
 const STAMPS_ONLINE = !!STAMP.online || LOCAL_TEST;
-const LINE_TICKETS = !!STAMP.lineTicket || LOCAL_TEST;
+const MEMBER_PLUS = !!STAMP.memberPlus || LOCAL_TEST;
 
 const STAMP_MSG = {
   bad_member: 'この端末の会員の情報が使えなくなりました。もう一度お試しください',
-  tel_used: 'この電話番号は、もう登録されています。スマホを替えた方は、マイページの引き継ぎコードをお使いください',
+  tel_used: MEMBER_PLUS ? 'この電話番号は、もう登録されています。アプリを入れ直した方は、マイページの「アプリを入れ直したとき」から前の会員に戻せます' : 'この電話番号は、もう登録されています。スマホを替えた方は、マイページの引き継ぎコードをお使いください',
   bad_tel: '電話番号を確かめてください',
   need_name: 'お名前を入れてください',
   coupon_used: 'この特典は使用済みです',
   coupon_today: `特典は1日${STAMP.couponsPerDay}枚までです（今日はもう使いました）`,
   not_found: 'この特典が見つかりませんでした。お店の人に声をかけてください',
   bad_code: 'コードか電話番号が違います。もう一度確かめてください',
+  bad_back: 'お名前か電話番号が違います。登録したときと同じものを入れてください',
+  need_register: 'LINEのポイントの引き継ぎは、会員登録をした方だけできます。先にお名前と電話番号を登録してください',
 };
 const stampMessage = e => STAMP_MSG[e.code] || ORDER_MSG[e.code] || ORDER_MSG.no_answer;
 
@@ -35,7 +37,9 @@ function keepState(st) {
   if (!st) return;
   DB.set('stamps', { total: st.total, log: (st.log || []).slice().reverse(), coupons: (st.coupons || []).map(couponFill), ...(st.lineMovedAt ? { lineMovedAt: st.lineMovedAt } : {}) });
   if (st.no !== ME.no) saveOrders(getOrders().map(o => (o.member === ME.no ? { ...o, member: st.no } : o)));   // 番号が変わっても、この端末の注文が見えるように
-  Object.assign(ME, { no: st.no, ...(st.registeredAt ? { name: st.name, tel: st.tel, registeredAt: st.registeredAt } : {}) });
+  // メールとフリガナは、席の予約で入れた分がこの端末にあれば残す
+  const more = MEMBER_PLUS ? { gender: st.gender || '', age: st.age || '', email: st.email || ME.email || '', kana: st.kana || ME.kana || '' } : {};
+  Object.assign(ME, { no: st.no, ...(st.registeredAt ? { name: st.name, tel: st.tel, registeredAt: st.registeredAt, ...more } : {}) });
   DB.set('member', ME);
 }
 
@@ -91,6 +95,13 @@ async function syncStamps() {
   const before = JSON.stringify(s);
   await stampPost('stampRead');
   return JSON.stringify(getStamps()) !== before;
+}
+
+/** アプリを入れ直したとき、登録したお名前と電話番号で前の会員に戻る（鍵が新しくなる。スタンプ台帳の決めごと.md の11節） */
+async function backMember(name, tel) {
+  const r = await orderPost({ action: 'memberBack', name, tel, rid: randomRid('b') });
+  DB.set('memberAuth', { no: r.member, key: r.key });
+  keepState(r.state);
 }
 
 /** 新しいスマホで、前のスマホの続きを使う（鍵が新しくなり、前のスマホでは使えなくなる） */

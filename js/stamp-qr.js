@@ -104,7 +104,7 @@ async function openScanner({ ticket = false } = {}) {
     let text = '';
     try { text = await read(video); } catch (e) { /* 次の回にもう一度 */ }
     if (!stillOpen()) return;
-    const token = ticket ? '' : tokenFrom(text), code = LINE_TICKETS ? ticketFrom(text) : '';
+    const token = ticket ? '' : tokenFrom(text), code = MEMBER_PLUS ? ticketFrom(text) : '';
     if (token) { stopCamera(); navigator.vibrate?.(40); return claimStamp(token); }
     if (code) { stopCamera(); navigator.vibrate?.(40); return claimTicket(code); }
     if (text && Date.now() - warned > 2500) { warned = Date.now(); msg(ticket ? 'LINEの引き継ぎのQRではないようです' : 'バグるのスタンプのQRではないようです'); }
@@ -176,6 +176,7 @@ function giveStamp() {
  *  お客さまが LINE の画面を見せに行って戻ってくるので、見えていないあいだは読まずに待つ */
 const LINE_EVERY = 6000, LINE_WAIT = 10 * 60000;
 function openLineMove() {
+  if (MEMBER_PLUS && !ME.registeredAt) return stampProblem('先に会員登録をお願いします', STAMP_MSG.need_register);
   const before = getStamps().total;
   memberReady().then(a => {
     openSheet(`
@@ -184,7 +185,7 @@ function openLineMove() {
         <p class="cb-label">LINEのポイントの引き継ぎ</p>
         <h2 class="member-no">${esc(a.no)}</h2>
         <p>この会員番号と、LINEのショップカードの画面を、お店の人に見せてください。お店の人が数を入れると、この画面が変わります。</p>
-        ${LINE_TICKETS ? '<p>お店の人が紙のQRを見せたときは、下のボタンから読んでください。</p><button class="btn btn-sub btn-block" data-s="ticket">紙のQRを読む</button>' : ''}
+        ${MEMBER_PLUS ? '<p>お店の人が紙のQRを見せたときは、下のボタンから読んでください。</p><button class="btn btn-sub btn-block" data-s="ticket">紙のQRを読む</button>' : ''}
       </div>`);
     sheetBody.onchange = null;
     sheetBody.onclick = e => {
@@ -225,6 +226,7 @@ function claimTicket(code) {
     render(true);
   }).catch(e => {
     if (e.code === 'line_done') return stampProblem('LINEのポイントは引き継ぎ済みです', '引き継ぎは1回だけです。QRはお店の人に返してください。');
+    if (e.code === 'need_register') return stampProblem('先に会員登録をお願いします', STAMP_MSG.need_register);
     if (e.code === 'bad_ticket') return stampProblem('このQRは使えません', 'お店の人に、会員番号を見せてください。');
     stampProblem('引き継げませんでした', stampMessage(e));
   });
