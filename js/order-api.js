@@ -55,12 +55,19 @@ const fromServer = o => {
 const noteOf = o => [{ true: 'カトラリーあり', false: 'カトラリーなし' }[o.cutlery], o.memo].filter(Boolean).join('／');
 const orderKeys = () => DB.get('orderKeys', {});
 
-/** この端末の写しを、受け口の注文で書きかえる（無いものは足す） */
+/** この端末の写しを、受け口の注文で書きかえる（無いものは足す）。
+ *  お店が受け取りの時間を変えていたら、前の時間を movedFrom に控える（2026-11-01 ko-dai さんの指示：お客さまに知らせる。Order受付の「できしだい」の時間の変更）。
+ *  閉じている間に変わっても、次に開いて読んだときに分かる */
+let orderMoved = [];   // 時間が変わって、まだ知らせていない注文（app.js の ordersChanged が知らせる）
 function mergeOrders(list) {
   const all = getOrders();
   list.forEach(s => {
     const i = all.findIndex(o => o.id === s.id);
     const o = { ...(i >= 0 ? all[i] : {}), ...fromServer(s) };
+    if (i >= 0 && new Date(all[i].pickupAt).getTime() !== new Date(o.pickupAt).getTime()) {
+      o.movedFrom = all[i].pickupAt;
+      orderMoved.push(o);
+    }
     if (i >= 0) all[i] = o; else all.push(o);
   });
   saveOrders(all);

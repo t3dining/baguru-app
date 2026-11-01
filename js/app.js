@@ -185,7 +185,7 @@ function orderBanner(o) {
   const t = new Date(o.pickupAt);
   return `<a class="obanner ob-${o.status}" href="#order/${o.id}">
       <span class="ob-st">${statusLabel(o)}</span>
-      <span class="ob-main"><b>${isRequest(o) ? `${KIND[o.kind]}の申請 ` : '注文番号 '}${o.no}</b><small>${dayLabel(t)} ${hhmm(t)}${o.asap ? '頃' : ''} ${whenWord(o)}${o.status === 'request' ? '（希望）' : `・${untilText(o.pickupAt)}`}</small></span>
+      <span class="ob-main"><b>${isRequest(o) ? `${KIND[o.kind]}の申請 ` : '注文番号 '}${o.no}</b><small>${dayLabel(t)} ${hhmm(t)}${o.asap ? '頃' : ''} ${whenWord(o)}${o.status === 'request' ? '（希望）' : untilText(o.pickupAt) ? `・${untilText(o.pickupAt)}` : ''}</small>${o.movedFrom ? `<em class="ob-moved">${whenWord(o)}の時間が変わりました</em>` : ''}</span>
       <span class="ob-go">›</span>
     </a>`;
 }
@@ -775,6 +775,8 @@ function cancelMsg(o) {
   return '';
 }
 
+const movedWhen = (o, t, day = true) => `${day ? `${dayLabel(t)} ` : ''}${hhmm(t)}${o.asap ? '頃' : ''}`;
+
 function viewOrder(id) {
   const o = getOrders().find(x => x.id === id);
   if (!o) return { tab: 'me', title: 'ご注文', back: ORDER_ONLY ? '#menu' : '#me', html: '<div class="empty"><p>注文が見つかりません</p></div>' };
@@ -799,6 +801,7 @@ function viewOrder(id) {
           <li class="${i < step || o.status === 'done' ? 'past' : i === step ? 'now' : ''}"><i>${i < step || o.status === 'done' ? ICON.check : ''}</i><span>${statusLabel(o, s)}</span></li>`).join('')}
         </ol>
         <p class="track-msg tm-${o.status}">${statusMsg(o)}</p>
+        ${o.movedFrom && ACTIVE.includes(o.status) ? `<p class="notice shop-notice">${ICON.clock}<span><b>お店が${whenWord(o)}の時間を変えました</b><small>${movedWhen(o, new Date(o.movedFrom))} → ${movedWhen(o, t, dateKey(new Date(o.movedFrom)) !== dateKey(t))}</small></span></p>` : ''}
         ${o.shopMsg ? `<p class="notice">${ICON.phone}<span>お店から<small>${esc(o.shopMsg)}</small></span></p>` : ''}`}
       <h2 class="sec">ご注文の内容${o.meals ? `（${o.meals}食）` : ''}</h2>
       ${linesHtml(o.lines, o.total)}
@@ -1215,6 +1218,8 @@ window.addEventListener('hashchange', () => { if (routeName() !== 'order') justO
 
 /** 注文の様子が変わったら知らせる（お店の画面が同じブラウザで書き換えたとき・受け口から取り寄せたとき） */
 function ordersChanged() {
+  // お店が受け取りの時間を変えたとき（js/order-api.js の mergeOrders が控える）。下の様子の知らせと重なったら、そちらを出す
+  orderMoved.splice(0).forEach(o => { toast(`${whenWord(o)}の時間が ${movedWhen(o, new Date(o.pickupAt))} に変わりました`, 'warn'); FX.buzz([120, 80, 120]); });
   for (const o of myOrders()) {
     const before = lastStatus[o.id];
     if (before && before !== o.status) {
