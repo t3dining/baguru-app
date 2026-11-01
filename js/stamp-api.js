@@ -6,7 +6,9 @@
  *  ・★新しい action は受け口が先。受け口に無いときに呼ぶと、合言葉の失敗に数えられる
  * ===================================================================== */
 
-const STAMPS_ONLINE = !!STAMP.online || (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && /[?&]test\b/.test(location.search));
+const LOCAL_TEST = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) && /[?&]test\b/.test(location.search);
+const STAMPS_ONLINE = !!STAMP.online || LOCAL_TEST;
+const LINE_TICKETS = !!STAMP.lineTicket || LOCAL_TEST;
 
 const STAMP_MSG = {
   bad_member: 'この端末の会員の情報が使えなくなりました。もう一度お試しください',
