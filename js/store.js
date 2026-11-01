@@ -329,7 +329,9 @@ function checkCook(all) {
    バグるマネージで値段を変えた直後は、前の値段の注文にも出ることがある */
 
 // バグるマネージで名前を直すと、お客様のアプリからは直した字で届く（order-api.js の oneLine）。直す前の注文と電話の注文は元の字
-const sameOpt = (name, text) => name === text || oneLine(name) === text;
+// 2026-11-02 にご飯の量の名前を変えた（data.js の RICE）。変える前に受けた注文は前の字のまま。明日より先の注文があるので、はけるまで見分ける
+const OLD_OPT = { 'ご飯大盛り': 'ご飯大盛', 'ご飯特盛り': 'ご飯特盛' };
+const sameOpt = (name, text) => name === text || oneLine(name) === text || OLD_OPT[text] === name;
 
 /** 1行の正しい単価（common.js の priceOf の逆。opts の字から、選んだものを探す）。分からないものがあれば null */
 function lineUnit(l) {
@@ -371,7 +373,7 @@ function priceCheck(o) {
 const cutlery = o => o.cutlery === true ? '<p class="c-cut yes">🍴 カトラリーを付ける</p>'
   : o.cutlery === false ? '<p class="c-cut no">✕ カトラリーは付けない</p>' : '';
 
-/** 画面に出す選択（2026-11-02 ko-dai さんの指示）。ご飯の「普通」とミートの「並」は公式アプリが注文に書かない（data.js の plain）ので、その字が無ければ「ご飯普通」「ミート並」を足す。
+/** 画面に出す選択（2026-11-02 ko-dai さんの指示）。ご飯の「並盛」とミートの「並」は公式アプリが注文に書かない（data.js の plain）ので、その字が無ければ「ご飯並盛」「ミート並」を足す。
  *  出すだけで、注文の中身（l.opts）は変えない。値段の確かめは l.opts のまま */
 const SHOW_PLAIN = ['rice', 'meat'];
 function shownOpts(l) {
@@ -654,7 +656,7 @@ function paintOpts() {
   const plus = c => c.soldOut ? '（売り切れ）' : c.p ? `（+${yen(c.p)}）` : '';
   $('#pOpts').innerHTML = !item ? '' : item.groups.map(g => {
     if (g.type === 'one') {
-      const def = g.choices.findIndex(c => c.plain && !c.soldOut);   // 「普通」「なし」があれば、はじめからそれ。ソースなどは選んでもらう
+      const def = g.choices.findIndex(c => c.plain && !c.soldOut);   // 「並盛」「なし」があれば、はじめからそれ。ソースなどは選んでもらう
       return `<label class="f-opt"><span>${esc(g.name)}</span><select data-g="${g.id}">${def < 0 ? '<option value="">選んでください</option>' : ''}${
         g.choices.map((c, i) => `<option value="${i}" ${i === def ? 'selected' : ''} ${c.soldOut ? 'disabled' : ''}>${esc(c.n)}${plus(c)}</option>`).join('')}</select></label>`;
     }
