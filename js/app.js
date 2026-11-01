@@ -19,7 +19,7 @@ const statusMap = () => Object.fromEntries(myOrders().map(o => [o.id, o.status])
 
 // 選ぶ項目が変わる前にカートへ入れたもの（いまの決まりでは選び終わっていないもの）は、取りのぞく
 let cart = DB.get('cart', []).filter(c => ITEM_BY_ID[c.itemId] && !priceOf(ITEM_BY_ID[c.itemId], c.sel || {}).missing);
-let pick = { mode: 'asap', day: 0, slot: null };   // 受け取り方（asap＝できしだい／time＝時間を指定）と日・時間
+let pick = { mode: 'asap', day: 0, slot: null };   // 受け取り方（asap＝できしだい／time＝時間を指定）と日・時間。cutlery はお箸・スプーンの有無（選ぶまで無い）
 let justOrdered = null;                  // 注文した直後の「ありがとうございます」を出すため
 let lastStatus = statusMap();            // 注文の様子が変わったら知らせるため
 let lastStampTotal = getStamps().total;
@@ -501,6 +501,7 @@ function viewCheckout() {
         ${days.length > 4 ? `<p class="hint">日にちは、横に動かすと${TAKEOUT.monthsAhead}か月先（${mdw(days[days.length - 1].date)}）まで選べます。定休日は出ません。</p>` : ''}
         <div class="slots" id="slots">${slotsHtml(days)}</div>
       </div>
+      ${cutleryHtml()}
       <h2 class="sec">お名前と電話番号</h2>
       <label class="field"><span>お名前（受け取りのときにお呼びします）</span><input id="f-name" autocomplete="name" value="${esc(ME.name)}" placeholder="例：豊田 太郎"></label>
       <label class="field"><span>電話番号</span><input id="f-tel" type="tel" inputmode="tel" autocomplete="tel" value="${esc(ME.tel)}" placeholder="例：090-1234-5678"></label>
@@ -508,6 +509,7 @@ function viewCheckout() {
       <h2 class="sec">ご注文の内容</h2>
       ${linesHtml(cart.map(cartLine), cartTotal())}
       <p class="pay-note">${esc(TAKEOUT.payNote)}</p>
+      ${cancelRulesHtml(false)}
       <div class="foot"><button class="btn btn-main btn-block" data-act="submit" ${ok ? '' : 'disabled'}>${!accepting ? 'ただいま注文を受け付けていません' : !ok ? '受け取りできる日がありません' : 'この内容で注文する'}</button></div>`,
     after: () => { if (ORDERS_ONLINE) refreshAccepting(true).catch(() => {}); },   // 止めていたら、送ったときに受け口が断る
   };
@@ -522,6 +524,31 @@ function slotsHtml(days) {
     const gap = i && t - d.slots[i - 1] > TAKEOUT.stepMinutes * 60000;
     return `${gap ? '<p class="slot-sep">夜の部</p>' : ''}<button class="slot ${pick.slot === iso ? 'on' : ''}" data-act="slot" data-arg="${iso}">${hhmm(t)}</button>`;
   }).join('');
+}
+
+/** キャンセル規定の欄（注文・申請を送る前の画面）。文は data.js の TAKEOUT.cancelRules。req は配達・大量注文の申請のとき */
+function cancelRulesHtml(req) {
+  return `<h2 class="sec">キャンセル規定</h2>
+      ${cancelRulesList(req)}
+      <p class="hint">${req ? `ご希望の日時の${TAKEOUT.cookBefore}分前から調理を始めます。` : `「できしだい」の注文は受け付けるとすぐ、「時間を指定」の注文は受け取りの${TAKEOUT.cookBefore}分前から調理を始めます。`}</p>`;
+}
+const cancelRulesList = req => `<ul class="cancel-rules">${(req ? TAKEOUT.cancelRulesRequest : TAKEOUT.cancelRules).map(([k, v]) => `<li><b>${esc(k)}</b><span>${esc(v)}</span></li>`).join('')}</ul>`;
+
+/** お箸・スプーンの有無を選ぶ欄（注文と申請で同じ）。お店には「カトラリー」と出る（js/order-api.js の noteOf） */
+function cutleryHtml() {
+  return `<h2 class="sec">お箸・スプーンの有無</h2>
+      <div class="modes" id="cutlery">
+        <button class="mode ${pick.cutlery === true ? 'on' : ''}" data-act="cutlery" data-arg="yes"><b>必要</b><small>お付けします</small></button>
+        <button class="mode ${pick.cutlery === false ? 'on' : ''}" data-act="cutlery" data-arg="no"><b>不要</b><small>お付けしません</small></button>
+      </div>`;
+}
+
+/** お箸・スプーンの有無を選んだか（選んでいなければ、その欄へ動かして知らせる） */
+function cutleryChosen() {
+  if (typeof pick.cutlery === 'boolean') return true;
+  $('#cutlery').scrollIntoView({ block: 'center', behavior: 'smooth' });
+  toast('お箸・スプーンの有無を選んでください', 'warn');
+  return false;
 }
 
 const toHalf = s => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/[－ー‐―−]/g, '-');
@@ -593,10 +620,11 @@ function submitOrder(btn) {
     }
     pickupAt = pick.slot;
   }
+  if (!cutleryChosen()) return;
   const c = readContact('f');
   if (!c) return;
   if (!DB.get('accepting', true)) return toast('ただいま注文を受け付けていません', 'warn');
-  placeOrder({ ...c, kind: 'pickup', asap: pick.mode === 'asap', pickupAt, status: 'new' }, btn);
+  placeOrder({ ...c, kind: 'pickup', asap: pick.mode === 'asap', pickupAt, cutlery: pick.cutlery, status: 'new' }, btn);
 }
 
 /* ---------------------------------------------------------------------
@@ -661,6 +689,7 @@ function viewRequest() {
         <label class="field"><span>ご住所</span><input id="r-addr" autocomplete="street-address" placeholder="例：豊田市若林西町◯◯ 1-2-3"></label>
         <label class="field"><span>建物名・会社名・部署（なくても構いません）</span><input id="r-addr2" placeholder="例：◯◯ビル 2階 ◯◯株式会社"></label>
       </div>
+      ${cutleryHtml()}
       <h2 class="sec">お名前と電話番号</h2>
       <label class="field"><span>お名前（ご担当の方）</span><input id="r-name" autocomplete="name" value="${esc(ME.name)}" placeholder="例：豊田 太郎"></label>
       <label class="field"><span>電話番号（お店から確認のお電話をします）</span><input id="r-tel" type="tel" inputmode="tel" autocomplete="tel" value="${esc(ME.tel)}" placeholder="例：090-1234-5678"></label>
@@ -669,6 +698,7 @@ function viewRequest() {
       ${linesHtml(cart.map(cartLine), cartTotal())}
       <a class="add-more" href="#cart">内容を直す（カートへ）</a>
       <p class="pay-note">まだ確定していません。お店が承認したら確定します。<span id="r-pay">${esc(payNoteOf(req.kind, meals))}</span></p>
+      ${cancelRulesHtml(true)}
       <div class="foot"><button class="btn btn-main btn-block" data-act="request" ${d ? '' : 'disabled'}>この内容で申請する</button></div>`,
     after: () => { if (ORDERS_ONLINE) refreshAccepting(true).catch(() => {}); },
   };
@@ -686,9 +716,10 @@ function submitRequest(btn) {
   const address = kind === 'delivery' ? $('#r-addr').value.trim() : '';
   const address2 = kind === 'delivery' ? $('#r-addr2').value.trim() : '';
   if (kind === 'delivery' && !address) { $('#r-addr').focus(); return toast('お届け先のご住所を入れてください', 'warn'); }
+  if (!cutleryChosen()) return;
   const c = readContact('r');
   if (!c) return;
-  placeOrder({ ...c, kind, pickupAt: slot, address, address2, status: 'request' }, btn);
+  placeOrder({ ...c, kind, pickupAt: slot, address, address2, cutlery: pick.cutlery, status: 'request' }, btn);
 }
 
 // 申請の画面：受け取り方・日にちを変えたとき（入力を消さないよう、その部分だけ書きかえる）
@@ -736,6 +767,14 @@ function statusMsg(o) {
   return STATUS_MSG[o.status];
 }
 
+/** 注文の様子に合わせた、キャンセルの案内（キャンセル規定。data.js の TAKEOUT.cancelRules）。進み終わった注文は空 */
+function cancelMsg(o) {
+  if (['new', 'request'].includes(o.status)) return isRequest(o) ? 'お店が承認するまでは、下の「申請を取り下げる」からキャンセルできます。' : 'お店が受け付けるまでは、下の「注文を取り消す」からキャンセルできます。';
+  if (isBooked(o)) return `お店が${isRequest(o) ? '承認した' : '受け付けた'}ので、この画面からはキャンセルできません。ご相談は、調理を始める前（${whenWord(o)}の${TAKEOUT.cookBefore}分前まで）にお電話でお願いします。`;
+  if (['accepted', 'ready'].includes(o.status)) return '調理を始めたため、キャンセルできません。';
+  return '';
+}
+
 function viewOrder(id) {
   const o = getOrders().find(x => x.id === id);
   if (!o) return { tab: 'me', title: 'ご注文', back: ORDER_ONLY ? '#menu' : '#me', html: '<div class="empty"><p>注文が見つかりません</p></div>' };
@@ -769,8 +808,10 @@ function viewOrder(id) {
         <dt>電話番号</dt><dd>${esc(o.tel)}</dd>
         ${o.fee != null ? `<dt>配達料</dt><dd>${yen(o.fee)}（お届けのときに、ご注文の合計と一緒に）</dd>` : ''}
         ${o.kind === 'delivery' ? `<dt>お届け先</dt><dd>${esc(o.address)}${o.address2 ? `<br>${esc(o.address2)}` : ''}</dd>` : ''}
+        ${typeof o.cutlery === 'boolean' ? `<dt>お箸・スプーン</dt><dd>${o.cutlery ? '必要' : '不要'}</dd>` : ''}
         ${o.memo ? `<dt>ご要望</dt><dd>${esc(o.memo)}</dd>` : ''}
       </dl>
+      ${cancelMsg(o) ? `<p class="hint cancel-msg">${cancelMsg(o)}</p>` : ''}
       <div class="row-btns">
         <a class="btn btn-sub" href="tel:${SHOP.tel.replace(/-/g, '')}">${ICON.phone}お店に電話</a>
         ${['new', 'request'].includes(o.status) ? `<button class="btn btn-sub danger" data-act="cancel" data-arg="${o.id}">${o.status === 'request' ? '申請を取り下げる' : '注文を取り消す'}</button>` : ''}
@@ -977,6 +1018,7 @@ function viewShop() {
         ${row(ICON.seat, '席', esc(SHOP.seats), '<a class="mini" href="#reserve">予約</a>')}
         ${row(ICON.wallet, 'お支払い', `現金${SHOP.pay.map(([k, v]) => `<span class="sub-line">${v ? `<em>${esc(k)}</em>${esc(v)}` : esc(k)}</span>`).join('')}`)}
         ${row(ICON.truck, '配達', `${TAKEOUT.deliveryFreeMin}食以上で無料配達${delivery.map(([k, v]) => `<span class="sub-line"><em>${esc(k)}</em>${esc(v)}</span>`).join('')}` + (SHOP.contactUrl ? `<span class="sub-line"><a href="${esc(SHOP.contactUrl)}" target="_blank" rel="noopener">ホームページのお問い合わせフォーム ›</a></span>` : ''), '<a class="mini" href="#request">申請</a>')}
+        ${row(ICON.bag, 'テイクアウトのキャンセル', TAKEOUT.cancelRules.map(([k, v]) => `<span class="sub-line"><em>${esc(k)}</em>${esc(v)}</span>`).join(''))}
         ${row(ICON.insta, 'Instagram', '@baguru.hamburg', `<a class="mini" href="${SHOP.instagram}" target="_blank" rel="noopener">見る</a>`)}
       </ul>
       <div class="map"><iframe src="https://www.google.com/maps?q=${q}&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="地図"></iframe></div>
@@ -1104,8 +1146,12 @@ const ACTIONS = {
   },
   mode: m => {
     pick.mode = m;
-    $$('.modes .mode').forEach(b => b.classList.toggle('on', b.dataset.arg === m));
+    $$('.mode[data-act="mode"]').forEach(b => b.classList.toggle('on', b.dataset.arg === m));
     $('#timePick').hidden = m !== 'time';
+  },
+  cutlery: a => {
+    pick.cutlery = a === 'yes';
+    $$('#cutlery .mode').forEach(b => b.classList.toggle('on', b.dataset.arg === a));
   },
   day: i => {
     pick = { ...pick, day: Number(i), slot: null };
@@ -1120,13 +1166,14 @@ const ACTIONS = {
   request: (_, el) => submitRequest(el),
   cancel: id => {
     const o = getOrders().find(x => x.id === id);
-    if (!o || !['new', 'request'].includes(o.status)) return toast('お店が受け付けた後は、お電話でご連絡ください', 'warn');
+    if (!o) return;
+    if (!['new', 'request'].includes(o.status)) return toast(cancelMsg(o) || '取り消せません', 'warn');
     if (!confirm(`${o.status === 'request' ? '申請' : '注文'}番号 ${o.no} を取り消します。よろしいですか？`)) return;
     const done = () => { lastStatus[id] = getOrders().find(x => x.id === id)?.status; render(true); };
     if (ORDERS_ONLINE && orderKeys()[id]) {
       return cancelOrderOnline(id)
         .then(() => { done(); toast('注文を取り消しました'); })
-        .catch(e => { done(); toast(orderMessage(e), 'warn'); });
+        .catch(e => { done(); toast(e.code === 'already' ? cancelMsg(getOrders().find(x => x.id === id)) || orderMessage(e) : orderMessage(e), 'warn'); });   // 押す前にお店が受け付けていたとき
     }
     updateOrder(id, { status: 'canceled', canceledBy: 'お客様' });
     done();

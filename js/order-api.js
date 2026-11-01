@@ -43,8 +43,16 @@ function baguruLib() {
 const orderPost = payload => baguruLib().then(() => BaguruApi.post(payload));
 
 /** 受け口の注文を、この端末の形にする（ご要望は、受け口では note・この端末では memo）。
- *  注文番号は3桁で見せる（スプレッドシートが 001 を数の 1 にして返すため。2026-11-01 に本物で見つけた。にせの受け口では起きない） */
-const fromServer = o => ({ ...o, memo: o.note || '', no: /^\d+$/.test(String(o.no)) ? String(o.no).padStart(3, '0') : o.no });
+ *  注文番号は3桁で見せる（スプレッドシートが 001 を数の 1 にして返すため。2026-11-01 に本物で見つけた。にせの受け口では起きない）
+ *  お箸・スプーンの有無は、note の頭の「カトラリーあり／なし」を読んで o.cutlery（true／false）にする。頭に無い注文は undefined */
+const fromServer = o => {
+  const cut = String(o.note || '').match(/^カトラリー(あり|なし)(?:／|$)/);
+  return { ...o, memo: cut ? o.note.slice(cut[0].length) : o.note || '', ...(cut ? { cutlery: cut[1] === 'あり' } : {}),
+    no: /^\d+$/.test(String(o.no)) ? String(o.no).padStart(3, '0') : o.no };
+};
+/** 受け口に送るご要望。お客さまの画面では「お箸・スプーン」、お店には「カトラリー」と出す（2026-11-01 ko-dai さんの指示）。
+ *  ご要望の頭に付けて送るので、受け口の形は変えていない。台帳の「ご要望」の列にも、この字のまま残る */
+const noteOf = o => [{ true: 'カトラリーあり', false: 'カトラリーなし' }[o.cutlery], o.memo].filter(Boolean).join('／');
 const orderKeys = () => DB.get('orderKeys', {});
 
 /** この端末の写しを、受け口の注文で書きかえる（無いものは足す） */
@@ -66,7 +74,7 @@ const oneLine = s => textOf(s, true).replace(/\s*\n\s*/g, ' ');
 async function sendOrder(o) {
   const r = await orderPost({
     action: 'order', kind: o.kind, asap: !!o.asap, pickupAt: o.pickupAt, name: o.name, tel: o.tel,
-    address: o.address || '', address2: o.address2 || '', meals: o.meals, note: o.memo || '', member: o.member,
+    address: o.address || '', address2: o.address2 || '', meals: o.meals, note: noteOf(o), member: o.member,
     // バグるマネージで名前を直していたら、お店にも直した名前で届くように（js/content.js の textOf）
     lines: o.lines.map(({ id, name, opts, unit, qty }) => ({ id, name: oneLine(name), opts: opts.map(oneLine), unit, qty })),
     rid: o.id, website: '',

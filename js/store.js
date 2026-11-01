@@ -28,8 +28,10 @@ const who = o => o.name ? `${o.name} 様` : 'お名前なし';   // 店頭の注
 
 // バグる Owner（フォルダーアプリ。../バグるOwner/）から開いたとき（?from=owner）だけ、上の帯と合言葉の画面に「🏠 ホーム」を出す
 // （2026-10-30 ko-dai さんの指示。フォルダーアプリのセッションに頼まれた）。印はこのタブの sessionStorage にも残し、「↻ 更新」のあとも出し続ける。
-// 戻り先は、バグる Owner が控えた sessionStorage の bg.owner（?test で開いたときは ?test 付き）。★お店のタブレットのホーム画面から開いたときは出さない
-const OWNER_URL = 'https://t3dining.github.io/baguru-app/owner/';
+// 戻り先は、開いたアプリが控えた sessionStorage の bg.owner（?test で開いたときは ?test 付き）。無ければ、端末に残る localStorage の bg.hub
+// （バグる Owner・バグる Staff が開いたときに自分のアドレスを入れる。社員の端末では Staff になる。2026-11-01 ko-dai さんの指示）。
+// ★お店のタブレットのホーム画面から開いたときは出さない
+const OWNER_URL = 'https://t3dining.github.io/baguru-owner/';
 const FROM_OWNER = (() => {
   const mark = /[?&]from=owner\b/.test(location.search);
   try {
@@ -40,11 +42,15 @@ const FROM_OWNER = (() => {
 function goOwner() {
   let to = '';
   try { to = sessionStorage.getItem('bg.owner') || ''; } catch (e) {}
+  if (!to) try { to = localStorage.getItem('bg.hub') || ''; } catch (e) {}
   location.href = to || OWNER_URL;
 }
 
 const RING_EVERY = 3000;   // 受付待ちの注文があるあいだ、この間隔（ミリ秒）で鳴らし続ける
 const CHIME_URL = 'snd/order.wav';   // 注文が入ったときの音（1.8秒。道具/注文の音を作る.py で作る）
+const COOK_URL = 'snd/cook.wav';     // 調理を始める時間の音（2.6秒。「ピンポーン」を2回。同じ道具で作る）
+const COOK_RINGS = 3;                // 調理を始める時間の音を、RING_EVERY の間隔で何回鳴らすか
+const COOK_GLOW = 60000;             // 調理中に移った注文を光らせて「調理開始」の札を付けておく長さ（ミリ秒）
 
 // タブレット（iPad など。画面の短いほうが600以上）は、開いたときから音はオン。「音」のボタンで、そのときだけ止められる。
 // スマホは前のように、音はオフで始まり「音」のボタンで選ぶ（2026-10-30 ko-dai さん）。パソコンはタブレットと同じ扱い
@@ -52,10 +58,12 @@ const TABLET = Math.min(screen.width, screen.height) >= 600;
 let soundOn = TABLET;
 let audio = null;
 let chime = null;   // 読み込んだ音。読めなかったときは、前の「ピッピッ」で鳴らす
+let cookChime = null;   // 調理を始める時間の音。読めなかったときは、低い「ピッピッ」で鳴らす
 let ringTimer = null;
 // 新しく届いた注文に印を付けるため。受け口につないだときは、はじめて読めたときに埋める（開いたときからある注文には印を付けない）
 let known = ORDERS_ONLINE ? null : new Set(getOrders().map(o => o.id));
 const fresh = new Set();
+const cookNow = new Set();   // 受付済みから調理中に移ったばかりの注文（光らせる）
 
 /* ---------------------------------------------------------------------
  *  受け口とのやりとり（ORDERS_ONLINE のときだけ）
@@ -217,20 +225,21 @@ function checkSound() {
 }
 
 function loadChime() {
-  if (chime || !audio) return Promise.resolve();
-  return fetch(CHIME_URL)
+  if (!audio) return Promise.resolve();
+  const load = url => fetch(url)
     .then(r => r.arrayBuffer())
     .then(b => new Promise((ok, ng) => audio.decodeAudioData(b, ok, ng)))   // 古い Safari は、この書き方しか使えない
-    .then(buf => { chime = buf; })
-    .catch(() => {});
+    .catch(() => null);
+  return Promise.all([chime || load(CHIME_URL), cookChime || load(COOK_URL)]).then(([a, b]) => { chime = a; cookChime = b; });
 }
 
-function beep() {
+/** 音を1回鳴らす。ふだんは注文の音。buf が読めていないときは、freq の高さの「ピッピッ」 */
+function beep(buf = chime, freq = 880) {
   if (!soundOn || !audio) return;
   if (audio.state === 'suspended') audio.resume();   // タブレットがしばらく裏に回ると止まることがある
-  if (chime) {
+  if (buf) {
     const s = audio.createBufferSource();
-    s.buffer = chime;
+    s.buffer = buf;
     s.connect(audio.destination);
     s.start();
     return;
@@ -238,7 +247,7 @@ function beep() {
   [0, 0.28].forEach(t => {
     const o = audio.createOscillator();
     const g = audio.createGain();
-    o.frequency.value = 880;
+    o.frequency.value = freq;
     g.gain.setValueAtTime(0.0001, audio.currentTime + t);
     g.gain.exponentialRampToValueAtTime(0.4, audio.currentTime + t + 0.02);
     g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + t + 0.22);
@@ -271,6 +280,35 @@ function dayStrip(o, t) {
   return `<div class="c-day later">${text}</div>`;
 }
 
+/* 受付済みから調理中に移った注文を、音で知らせる（2026-11-01 ko-dai さんの指示。音は注文が入ったときと別の「ピンポーン」）。
+   受付待ちと違い、押して止める操作は無いので、COOK_RINGS 回で止まる。カードは COOK_GLOW のあいだ光り、「調理開始」の札が付く。
+   鳴らした注文は端末に控える（DB 'cookRung'）ので、「↻ 更新」で開き直しても2回鳴らない。閉じているあいだに時刻を過ぎた分は、開いたときに鳴る */
+
+/** 調理を始める時刻を過ぎた、今日の受け取りの注文か。受付済みに一度も入らなかった注文（できしだい・時刻を過ぎてから受け付けた注文）は入れない。
+ *  受け取りの時刻まで過ぎたものは、もう鳴らさない */
+function toCook(o, now = new Date()) {
+  if (o.status !== 'accepted' || o.asap || beforeCook(o, now)) return false;
+  const t = new Date(o.pickupAt);
+  return t > now && dateKey(t) === dateKey(now) && new Date(o.times?.accepted) < t - TAKEOUT.cookBefore * 60000;
+}
+
+function checkCook(all) {
+  const rung = DB.get('cookRung', []);
+  const due = all.filter(o => toCook(o) && !rung.includes(o.id));
+  if (!due.length) return;
+  if (soundOn && audio?.state !== 'running') return;   // いま音を出せない（「画面をタッチ」の前など）。出せるようになったら鳴らす
+  const ids = due.map(o => o.id);
+  DB.set('cookRung', [...rung, ...ids].slice(-200));
+  ids.forEach(id => cookNow.add(id));
+  for (let i = 0; i < COOK_RINGS; i++) setTimeout(() => beep(cookChime, 587), i * RING_EVERY);
+  setTimeout(() => { ids.forEach(id => cookNow.delete(id)); render(); }, COOK_GLOW);
+}
+
+/** カトラリーの有無（2026-11-01 ko-dai さんの指示。お客様が公式アプリで選ぶ）。o.cutlery が true なら付ける、false なら付けない。
+ *  聞いていない注文（電話・店頭、前からの注文）は何も出さない */
+const cutlery = o => o.cutlery === true ? '<p class="c-cut yes">🍴 カトラリーを付ける</p>'
+  : o.cutlery === false ? '<p class="c-cut no">✕ カトラリーは付けない</p>' : '';
+
 function card(o) {
   const t = new Date(o.pickupAt);
   const isToday = dateKey(t) === dateKey(new Date());
@@ -283,12 +321,13 @@ function card(o) {
   const tags = [
     isRequest(o) ? `<span class="c-kind k-${o.kind}">${KIND[o.kind]}・${o.meals || 0}食</span>` : '',
     isRequest(o) && needsFee(o) && o.fee == null ? '<span class="c-kind k-ask">要相談・配達料</span>' : '',
+    cookNow.has(o.id) ? '<span class="c-kind k-cook">🔔 調理開始</span>' : '',
     o.asap ? '<span class="c-kind k-asap">できしだい</span>' : '',
     o.route && o.route !== 'アプリ' ? `<span class="c-kind k-route">${esc(o.route)}</span>` : '',   // 電話・店頭で入れた注文
   ].join('');
   const pay = o.kind !== 'delivery' ? '（店頭で支払い）'
     : `（お届けのときに現金で${o.fee != null ? `・配達料 ${yen(o.fee)} は別` : needsFee(o) ? '・配達料は承認のときに決めます' : ''}）`;
-  return `<article class="card ${fresh.has(o.id) ? 'fresh' : ''} ${late ? 'late' : ''} ${o.kind === 'delivery' ? 'is-delivery' : ''}">
+  return `<article class="card ${fresh.has(o.id) ? 'fresh' : ''} ${cookNow.has(o.id) ? 'cook-now' : ''} ${late ? 'late' : ''} ${o.kind === 'delivery' ? 'is-delivery' : ''}">
       ${live ? dayStrip(o, t) : ''}
       <div class="c-top">
         <b class="c-no">${esc(o.no)}</b>
@@ -298,13 +337,15 @@ function card(o) {
       <div class="c-who"><b>${esc(who(o))}</b>${o.tel ? `<a href="tel:${esc(o.tel)}">${esc(o.tel)}</a>` : ''}</div>
       ${o.kind === 'delivery' ? `<p class="c-addr">お届け先：${esc(o.address)}${o.address2 ? `　${esc(o.address2)}` : ''}<a href="${map}" target="_blank" rel="noopener">地図</a></p>` : ''}
       <ul class="c-lines">${o.lines.map(l => `
-        <li><b>${esc(l.name)}</b><span class="q">×${l.qty}</span>${l.opts.length ? `<small>${esc(l.opts.join(' / '))}</small>` : ''}</li>`).join('')}
+        <li><b>${esc(l.name)}</b><span class="q">×${l.qty}</span>${l.opts.length ? `<div class="c-opts">${l.opts.map(x => `<span>${esc(x)}</span>`).join('')}</div>` : ''}</li>`).join('')}
       </ul>
+      ${cutlery(o)}
       ${o.memo ? `<p class="c-memo">ご要望：${esc(o.memo)}</p>` : ''}
       <div class="c-sum"><span>合計${pay}</span><b>${yen(o.total)}</b></div>
       ${o.shopMsg && o.status !== 'declined' ? `<p class="c-msg">お客様への一言：${esc(o.shopMsg)}</p>` : ''}
       ${o.status === 'canceled' ? `<p class="c-cancel">取り消し（${esc(o.canceledBy || '')}）</p>` : ''}
       ${o.status === 'declined' ? `<p class="c-cancel">お断りしました${o.shopMsg || o.declineNote ? `（${esc(o.shopMsg || o.declineNote)}）` : ''}</p>` : ''}
+      ${canAdjust(o) ? `<button class="b-time" data-act="time" data-id="${o.id}">🕐 できあがり時間を調整</button>` : ''}
       <div class="c-btns">
         ${o.status === 'request' ? `
           <button class="b-sub danger" data-act="decline" data-id="${o.id}">お断りする</button>
@@ -316,9 +357,13 @@ function card(o) {
     </article>`;
 }
 
+/** 注文が終わった日（お渡し済み・取り消し・お断りにした日）。古い形の注文は、更新か受けた日で見る */
+const endedDay = o => dateKey(new Date(o.times?.[o.status] || o.updatedAt || o.createdAt || o.pickupAt));
+
 function render() {
   const all = list();
   const today = dateKey(new Date());
+  checkCook(all);
   const byTime = (a, b) => a.pickupAt.localeCompare(b.pickupAt);
   for (const col of $$('.col')) {
     const items = all.filter(o => o.status === col.dataset.col && !isBooked(o)).sort(byTime);
@@ -328,7 +373,8 @@ function render() {
   const later = all.filter(o => isBooked(o)).sort(byTime);
   $('.booked .n').textContent = later.length;
   $('.booked .list').innerHTML = later.length ? later.map(card).join('') : '<p class="none">ありません</p>';
-  const past = all.filter(o => ['done', 'canceled', 'declined'].includes(o.status) && (o.date === today || dateKey(new Date(o.pickupAt)) === today)).reverse();
+  // 今日終わった注文だけ。日付が変わると消え、次の日の開店のときは空になる（2026-11-01 ko-dai さんの指示。前は受けた日・受け取りの日で見ていたので、前の日に取り消した今日の受け取りの注文が残った）
+  const past = all.filter(o => ['done', 'canceled', 'declined'].includes(o.status) && endedDay(o) === today).reverse();
   $('.past .n').textContent = past.length;
   $('.past .list').innerHTML = past.length ? past.map(card).join('') : '<p class="none">ありません</p>';
   const reqs = all.filter(o => o.status === 'request').sort(byTime);
@@ -369,6 +415,7 @@ document.addEventListener('click', async e => {
   if (!o) return;
   const act = b.dataset.act;
   if (act === 'approve' || act === 'decline') return openDecide(o, act === 'approve');
+  if (act === 'time') return openTime(o);
   let patch = null;
   if (act === 'next' && NEXT[o.status]) patch = { status: NEXT[o.status].to };
   if (act === 'back' && backOf(o)) patch = { status: backOf(o) };
@@ -382,6 +429,53 @@ document.addEventListener('click', async e => {
   // ★試作ではお客様と同じ端末なので、ここでスタンプを押す。受け口につないだときは、お客様のスマホが押す（js/order-api.js の stampDoneOrders）
   if (ok && patch.status === 'done' && !ORDERS_ONLINE) addStamp(KIND[o.kind || 'pickup']);
   render();
+});
+
+/* ---------------------------------------------------------------------
+ *  「できしだい」の注文の、できあがり時間を調整する（2026-11-01 ko-dai さんの指示）
+ *  混み具合を見て、注文が入ったあとでお店が時間を動かす。受付待ちと調理中のあいだだけ。時間を指定した注文は動かさない。
+ *  変えるのは pickupAt だけ（受け口は saveOrder）。お客様のアプリは、取り寄せたときに新しい時間を出す
+ * --------------------------------------------------------------------- */
+
+const canAdjust = o => o.asap && (o.status === 'new' || o.status === 'accepted');
+let timing = null;   // { id, from: いまの時刻（ミリ秒）, at: 動かしている時刻（ミリ秒） }
+
+function openTime(o) {
+  const from = new Date(o.pickupAt).getTime();
+  // 時刻がもう過ぎた注文は、次の5分きざみから動かす
+  timing = { id: o.id, from, at: Math.max(from, Math.ceil(Date.now() / 300000) * 300000) };
+  $('#tWho').textContent = `注文番号 ${o.no}（${who(o)}）・いまの時間 ${hhmm(new Date(from))}頃`;
+  paintTime();
+  $('#timeDlg').showModal();
+}
+
+function paintTime() {
+  const at = new Date(timing.at);
+  $('#tAt').textContent = hhmm(at);
+  $('#tLeft').textContent = untilText(at.toISOString());
+  // 過ぎた時刻・明日にはできない
+  $$('#tBtns [data-min]').forEach(b => {
+    const next = new Date(timing.at + Number(b.dataset.min) * 60000);
+    b.disabled = next <= new Date() || dateKey(next) !== dateKey(new Date());
+  });
+  $('#tOk').disabled = timing.at === timing.from;
+}
+
+// ★?. は、公開の直後に古い order.html（最大10分）と新しいこの js が組み合わさっても、ここで止まって注文を読まなくならないように
+$('#tBtns')?.addEventListener('click', e => {
+  const b = e.target.closest('[data-min]');
+  if (!b || b.disabled) return;
+  timing.at += Number(b.dataset.min) * 60000;
+  paintTime();
+});
+
+$('#tOk')?.addEventListener('click', async () => {
+  const o = list().find(x => x.id === timing?.id);
+  if (!o || !canAdjust(o)) { $('#timeDlg').close(); return alert('この注文は、もう先に進んでいます。時間は変えられません。'); }
+  $('#tOk').disabled = true;
+  const ok = await change(o, { pickupAt: new Date(timing.at).toISOString() });
+  $('#tOk').disabled = false;
+  if (ok) $('#timeDlg').close();
 });
 
 /* ---------------------------------------------------------------------

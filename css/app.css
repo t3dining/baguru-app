@@ -340,6 +340,12 @@ main { padding: 0 16px; }
 .summary .sum:first-child { border-top: 0; }
 .summary .sum b { font-size: 20px; color: var(--coal); }
 .pay-note { margin: 10px 2px 0; font-size: 13px; color: var(--sub); }
+.cancel-rules { list-style: none; margin: 0; padding: 4px 14px; border-radius: var(--r); background: var(--paper); border: 1px solid var(--line); box-shadow: var(--shadow); }
+.cancel-rules li { padding: 9px 0; font-size: 14px; }
+.cancel-rules li + li { border-top: 1px dashed var(--line); }
+.cancel-rules b { display: block; font-size: 12.5px; color: var(--brass-dark); }
+.cancel-rules li:last-child span { color: var(--red); font-weight: 700; }   /* 調理を始めた後はできない、を目立たせる */
+.cancel-msg { margin: 12px 2px 0; font-weight: 700; }
 
 .days { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }   /* 1か月分は横に動かして選ぶ */
 .days .chip { flex: 0 0 64px; scroll-snap-align: start; }
