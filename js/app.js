@@ -890,7 +890,7 @@ function viewStamp() {
       </div>
       <button class="btn btn-main btn-block" data-act="stamp" ${doneToday ? 'disabled' : ''}>${doneToday ? '今日のスタンプはもらいました' : `${ICON.qr}QRを読んでスタンプをもらう`}</button>
       <p class="hint">お店に置いてあるQRを読むと、1個たまります。お店の中（駐車場を含む）にいるときだけ読めます（位置情報を使います）。テイクアウトは、受け取りのときに自動で1個たまります。スタンプは1日${STAMP.perDay}個までです（初回登録の${STAMP.welcome.points}ポイントは別）。</p>
-      ${s.lineMovedAt ? '' : `<button class="link-card" data-act="lineScan">${ICON.card}<span><b>LINEのポイントカードをお持ちの方</b><small>${STAMPS_ONLINE ? 'お会計のときに、ここを押して出る会員番号と、LINEのショップカードの画面をお店の人に見せてください。お店の人が同じ数のポイントをこのカードに入れます（1回だけ）。' : 'お会計のときに、LINEのショップカードの画面をお店の人に見せてください。お店の人が出す引き継ぎのQRを読むと、同じ数のポイントがこのカードにたまります（1回だけ）。'}引き継いだ分のマスの特典は出ません（LINEでもらった特典と重ならないように）。既に獲得済みのLINEの特典は、ご利用いただけます</small></span></button>`}
+      ${s.lineMovedAt || !STAMPS_ONLINE ? '' : `<button class="link-card" data-act="lineMove">${ICON.card}<span><b>LINEのポイントカードをお持ちの方</b><small>お会計のときに、ここを押して出る会員番号と、LINEのショップカードの画面をお店の人に見せてください。お店の人が同じ数のポイントをこのカードに入れます（1回だけ）。引き継いだ分のマスの特典は出ません（LINEでもらった特典と重ならないように）。既に獲得済みのLINEの特典は、ご利用いただけます</small></span></button>`}
       ${coupons.length ? `
         <h2 class="sec">使える特典</h2>
         ${useOk ? '' : `<p class="notice">${ICON.check}<span>今日はもう特典を使いました。<small>特典は1日${STAMP.couponsPerDay}枚までです（他の特典とは一緒に使えません）。また次のご来店でどうぞ。</small></span></p>`}
@@ -1231,7 +1231,7 @@ const ACTIONS = {
     toast('注文を取り消しました');
   },
   stamp: () => openScanner(),
-  lineScan: () => (STAMPS_ONLINE ? openLineMove() : openScanner({ line: true })),
+  lineMove: () => openLineMove(),
   coupon: id => openCoupon(id),
   allergy: () => openAllergyList(),
   install: () => startInstall(),
@@ -1269,7 +1269,7 @@ const ACTIONS = {
 };
 
 // バグるマネージの「アプリで見る」の中では、注文・スタンプ・特典・登録など、動かすと本物に残るものは止める（js/content.js の PREVIEW）
-const PREVIEW_STOP = new Set(['submit', 'request', 'cancel', 'stamp', 'lineScan', 'coupon', 'register', 'reset', 'install-guide', 'memberCode', 'memberTake']);
+const PREVIEW_STOP = new Set(['submit', 'request', 'cancel', 'stamp', 'lineMove', 'coupon', 'register', 'reset', 'install-guide', 'memberCode', 'memberTake']);
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
   if (!el) return;
@@ -1388,8 +1388,7 @@ setInterval(() => {
 
 // スマホのカメラアプリでお店のQRを読んで開いたとき（?stamp=印）。印はアドレスから消してから確かめる
 const stampParam = new URLSearchParams(location.search).get('stamp');
-const lineParam = new URLSearchParams(location.search).get('line');   // LINE のポイントの引き継ぎのQR（common.js の「LINE からの引き継ぎ」）
-if (stampParam || lineParam) history.replaceState(null, '', location.pathname + '#stamp');
+if (stampParam) history.replaceState(null, '', location.pathname + '#stamp');
 
 // バグる Owner（オーナー用の入口）から開いたときだけ、上の帯に「🏠 ホーム」を出す（2026-10-30 ko-dai さんの指示。フォルダーアプリのセッションに頼まれた）。
 // 印は common.js がこのタブの sessionStorage に控えている（アドレスの ? が消えても出し続ける）。お客さまが開いたときは出さない。
@@ -1430,4 +1429,3 @@ else {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) syncContent(); });
 }
 if (stampParam) claimStamp(stampParam);
-else if (lineParam && !ORDER_ONLY) claimLine(lineParam);
