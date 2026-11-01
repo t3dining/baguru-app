@@ -45,7 +45,7 @@ const saveCart = () => DB.set('cart', cart);
 
 const ROUTES = {
   home: viewHome, menu: viewMenu, cart: viewCart, checkout: viewCheckout, request: viewRequest,
-  order: viewOrder, stamp: viewStamp, shop: viewShop, me: viewMe, reserve: viewReserve,
+  order: viewOrder, stamp: viewStamp, shop: viewShop, me: viewMe, reserve: viewReserve, privacy: viewPrivacy,
 };
 // 入力の途中で消えないよう、ほかのタブの書き換えでは描き直さない画面
 const NO_LIVE = ['checkout', 'request', 'me', 'reserve'];
@@ -511,6 +511,7 @@ function viewCheckout() {
       ${linesHtml(cart.map(cartLine), cartTotal())}
       <p class="pay-note">${esc(TAKEOUT.payNote)}</p>
       ${cancelRulesHtml(false)}
+      ${privacyLink('お預かりする情報の扱いは ')}
       <div class="foot"><button class="btn btn-main btn-block" data-act="submit" ${ok ? '' : 'disabled'}>${!accepting ? 'ただいま注文を受け付けていません' : !ok ? '受け取りできる日がありません' : 'この内容で注文する'}</button></div>`,
     after: () => { if (ORDERS_ONLINE) refreshAccepting(true).catch(() => {}); },   // 止めていたら、送ったときに受け口が断る
   };
@@ -588,7 +589,8 @@ function extraFields(p) {
       </div>
       <div class="r-names">${pickHtml(`${p}-gender`, '性別', GENDERS, ME.gender)}${pickHtml(`${p}-age`, '年代', AGES, ME.age)}</div>
       <label class="field"><span>メールアドレス（なくても構いません）</span><input id="${p}-email" type="email" inputmode="email" autocomplete="email" maxlength="120" value="${esc(ME.email || '')}"></label>
-      <p class="hint">メールアドレスを入れておくと、席のご予約の入力も省けます。性別と年代は、一人ずつではなく集計して、お店のサービスを考える参考にします。</p>`;
+      <p class="hint">メールアドレスを入れておくと、席のご予約の入力も省けます。性別と年代は、一人ずつではなく集計して、お店のサービスを考える参考にします。</p>
+      ${privacyLink('登録すると、次の内容に同意したことになります：')}`;
 }
 /** 会員情報の残りの項目を読む（足りない・形が違えば知らせて null）。name … お名前（席の予約で苗字と名前に分けるので、スペースが要る） */
 function readExtra(p, name) {
@@ -763,6 +765,7 @@ function viewRequest() {
       <a class="add-more" href="#cart">内容を直す（カートへ）</a>
       <p class="pay-note">まだ確定していません。お店が承認したら確定します。<span id="r-pay">${esc(payNoteOf(req.kind, meals))}</span></p>
       ${cancelRulesHtml(true)}
+      ${privacyLink('お預かりする情報の扱いは ')}
       <div class="foot"><button class="btn btn-main btn-block" data-act="request" ${d ? '' : 'disabled'}>この内容で申請する</button></div>`,
     after: () => { if (ORDERS_ONLINE) refreshAccepting(true).catch(() => {}); },
   };
@@ -1149,6 +1152,10 @@ function dineItem(i) {
  *  マイページ
  * --------------------------------------------------------------------- */
 
+function viewPrivacy() {
+  return { tab: 'me', title: 'プライバシーポリシー', back: '#me', html: privacyHtml() };
+}
+
 function viewMe() {
   const mine = myOrders().slice().reverse();
   return {
@@ -1184,6 +1191,7 @@ function viewMe() {
       <label class="field"><span>登録したお名前</span><input id="b-name" autocomplete="name"></label>
       <label class="field"><span>登録した電話番号</span><input id="b-tel" type="tel" inputmode="tel" autocomplete="tel"></label>
       <button class="btn btn-sub btn-block" data-act="memberBack">前の会員に戻す</button>` : ''}` : ''}
+      ${privacyLink()}
       ${installRow()}
       ${DEV_HOST ? `<h2 class="sec">この試作版について</h2>
       <div class="about">
@@ -1310,6 +1318,7 @@ const ACTIONS = {
     }).catch(e => toast(stampMessage(e), 'warn'));
   },
   contactEdit: () => openContact(),
+  privacy: () => openPrivacy(),
   memberBack: () => {
     const name = $('#b-name').value.trim(), tel = toHalf($('#b-tel').value.trim());
     if (!name || !tel) return toast('お名前と電話番号を入れてください', 'warn');

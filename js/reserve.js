@@ -168,6 +168,7 @@ function rsvDraw() {
     <label class="field"><span>ご要望（なくても構いません）</span><textarea id="r-note" rows="2" maxlength="300" placeholder="お祝い・アレルギー・ベビーカーなど">${esc(v.note)}</textarea></label>
     <div class="r-hp" aria-hidden="true"><label>ここには何も入れないでください<input id="r-website" tabindex="-1" autocomplete="off"></label></div>
     <p class="notice warn" id="r-msg" hidden></p>
+    ${privacyLink('お預かりする情報の扱いは ')}
     <div class="foot"><button class="btn btn-main btn-block" data-r="next">内容を確認する</button></div>`;
 }
 

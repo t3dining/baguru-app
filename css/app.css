@@ -1182,3 +1182,17 @@ button.link-card { width: 100%; text-align: left; }
   *, *::before, *::after { animation-duration: .001ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
   .ember, .btn-main::after, .q-order::after, .cartbar::after, .coupon::after, .stampcard::before, .hero::before, .sc-bar::after { display: none; }
 }
+
+/* プライバシーポリシー */
+.link-inline { padding: 0; border: 0; background: none; color: var(--ember); font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.privacy-link { text-align: center; }
+.policy { padding: 4px 2px 16px; font-size: 14px; line-height: 1.75; }
+.policy h2 { margin: 6px 0 10px; font-size: 18px; }
+.policy h3 { margin: 18px 0 6px; font-size: 15px; }
+.policy p { margin: 0 0 8px; }
+.policy ul { margin: 0 0 8px; padding-left: 20px; }
+.policy dl { margin: 0 0 8px; }
+.policy dt { font-weight: 700; }
+.policy dd { margin: 0 0 8px; }
+.policy-date { margin-top: 16px; color: var(--sub); font-size: 13px; text-align: right; }
+
