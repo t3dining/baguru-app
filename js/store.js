@@ -32,7 +32,10 @@ const who = o => o.name ? `${o.name} 様` : 'お名前なし';   // 店頭の注
 // 戻り先は、開いたアプリが控えた sessionStorage の bg.owner（?test で開いたときは ?test 付き）。無ければ、端末に残る localStorage の bg.hub
 // （バグる Owner・バグる Staff が開いたときに自分のアドレスを入れる。社員の端末では Staff になる。2026-11-01 ko-dai さんの指示）。
 // ★お店のタブレットのホーム画面から開いたときは出さない
+// バグる Staff から開いたときは、アドレスに hub=staff の印が付く。控えが消えた・Owner のものになっていても、印を見て必ず Staff に戻す
+// （2026-11-02 ko-dai さんの報告。バグる Owner のセッションに頼まれた）。★逆向き（印が無ければ Owner）は入れない。印の無い古いアドレスが開いたままの端末で、Staff の社員が Owner に飛ぶ
 const OWNER_URL = 'https://t3dining.github.io/baguru-owner/';
+const STAFF_URL = 'https://t3dining.github.io/baguru-staff/';
 const FROM_OWNER = (() => {
   const mark = /[?&]from=owner\b/.test(location.search);
   try {
@@ -44,6 +47,7 @@ function goOwner() {
   let to = '';
   try { to = sessionStorage.getItem('bg.owner') || ''; } catch (e) {}
   if (!to) try { to = localStorage.getItem('bg.hub') || ''; } catch (e) {}
+  if (/[?&]hub=staff\b/.test(location.search) && !/staff/i.test(to)) to = STAFF_URL;   // /staff/ は、手元の ?test 付きのアドレス（バグるStaff/?test）を残すため
   location.href = to || OWNER_URL;
 }
 
@@ -752,6 +756,202 @@ async function addPhoneOrder(row) {
 }
 
 /* ---------------------------------------------------------------------
+ *  会員を探す・LINE のポイントの数を入れる・手で数を直す（2026-11-02。公式アプリのセッションに頼まれた）
+ *  LINE の引き継ぎは、店員が数を入れる形で続ける（ko-dai さんの指示）。お客様が公式アプリに出した会員番号と、LINE のショップカードの画面を見せてもらい、
+ *  番号で探して数を入れると、お客様の画面も6秒ほどで変わる。受け口につないだときだけ出す。
+ *  ・数を決めるのは受け口の台帳。ここは members で探して、lineGive・memberFix を送るだけ（バグる/スタンプ台帳の決めごと.md の7節・9節）
+ *  ・LINE の数は1会員1回なので、送る前に番号と数を確かめる画面を1つ挟む。手で直すときも同じ
+ *  ・★電話番号は大きく出さない。電話番号で探したときの突き合わせに、下4けただけ小さく出す
+ *  ・★api.js は、返事を読めないと黙って2回まで送り直す。1回目が入っていると、lineGive は line_done で返るので、数が合えば入った扱いにする。
+ *    memberFix は2回入ることがあるので、返ってきた数を見て、合わなければ知らせる
+ * --------------------------------------------------------------------- */
+
+const LINE_MAX = 15;   // 受け口の LINE_MAX と同じ
+const FIX_MAX = 50;    // 受け口の memberFix の上限と同じ
+const MEMBER_MSG = {
+  not_found: 'この番号の会員が見つかりませんでした。番号を確かめて、探し直してください。',
+  line_done: 'この会員は、LINE の引き継ぎが済んでいます。',
+  bad_input: '入れた数を確かめてください。',
+  busy: '受け口が混み合っています。少し待って、もう一度お試しください。',
+};
+const memberText = e => MEMBER_MSG[e?.code] || staffText(e);
+const unsure = e => e?.code === 'no_answer' || e?.code === 'offline';   // 受け口に届いたかどうか分からない
+// カードのマス。15個を超えた分は次のカードに進むので、数は「累計」も出す
+const stampCount = t => stampOnCard(t) === t ? `${t}個` : `${stampOnCard(t)}個（累計${t}個）`;
+
+let members = [];    // 探した会員（受け口の形）
+let pointing = null;   // 入れている数 { kind: 'line' か 'fix', m: 会員, n: 入れる数（減らすときはマイナス）, note, rid }
+let memberAsked = '';   // 探した言葉（電話番号で探したときだけ、下4けたを出す）
+
+function memberMsg(ok = '', ng = '') {
+  $('#mDone').textContent = ok; $('#mDone').hidden = !ok;
+  $('#mErr').textContent = ng; $('#mErr').hidden = !ng;
+}
+function pointErr(text) { $('#ptErr').textContent = text; $('#ptErr').hidden = !text; }
+/** 合言葉が違うと言われたら、窓を閉じて合言葉の画面を見せる。ほかは、わけを出す */
+function memberFail(e, show) {
+  if (!quiet(e)) return show(memberText(e));
+  $('#pointDlg').close();
+  $('#memberDlg').close();
+}
+
+function openMembers() {
+  members = [];
+  $('#mQ').value = '';
+  memberMsg();
+  paintMembers(null);
+  $('#memberDlg').showModal();
+  setTimeout(() => $('#mQ').focus(), 50);
+}
+
+/** 探す。全角で入っても探せるようにそろえる。番号はスペースや「-」が入っていても探せるように、英数字だけのときは取り除く */
+async function findMembers(q = $('#mQ').value) {
+  q = q.normalize('NFKC').trim();
+  if (/^[0-9A-Za-z\s-]+$/.test(q)) q = q.replace(/[\s-]/g, '');
+  $('#mFind').disabled = true;
+  try {
+    const r = await staffPost({ action: 'members', q });
+    members = r.list || [];
+    memberAsked = q;
+    paintMembers(r.total || 0);
+    return true;
+  } catch (e) {
+    memberFail(e, text => memberMsg('', text));
+    return false;
+  } finally {
+    $('#mFind').disabled = false;
+  }
+}
+
+function memberRow(m) {
+  const tel = /^\d{4,}$/.test(memberAsked) && m.tel ? `<small>電話 …${esc(m.tel.slice(-4))}</small>` : '';
+  const moved = m.lineMovedAt ? new Date(m.lineMovedAt) : null;
+  return `<li class="m-row">
+      <b class="m-no">${esc(m.no)}</b>
+      <div class="m-count"><b>${stampOnCard(m.total)}</b>個${m.total > STAMP.goal ? `<small>累計${m.total}個</small>` : ''}</div>
+      <span class="m-name">${m.name ? `${esc(m.name)} 様` : '名前の登録なし'}${tel}</span>
+      ${moved ? `<span class="m-tag">✓ LINE は引き継ぎ済み（${mdw(moved)}）</span>` : ''}
+      <div class="m-btns">
+        ${moved ? '' : `<button type="button" class="b-line" data-point="line" data-no="${esc(m.no)}">LINE の数を入れる</button>`}
+        <button type="button" class="b-fix" data-point="fix" data-no="${esc(m.no)}">数を直す</button>
+      </div>
+    </li>`;
+}
+
+/** total は見つかった数。null はまだ探していないとき */
+function paintMembers(total) {
+  $('#mList').innerHTML = total === null ? '' : members.length ? members.map(memberRow).join('') : '<li class="m-row none">見つかりませんでした</li>';
+  $('#mCount').hidden = !(total > members.length);
+  $('#mCount').textContent = `${total}人見つかりました。はじめの${members.length}人を出しています。番号を足して、しぼってください。`;
+}
+
+/** 受け口が返した1人を、探した結果に入れて描き直す */
+function putMember(row) {
+  members = members.map(m => m.no === row.no ? row : m);
+  paintMembers(members.length);
+}
+
+function openPoint(kind, m) {
+  const line = kind === 'line';
+  pointing = { kind, m, n: 0, note: '', rid: randomRid('f') };
+  $('#ptTitle').textContent = line ? 'LINE のポイントの数を入れる' : '数を直す';
+  $('#ptNo').textContent = m.no;
+  $('#ptWho').textContent = `${m.name ? `${m.name} 様` : '名前の登録なし'}・いま ${stampCount(m.total)}`;
+  $('#ptSign').hidden = $('#ptNoteRow').hidden = line;
+  $('#ptLabel').textContent = line ? `LINE のショップカードの数（1〜${LINE_MAX}）` : `直す数（1〜${FIX_MAX}）`;
+  $('#ptN').max = line ? LINE_MAX : FIX_MAX;
+  $('#ptN').value = '';
+  $('#ptNote').value = '';
+  $('#pointDlg input[name="ptSign"][value="1"]').checked = true;
+  pointStep(1);
+  $('#pointDlg').showModal();
+  setTimeout(() => $('#ptN').focus(), 50);
+}
+
+/** 1：数を入れる／2：番号と数を確かめる */
+function pointStep(step) {
+  $('#ptInput').hidden = step !== 1;
+  $('#ptCheck').hidden = step !== 2;
+  $('#ptBack').textContent = step === 1 ? 'やめる' : '戻って直す';
+  pointErr('');
+  $('#ptBack').disabled = $('#ptOk').disabled = false;
+  if (step === 1) { $('#ptOk').textContent = '確かめる'; return; }
+  const { kind, m, n } = pointing;
+  const line = kind === 'line';
+  const after = Math.max(0, m.total + n);
+  $('#ptAsk').textContent = line ? 'お客様の画面と見くらべてください' : '番号と数を確かめてください';
+  $('#ptShow').textContent = line ? `LINE の数 ${n}ポイント` : `${n > 0 ? '+' : '−'}${Math.abs(n)}個`;
+  $('#ptAfter').textContent = `いま ${stampCount(m.total)} → ${stampCount(after)}`;
+  $('#ptWarn').textContent = line ? '★1人1回だけです。入れたあとは、やり直せません（間違えたら「数を直す」で直します）。特典券は出ません。'
+    : '特典券は出ません。お客様のアプリの数も変わります。';
+  $('#ptOk').textContent = line ? `${n}ポイント入れる` : 'この数に直す';
+}
+
+/** 数を読んで、確かめる画面へ。読めなければ、わけを出す */
+function pointRead() {
+  const { kind, m } = pointing;
+  const line = kind === 'line';
+  const max = line ? LINE_MAX : FIX_MAX;
+  const n = Number($('#ptN').value);
+  if (!Number.isInteger(n) || n < 1 || n > max) return pointErr(`数は 1〜${max} で入れてください`);
+  const minus = !line && $('#pointDlg input[name="ptSign"]:checked').value === '-1';
+  if (minus && !m.total) return pointErr('いまの数が 0 なので、減らせません');
+  pointing.n = minus ? -n : n;
+  pointing.note = line ? '' : $('#ptNote').value.trim();
+  pointStep(2);
+}
+
+/** うまくいった（窓を閉じて、探した結果に知らせる） */
+function pointDone(row, text, warn = '') {
+  $('#pointDlg').close();
+  putMember(row);
+  memberMsg(text, warn);
+}
+
+async function pointSend() {
+  const { kind, m, n, note, rid } = pointing;
+  const line = kind === 'line';
+  $('#ptBack').disabled = $('#ptOk').disabled = true;
+  pointErr('');
+  try {
+    const r = await staffPost(line ? { action: 'lineGive', no: m.no, n } : { action: 'memberFix', no: m.no, delta: n, note, rid });
+    if (line) return pointDone(r.row, `${m.no} に ${n}ポイント入れました（いま ${stampCount(r.row.total)}）。お客様の画面は6秒ほどで変わります。`);
+    const want = Math.max(0, m.total + n);
+    pointDone(r.row, `${m.no} の数を直しました（いま ${stampCount(r.row.total)}）。`,
+      r.row.total === want ? '' : `★数が思っていたのと違います（${stampCount(want)}のはずが、${stampCount(r.row.total)}）。確かめて、必要なら直してください。`);
+  } catch (e) {
+    const row = e.data?.row;
+    if (line && e.code === 'line_done' && row) {
+      if (!m.lineMovedAt && row.total === m.total + n) return pointDone(row, `${m.no} に ${n}ポイント入れました（いま ${stampCount(row.total)}）。お客様の画面は6秒ほどで変わります。`);
+      return pointDone(row, '', `${MEMBER_MSG.line_done}いまの数は ${stampCount(row.total)} です。`);
+    }
+    // 届いたかどうか分からないときは、そのまま押し直さない（2回入ることがある）。読み直して、いまの数を見てもらう
+    if (unsure(e)) {
+      $('#pointDlg').close();
+      await findMembers(m.no);
+      return memberMsg('', '受け口から返事がありませんでした。入っていることがあるので、いまの数を確かめてから、もう一度入れてください。');
+    }
+    $('#ptBack').disabled = $('#ptOk').disabled = false;
+    memberFail(e, pointErr);
+  }
+}
+
+// ★?. は、公開の直後に古い order.html（最大10分）と新しいこの js が組み合わさっても、ここで止まって注文を読まなくならないように
+$('#memberBtn')?.addEventListener('click', openMembers);
+$('#mForm')?.addEventListener('submit', e => {
+  e.preventDefault();
+  memberMsg();
+  findMembers();
+});
+$('#mList')?.addEventListener('click', e => {
+  const b = e.target.closest('[data-point]');
+  const m = b && members.find(x => x.no === b.dataset.no);
+  if (m) openPoint(b.dataset.point, m);
+});
+$('#ptBack')?.addEventListener('click', () => { if ($('#ptCheck').hidden) $('#pointDlg').close(); else pointStep(1); });
+$('#ptOk')?.addEventListener('click', () => { if ($('#ptCheck').hidden) pointRead(); else pointSend(); });
+
+/* ---------------------------------------------------------------------
  *  合言葉の画面（受け口につないだときだけ）
  * --------------------------------------------------------------------- */
 
@@ -790,6 +990,7 @@ $('#accepting').addEventListener('change', async e => {
 // ★iPad は読み直すと音が止まるので、また「画面をタッチしてください」が出る（ブラウザの決まり）
 $('#reloadBtn').addEventListener('click', () => location.reload());
 $('#homeBtn').hidden = $('#pinHome').hidden = !FROM_OWNER;
+if ($('#memberBtn')) $('#memberBtn').hidden = !ORDERS_ONLINE;   // 会員は受け口の台帳にあるので、試作では出さない
 $('#homeBtn').addEventListener('click', goOwner);
 $('#pinHome').addEventListener('click', goOwner);   // 合言葉を入れずに戻れるように
 // 音をオンにして、試しに1回鳴らす（受付待ちがあれば、そのまま鳴り続ける）。押した・触ったその場で呼ぶ

@@ -26,7 +26,7 @@
 <link rel="manifest" href="manifest-store.json">
 <link rel="icon" href="img/store-icon-192.png">
 <link rel="apple-touch-icon" href="img/store-apple-touch-icon.png">
-<link rel="stylesheet" href="css/store.css?v=d0a93f9a">
+<link rel="stylesheet" href="css/store.css?v=f5f8467c">
 </head>
 <body>
 <header class="s-top">
@@ -35,7 +35,9 @@
   <button id="homeBtn" class="s-btn" hidden>🏠 ホーム</button>
   <!-- 電話・店頭の注文を入れる（2026-10-30。テイクアウトの操作は、すべて Order受付でする決まりになったため） -->
   <button id="phoneBtn" class="s-btn">＋ 電話・店頭の注文</button>
-  <!-- 「LINEの引き継ぎ」のボタン（QRを出す）は、2026-11-01 に外した（ko-dai さんの指示） -->
+  <!-- 会員を探す・LINE のポイントの数を入れる・手で数を直す（2026-11-02。受け口につないだときだけ出す。js/store.js の「会員を探す」） -->
+  <button id="memberBtn" class="s-btn" hidden>👤 会員・LINE</button>
+  <!-- 「LINEの引き継ぎ」のボタン（QRを出す）は、2026-11-01 に外した（ko-dai さんの指示）。LINE の引き継ぎは、上の「会員・LINE」で店員が数を入れる形になった -->
   <!-- 画面を読み直す。ホーム画面に置いたアプリには、ブラウザの更新ボタンが無いため（2026-10-30 ko-dai さん） -->
   <button id="reloadBtn" class="s-btn">↻ 更新</button>
   <!-- 「スタンプのQR」のボタン（QRを出す・印刷する・作り直す）は、2026-10-30 に外した（ko-dai さんの指示） -->
@@ -120,6 +122,49 @@
   <div class="dlg-btns"><button type="button" class="b-sub" data-close>やめる</button><button type="button" id="tOk" class="b-main">この時間にする</button></div>
 </dialog>
 
+<!-- 会員を探す。★電話番号は、電話番号で探したときの突き合わせに、下4けただけ小さく出す -->
+<dialog id="memberDlg" class="dlg wide">
+  <h3>会員を探す</h3>
+  <p class="f-note">会員番号（一部でも）・電話番号（4けた以上）・お名前で探します。何も入れずに「探す」を押すと、最近動いた会員が出ます。</p>
+  <form id="mForm" class="m-find">
+    <input id="mQ" maxlength="40" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" aria-label="探す言葉" placeholder="例：M2A4">
+    <button id="mFind" class="b-main">探す</button>
+  </form>
+  <p id="mDone" class="m-done" hidden></p>
+  <p id="mErr" class="dlg-err" hidden></p>
+  <p id="mCount" class="f-note" hidden></p>
+  <ul id="mList" class="m-list"></ul>
+  <div class="dlg-btns"><button type="button" class="b-sub m-close" data-close>閉じる</button></div>
+</dialog>
+
+<!-- LINE のポイントの数を入れる・手で数を直す。送る前に、番号と数を確かめる画面を1つ挟む（LINE の数は1会員1回） -->
+<dialog id="pointDlg" class="dlg">
+  <h3 id="ptTitle"></h3>
+  <p id="ptNo" class="pt-no"></p>
+  <p id="ptWho" class="f-note"></p>
+  <div id="ptInput">
+    <div id="ptSign" class="seg">
+      <label><input type="radio" name="ptSign" value="1" checked><span>足す</span></label>
+      <label><input type="radio" name="ptSign" value="-1"><span>減らす</span></label>
+    </div>
+    <label class="f-field"><span id="ptLabel"></span><input id="ptN" class="pt-n" type="number" min="1" step="1" inputmode="numeric"></label>
+    <label id="ptNoteRow" class="f-field"><span>書き置き（なくても構いません）</span>
+      <input id="ptNote" maxlength="100" autocomplete="off">
+      <small>お客様には見えません。スタンプの記録にだけ残ります</small></label>
+  </div>
+  <div id="ptCheck" class="pt-check" hidden>
+    <p class="pt-ask" id="ptAsk"></p>
+    <p class="pt-num"><b id="ptShow"></b></p>
+    <p id="ptAfter" class="pt-after"></p>
+    <p id="ptWarn" class="pt-warn"></p>
+  </div>
+  <p id="ptErr" class="dlg-err" hidden></p>
+  <div class="dlg-btns">
+    <button type="button" id="ptBack" class="b-sub">やめる</button>
+    <button type="button" id="ptOk" class="b-main">確かめる</button>
+  </div>
+</dialog>
+
 <!-- 電話・店頭の注文を入れる。受け付けた形で入り、お客様のアプリには出ない -->
 <dialog id="phoneDlg" class="dlg wide">
   <h3>電話・店頭の注文を入れる</h3>
@@ -163,6 +208,6 @@
 <script src="js/content.js?v=b4609d7d"></script>
 <!-- 受け口とのやりとり（公式アプリと同じもの。切り替え ORDERS_ONLINE・受け口の場所・送り方）。公式アプリのセッションの持ち物 -->
 <script src="js/order-api.js?v=fee737e5"></script>
-<script src="js/store.js?v=c6758344"></script>
+<script src="js/store.js?v=e6787cd1"></script>
 </body>
 </html>
