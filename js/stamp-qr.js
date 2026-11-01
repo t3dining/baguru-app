@@ -215,7 +215,7 @@ function openLineMove() {
   }).catch(e => toast(stampMessage(e), 'warn'));
 }
 
-/** 紙の LINE 引き継ぎ券（スタンプ台帳の決めごと.md の10節）。1枚1回。★QRの中身はアドレスにしない。カメラアプリで開くと、ホーム画面のアプリとは別の場所の会員に使われて、券だけ消えるため */
+/** 紙の LINE 引き継ぎ券（スタンプ台帳の決めごと.md の10節）。券は何度でも使える。1会員1回は受け口が止める。★QRの中身はアドレスにしない。カメラアプリで開くと、ホーム画面のアプリとは別の場所の空の会員に入ってしまうため */
 const ticketFrom = text => (String(text).match(/^BAGURULINE:([0-9A-Z]{16})$/) || [])[1] || '';
 function claimTicket(code) {
   const before = getStamps().total;
@@ -224,8 +224,7 @@ function claimTicket(code) {
     showStamped({ on: r.on, from: stampOnCard(before), got: [], moved: true }, `${r.n}ポイント引き継ぎました`);
     render(true);
   }).catch(e => {
-    if (e.code === 'line_done') return stampProblem('LINEのポイントは引き継ぎ済みです', '引き継ぎは1回だけです。このQRは使っていないので、お店の人に返してください。');
-    if (e.code === 'ticket_used') return stampProblem('このQRは、もう使われています', 'お店の人に、会員番号を見せてください。');
+    if (e.code === 'line_done') return stampProblem('LINEのポイントは引き継ぎ済みです', '引き継ぎは1回だけです。QRはお店の人に返してください。');
     if (e.code === 'bad_ticket') return stampProblem('このQRは使えません', 'お店の人に、会員番号を見せてください。');
     stampProblem('引き継げませんでした', stampMessage(e));
   });
