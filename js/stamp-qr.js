@@ -4,7 +4,8 @@
  *    （ホーム画面のアプリのまま、そのアプリのカードにたまる）
  *  ・スマホのカメラアプリで読んだとき … アドレスの ?stamp= から同じ流れに入る（app.js のいちばん下）
  *  お店の外（STAMP.place から radius メートルより遠い）では押さない。
- *  ・LINE のポイントの引き継ぎのQR（?line=）も、同じカメラで読む（下の claimLine。お店にいるかは確かめない。QRに時間切れがある）
+ *  ・LINE のポイントの引き継ぎのQR（?line=）も、同じカメラで読む（下の claimLine。お店にいるかは確かめない。QRに時間切れがある）。
+ *    台帳につないだら受けない。会員番号を見せて、お店の人が数を入れる（下の openLineMove）
  *  ※ app.js より先に読む（openSheet などは app.js にあるが、使うのは押されたあと）
  * ===================================================================== */
 
@@ -174,6 +175,45 @@ function giveStamp() {
 }
 
 /* ---- LINE のポイントを引き継ぐ（common.js の「LINE のショップカードからの引き継ぎ」） ---- */
+
+/** 台帳につないだとき：会員番号を見せて、お店の人が Order受付で数を入れるのを待つ。数を決めるのはお店（受け口の lineGive。1会員1回）。
+ *  お客さまが LINE の画面を見せに行って戻ってくるので、見えていないあいだは読まずに待つ */
+const LINE_EVERY = 6000, LINE_WAIT = 10 * 60000;
+function openLineMove() {
+  const before = getStamps().total;
+  memberReady().then(a => {
+    openSheet(`
+      <button class="sheet-x" data-s="close" aria-label="閉じる">×</button>
+      <div class="coupon-big" id="lineWait">
+        <p class="cb-label">LINEのポイントの引き継ぎ</p>
+        <h2 class="member-no">${esc(a.no)}</h2>
+        <p>この会員番号と、LINEのショップカードの画面を、お店の人に見せてください。お店の人が数を入れると、この画面が変わります。</p>
+      </div>`);
+    sheetBody.onchange = null;
+    sheetBody.onclick = e => { if (e.target.closest('[data-s="close"]')) closeSheet(); };
+    const until = Date.now() + LINE_WAIT;
+    const waiting = () => !sheet.hidden && $('#lineWait', sheetBody);
+    const look = () => {
+      if (!waiting() || Date.now() > until) return;
+      if (document.visibilityState !== 'visible') return setTimeout(look, LINE_EVERY);
+      stampPost('stampRead').then(() => {
+        if (!waiting()) return;
+        const s = getStamps();
+        if (!s.lineMovedAt) return setTimeout(look, LINE_EVERY);
+        lastStampTotal = s.total;
+        render(true);
+        if (s.total <= before) { closeSheet(); return toast('LINEのポイントは引き継ぎ済みです'); }
+        showStamped({ on: stampOnCard(s.total), from: stampOnCard(before), got: [], moved: true }, `${s.total - before}ポイント引き継ぎました`);
+      }).catch(e => {
+        if (e.code !== 'bad_member') return setTimeout(look, LINE_EVERY);   // つながらないときは、次の回に
+        closeSheet();
+        toast(stampMessage(e), 'warn');
+      });
+    };
+    setTimeout(look, LINE_EVERY);
+  }).catch(e => toast(stampMessage(e), 'warn'));
+}
+
 function claimLine(token) {
   if (STAMPS_ONLINE) return stampProblem('このQRは使えません', 'LINEのポイントの引き継ぎは、お店の人に声をかけてください。');   // 公開のコードで作れる印は、台帳では受けない
   const c = checkLine(token);
