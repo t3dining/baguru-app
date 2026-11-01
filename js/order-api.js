@@ -84,7 +84,7 @@ const oneLine = s => textOf(s, true).replace(/\s*\n\s*/g, ' ');
 async function sendOrder(o) {
   const r = await orderPost({
     action: 'order', kind: o.kind, asap: !!o.asap, pickupAt: o.pickupAt, name: o.name, tel: o.tel,
-    address: o.address || '', address2: o.address2 || '', meals: o.meals, note: noteOf(o), member: o.member,
+    address: o.address || '', address2: o.address2 || '', meals: o.meals, note: noteOf(o), member: o.member, memberKey: DB.get('memberAuth', null)?.key || '',
     // バグるマネージで名前を直していたら、お店にも直した名前で届くように（js/content.js の textOf）
     lines: o.lines.map(({ id, name, opts, unit, qty }) => ({ id, name: oneLine(name), opts: opts.map(oneLine), unit, qty })),
     rid: o.id, website: '',

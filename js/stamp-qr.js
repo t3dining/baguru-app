@@ -124,7 +124,7 @@ const farText = m => m < 1000 ? `${Math.round(m / 10) * 10}m` : `${(m / 1000).to
 
 function claimStamp(token) {
   pendingToken = token;
-  if (token !== qrToken()) return stampProblem('このQRは使えません', '古いQRかもしれません。お店の人に声をかけてください。');
+  if (!STAMPS_ONLINE && token !== qrToken()) return stampProblem('このQRは使えません', '古いQRかもしれません。お店の人に声をかけてください。');
   if (stampedToday()) return stampProblem('今日のスタンプはもらいました', `スタンプは1日${STAMP.perDay}個までです。またのご来店をお待ちしています。`);
   if (!navigator.geolocation) return stampProblem('お店にいるかを確かめられません', 'このスマホ・ブラウザでは位置情報を使えません。', { demo: true });
   openSheet(`
@@ -137,6 +137,7 @@ function claimStamp(token) {
   sheetBody.onclick = null;
   navigator.geolocation.getCurrentPosition(pos => {
     const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+    if (STAMPS_ONLINE) return claimOnline(token, lat, lng, accuracy);
     const far = distanceM({ lat, lng }, STAMP.place);
     if (far > STAMP.place.radius + Math.min(accuracy || 0, STAMP.place.slack)) {
       return stampProblem('お店の外にいるようです', `今の場所は、お店から約${farText(far)}離れています。お店の中（駐車場を含む）で、もう一度試してください。`, { retry: true, demo: true });
@@ -146,6 +147,21 @@ function claimStamp(token) {
     if (err.code === err.PERMISSION_DENIED) return stampProblem('位置情報が許可されていません', locationHelp(), { retry: true, demo: true });
     stampProblem('今の場所が分かりませんでした', 'Wi-Fi と位置情報をオンにして、窓の近くなどで、もう一度試してください。', { retry: true, demo: true });
   }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 });
+}
+
+/** 台帳につないだとき：印と位置を受け口へ送って、受け口が決める（位置は判定に使うだけで、保存しない） */
+function claimOnline(token, lat, lng, accuracy) {
+  stampPost('stampClaim', { token, lat, lng, accuracy }).then(r => {
+    lastStampTotal = getStamps().total;
+    pendingToken = '';
+    showStamped(r);
+    render(true);
+  }).catch(e => {
+    if (e.code === 'far') return stampProblem('お店の外にいるようです', `今の場所は、お店から約${farText(e.data.far)}離れています。お店の中（駐車場を含む）で、もう一度読んでください。`, { retry: true });
+    if (e.code === 'today') return stampProblem('今日のスタンプはもらいました', `スタンプは1日${STAMP.perDay}個までです。またのご来店をお待ちしています。`);
+    if (e.code === 'bad_qr') return stampProblem('このQRは使えません', '古いQRかもしれません。お店の人に声をかけてください。');
+    stampProblem('スタンプを押せませんでした', stampMessage(e), { retry: true });
+  });
 }
 
 function giveStamp() {
@@ -159,6 +175,7 @@ function giveStamp() {
 
 /* ---- LINE のポイントを引き継ぐ（common.js の「LINE のショップカードからの引き継ぎ」） ---- */
 function claimLine(token) {
+  if (STAMPS_ONLINE) return stampProblem('このQRは使えません', 'LINEのポイントの引き継ぎは、お店の人に声をかけてください。');   // 公開のコードで作れる印は、台帳では受けない
   const c = checkLine(token);
   if (c.error === 'old') return stampProblem('このQRは時間切れです', `引き継ぎのQRは、お店の画面に出してから${STAMP.lineMove.validMin}分だけ使えます。お店の人に、もう一度出してもらってください。`);
   if (c.error) return stampProblem('このQRは使えません', 'お店の人に声をかけてください。');

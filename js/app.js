@@ -579,6 +579,7 @@ function orderRid(o) {
 /** 注文（申請）を作って保存し、注文の様子の画面へ。
  *  受け口につなぐとき（ORDERS_ONLINE。js/order-api.js）は、受け口に送ってから。番号と合計は受け口がつけ直す。btn は押したボタン（送っているあいだ止める） */
 async function placeOrder(fields, btn) {
+  if (STAMPS_ONLINE) await memberReady().catch(() => {});   // お渡し済みで受け口がスタンプを押せるように（つながらないときは会員なしで送る）
   const now = new Date();
   const lines = cart.map(cartLine).map(l => ({ id: l.item.id, name: l.name, opts: l.opts, unit: l.unit, qty: l.qty }));
   let order = {
@@ -909,11 +910,13 @@ function viewStamp() {
       ${s.log.length
         ? `<ul class="hist">${s.log.slice(-10).reverse().map(l => `<li><span>${mdw(new Date(l.at))} ${hhmm(new Date(l.at))}</span><b>${esc(l.via)}</b></li>`).join('')}</ul>`
         : '<p class="hint">まだありません。</p>'}`,
-    after: fresh ? () => {
+    after: () => {
+      pullStamps();
+      if (!fresh) return;
       stampSeen = on;
       FX.count($('.sc-count em'), from, on);
       setTimeout(() => FX.confettiFrom($$('.cell.new').pop(), on === STAMP.goal ? 'party' : 'pop'), 450);
-    } : null,
+    },
   };
 }
 
@@ -932,6 +935,14 @@ function welcomeBox() {
 function register(p) {
   const c = readContact(p);
   if (!c) return;
+  if (STAMPS_ONLINE) {
+    return stampPost('memberSave', { name: c.name, tel: c.tel }).then(r => {
+      lastStampTotal = getStamps().total;
+      if (!r.first) return toast('保存しました');
+      showStamped(r, '会員登録ありがとうございます');
+      render(true);
+    }).catch(e => toast(stampMessage(e), 'warn'));
+  }
   Object.assign(ME, { name: c.name, tel: c.tel });
   const first = !ME.registeredAt;
   if (first) ME.registeredAt = new Date().toISOString();
@@ -1003,13 +1014,20 @@ function openCoupon(id) {
     if (!chose) return toast('どれにするか、選んでください', 'warn');
     if (!canUseCoupon()) { closeSheet(); return toast(`特典は1日${STAMP.couponsPerDay}枚までです`, 'warn'); }
     if (!confirm(`「${chose}」で、この特典を使用済みにします。よろしいですか？`)) return;
+    const used = () => {
+      closeSheet();
+      render(true);
+      toast(`特典を使いました（${chose}）`);
+      FX.confetti({ kind: 'pop' });
+    };
+    if (STAMPS_ONLINE) {
+      b.disabled = true;
+      return stampPost('couponUse', { id, chose }).then(used).catch(e => { b.disabled = false; toast(stampMessage(e), 'warn'); });
+    }
     const s = getStamps();
     Object.assign(s.coupons.find(x => x.id === id), { usedAt: new Date().toISOString(), chose });
     DB.set('stamps', s);
-    closeSheet();
-    render(true);
-    toast(`特典を使いました（${chose}）`);
-    FX.confetti({ kind: 'pop' });
+    used();
   };
 }
 
@@ -1110,6 +1128,12 @@ function viewMe() {
             <b class="o-total">${yen(o.total)}</b>
           </a></li>`;
       }).join('')}</ul>` : '<p class="hint">まだありません。</p>'}
+      ${STAMPS_ONLINE ? `<h2 class="sec">スマホを替えるとき</h2>
+      <p class="hint">前のスマホで引き継ぎコードを出して、新しいスマホで入れると、スタンプと特典を続けて使えます。コードは24時間使えます。</p>
+      <button class="btn btn-sub btn-block" data-act="memberCode">引き継ぎコードを出す</button>
+      <label class="field"><span>引き継ぎコード（新しいスマホで入れる）</span><input id="t-code" autocapitalize="characters" autocomplete="off"></label>
+      <label class="field"><span>登録した電話番号（登録していなければ空のまま）</span><input id="t-tel" type="tel" inputmode="tel" autocomplete="tel"></label>
+      <button class="btn btn-sub btn-block" data-act="memberTake">新しいスマホで続きを使う</button>` : ''}
       ${installRow()}
       ${DEV_HOST ? `<h2 class="sec">この試作版について</h2>
       <div class="about">
@@ -1214,6 +1238,23 @@ const ACTIONS = {
   'install-guide': () => openInstallGuide(),
   'install-hide': () => hideInstallCard(),
   register: p => register(p),
+  memberCode: () => stampPost('memberCode').then(r => openSheet(`
+    <button class="sheet-x" data-s="close" aria-label="閉じる">×</button>
+    <div class="coupon-big">
+      <p class="cb-label">引き継ぎコード</p>
+      <h2>${esc(r.code)}</h2>
+      <p>新しいスマホのマイページで入れてください。${mdw(new Date(r.until))} ${hhmm(new Date(r.until))} まで使えます。入れると、このスマホでは使えなくなります。</p>
+    </div>`)).catch(e => toast(stampMessage(e), 'warn')),
+  memberTake: () => {
+    const code = $('#t-code').value.trim().toUpperCase(), tel = toHalf($('#t-tel').value.trim());
+    if (!code) return toast('引き継ぎコードを入れてください', 'warn');
+    if (getStamps().total && !confirm('このスマホのスタンプと特典は、前のスマホの内容に置きかわります。よろしいですか？')) return;
+    takeMember(code, tel).then(() => {
+      lastStampTotal = getStamps().total;
+      render(true);
+      toast('前のスマホの続きを使えるようになりました', 'good');
+    }).catch(e => toast(stampMessage(e), 'warn'));
+  },
   reset: () => {
     if (!DEV_HOST || !confirm('注文・スタンプ・会員番号など、試作のデータを全部消します。よろしいですか？')) return;
     DB.clearAll();
@@ -1224,7 +1265,7 @@ const ACTIONS = {
 };
 
 // バグるマネージの「アプリで見る」の中では、注文・スタンプ・特典・登録など、動かすと本物に残るものは止める（js/content.js の PREVIEW）
-const PREVIEW_STOP = new Set(['submit', 'request', 'cancel', 'stamp', 'lineScan', 'coupon', 'register', 'reset', 'install-guide']);
+const PREVIEW_STOP = new Set(['submit', 'request', 'cancel', 'stamp', 'lineScan', 'coupon', 'register', 'reset', 'install-guide', 'memberCode', 'memberTake']);
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
   if (!el) return;
@@ -1253,9 +1294,12 @@ function ordersChanged() {
       if (o.status === 'canceled') toast(`注文番号 ${o.no} は取り消しになりました`, 'warn');
     }
   }
+  const doneNow = myOrders().some(o => lastStatus[o.id] && lastStatus[o.id] !== 'done' && o.status === 'done');
   lastStatus = statusMap();
   // 受け口から来た注文がお渡し済みになったら、この端末でスタンプを押す（前はお店の画面が、同じブラウザで押していた）
-  if (stampDoneOrders()) stampsChanged();
+  // 台帳につないだら受け口が押すので、お渡し済みになったときに読み直すだけ
+  if (STAMPS_ONLINE) { if (doneNow) pullStamps(true); }
+  else if (stampDoneOrders()) stampsChanged();
 }
 
 /** ネット予約の様子が変わったら知らせる（js/reserve.js の syncReserves が返した控え） */
@@ -1311,6 +1355,22 @@ if (!ORDER_ONLY && !PREVIEW) {
   document.addEventListener('visibilitychange', pullReserves);
 }
 
+// スタンプの台帳を読む（js/stamp-api.js）。開いたとき・戻ってきたとき・スタンプの画面を開いたとき・開いている間は RSV_EVERY ごと
+let stampsAt = 0;
+function pullStamps(force = false) {
+  if (!STAMPS_ONLINE || PREVIEW || ORDER_ONLY || document.visibilityState !== 'visible' || (!force && Date.now() - stampsAt < RSV_GAP)) return;
+  stampsAt = Date.now();
+  syncStamps().then(changed => {
+    if (!changed) return;
+    stampsChanged();
+    if (!NO_LIVE.includes(routeName()) && !sheet.classList.contains('show')) render(true);
+  }).catch(() => {});   // つながらないときは、前に読んだ分を見せる
+}
+if (STAMPS_ONLINE && !ORDER_ONLY && !PREVIEW) {
+  setInterval(pullStamps, RSV_EVERY);
+  document.addEventListener('visibilitychange', () => pullStamps());
+}
+
 // T3Works の営業日を読み直す（30分に1回まで）。変わっていたら描き直す
 const syncDays = () => refreshDays().then(changed => {
   if (changed && !NO_LIVE.includes(routeName()) && !sheet.classList.contains('show')) render(true);
@@ -1361,6 +1421,7 @@ if (PREVIEW) setTimeout(previewFocus, 700);   // バグるマネージの「ア�
 else {
   pullOrders();
   pullReserves();
+  pullStamps();
   syncContent();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) syncContent(); });
 }
