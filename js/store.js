@@ -324,6 +324,9 @@ function checkCook(all) {
    受け口はメニューを持たず、送られた値段をそのまま受ける。受け口で断ると正しい注文まで断る危険があるので、合わない注文はカードに知らせて、お店の人が見る。
    バグるマネージで値段を変えた直後は、前の値段の注文にも出ることがある */
 
+// バグるマネージで名前を直すと、お客様のアプリからは直した字で届く（order-api.js の oneLine）。直す前の注文と電話の注文は元の字
+const sameOpt = (name, text) => name === text || oneLine(name) === text;
+
 /** 1行の正しい単価（common.js の priceOf の逆。opts の字から、選んだものを探す）。分からないものがあれば null */
 function lineUnit(l) {
   const item = ITEM_BY_ID[l.id];
@@ -333,10 +336,9 @@ function lineUnit(l) {
     let p = null;
     for (const g of item.groups || []) {
       if (g.type === 'count') {
-        const m = text.startsWith(`${g.choices[0].n}×`) && Number(text.slice(g.choices[0].n.length + 1));
-        if (m > 0 && m <= (g.max || 10)) p = g.choices[0].p * m;
+        for (let m = 1; m <= (g.max || 10) && p === null; m++) if (sameOpt(`${g.choices[0].n}×${m}`, text)) p = g.choices[0].p * m;
       } else {
-        const c = g.choices.find(x => (g.type === 'one' ? g.label || '' : '') + x.n === text);
+        const c = g.choices.find(x => sameOpt((g.type === 'one' ? g.label || '' : '') + x.n, text));
         if (c) p = c.p || 0;
       }
       if (p !== null) break;
