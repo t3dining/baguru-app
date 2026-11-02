@@ -56,6 +56,9 @@ const CHIME_URL = 'snd/order.wav';   // 注文が入ったときの音（1.8秒�
 const COOK_URL = 'snd/cook.wav';     // 調理を始める時間の音（2.6秒。「ピンポーン」を2回。同じ道具で作る）
 const COOK_RINGS = 3;                // 調理を始める時間の音を、RING_EVERY の間隔で何回鳴らすか
 const COOK_GLOW = 60000;             // 調理中に移った注文を光らせて「調理開始」の札を付けておく長さ（ミリ秒）
+const VOICE_TEXT = 'モバイルオーダーが入りました';   // 新しい注文が入ったときに読み上げる言葉
+const VOICE_AFTER = 1900;            // 注文の音が終わるのを待ってから読み上げる（ミリ秒。order.wav が1.8秒）
+const VOICE_LONG = 3000;             // 読み上げが終わるまで、次の音を待つ長さ（ミリ秒）
 
 // タブレット（iPad など。画面の短いほうが600以上）は、開いたときから音はオン。「音」のボタンで、そのときだけ止められる。
 // スマホは前のように、音はオフで始まり「音」のボタンで選ぶ（2026-10-30 ko-dai さん）。パソコンはタブレットと同じ扱い
@@ -65,6 +68,7 @@ let audio = null;
 let chime = null;   // 読み込んだ音。読めなかったときは、前の「ピッピッ」で鳴らす
 let cookChime = null;   // 調理を始める時間の音。読めなかったときは、低い「ピッピッ」で鳴らす
 let ringTimer = null;
+let voiceUntil = 0;   // この時刻までは、読み上げのために次の音を待つ
 // 新しく届いた注文に印を付けるため。受け口につないだときは、はじめて読めたときに埋める（開いたときからある注文には印を付けない）
 let known = ORDERS_ONLINE ? null : new Set(getOrders().map(o => o.id));
 const fresh = new Set();
@@ -281,9 +285,26 @@ function beep(buf = chime, freq = 880) {
 
 // 受付待ちがあるあいだは鳴らし続け、なくなったら（受け付けたら）止める
 function ring(on) {
-  if (on && !ringTimer) { beep(); ringTimer = setInterval(beep, RING_EVERY); }
+  if (on && !ringTimer) { beep(); ringTimer = setInterval(() => { if (Date.now() >= voiceUntil) beep(); }, RING_EVERY); }
   if (!on && ringTimer) { clearInterval(ringTimer); ringTimer = null; }
 }
+
+/* 新しい注文が入ったら、注文の音のあとに1回だけ声で知らせる（2026-11-02 ko-dai さんの指示）。声はタブレットの読み上げ機能で、機種によって変わる。
+   ★次の音を待つのは決まった長さだけで、読み上げの終わりは待たない。読み上げが動かない・固まった端末でも、注文の音は止まらないように */
+function sayOrder() {
+  if (!soundOn || !window.speechSynthesis) return;
+  voiceUntil = Date.now() + VOICE_AFTER + VOICE_LONG;
+  setTimeout(() => {
+    if (!soundOn) return;
+    if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
+    speechSynthesis.resume();   // 裏に回ったあと、止まったままの端末がある
+    const u = new SpeechSynthesisUtterance(VOICE_TEXT);
+    u.lang = 'ja-JP';
+    speechSynthesis.speak(u);
+  }, VOICE_AFTER);
+}
+// ブラウザの決まりで、読み上げは画面に触ったあとでないと動かない。最初に触ったときに、声の出ない読み上げを1回しておく
+document.addEventListener('click', () => { window.speechSynthesis?.speak(new SpeechSynthesisUtterance('')); }, { once: true, capture: true });
 
 /** 受け取りの日が、今日から何日後か（0＝本日。過ぎた日はマイナス） */
 function daysAhead(t, now = new Date()) {
@@ -487,6 +508,7 @@ function checkNew() {
   if (added.length) {
     added.forEach(o => fresh.add(o.id));
     ring(false);   // 一度止めて、このあとの render で鳴らし直す（新しい注文はすぐ鳴る）
+    if (added.some(o => ['new', 'request'].includes(o.status))) sayOrder();
     setTimeout(() => { added.forEach(o => fresh.delete(o.id)); render(); }, 8000);
   }
   known = new Set(all.map(o => o.id));
