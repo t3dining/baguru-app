@@ -46,8 +46,8 @@ async function qrReader() {
 }
 
 const CAMERA_NG = {
-  NotAllowedError: 'カメラが許可されていません。スマホの設定でカメラを許可するか、スマホのカメラアプリでQRを読んでください。',
-  NotFoundError: 'カメラが見つかりません。スマホのカメラアプリでQRを読んでください。',
+  NotAllowedError: 'カメラが許可されていません。スマホの設定でカメラを許可してから、もう一度開いてください。',
+  NotFoundError: 'カメラが見つかりません。カメラのあるスマホで開いてください。',
   NotReadableError: 'カメラを他のアプリが使っています。他のアプリを閉じて、もう一度開いてください。',
 };
 
@@ -62,7 +62,6 @@ async function openScanner({ ticket = false } = {}) {
       ${ticket ? '<h2>引き継ぎのQRを読む</h2><p>お店の人が見せているQR（紙か画面）を、枠の中に入れてください。</p>' : '<h2>お店のQRを読む</h2><p>レジの横などに置いてある、スタンプのQRを枠の中に入れてください。</p>'}
       <div class="scan-view"><video playsinline muted></video><i class="scan-frame"></i></div>
       <p class="scan-msg">カメラを準備しています…</p>
-      ${ticket ? '' : '<p class="hint">カメラが使えないときは、スマホのカメラアプリでQRを読んでもスタンプがたまります。</p>'}
       ${DEV_HOST && !ticket ? `<p class="demo-hint">試作版：パソコンで試すときは <button data-s="demo">QRを読んだことにする</button></p>` : ''}
     </div>`);
   sheetBody.onchange = null;
@@ -76,7 +75,7 @@ async function openScanner({ ticket = false } = {}) {
   const msg = t => { if (stillOpen()) $('.scan-msg', sheetBody).textContent = t; };
   const noCamera = t => msg(ticket ? 'カメラを使えません。スマホの設定でカメラを許可してから、もう一度開いてください。' : t);
 
-  if (!navigator.mediaDevices?.getUserMedia) return noCamera('この開き方ではカメラを使えません。スマホのカメラアプリでQRを読んでください。');
+  if (!navigator.mediaDevices?.getUserMedia) return noCamera('この開き方ではカメラを使えません。ホーム画面のアイコンから開き直してください。');
   const reader = qrReader();   // カメラを待つあいだに読みこんでおく
   reader.catch(() => {});      // カメラが先にだめになったときに、失敗を放っておかない
   try {
@@ -87,7 +86,7 @@ async function openScanner({ ticket = false } = {}) {
     await video.play();
   } catch (e) {
     if (!stillOpen()) return;
-    noCamera(CAMERA_NG[e.name] || 'カメラを使えませんでした。スマホのカメラアプリでQRを読んでください。');
+    noCamera(CAMERA_NG[e.name] || 'カメラを使えませんでした。スマホの設定でカメラを許可してから、もう一度開いてください。');
     return stopCamera();
   }
   let read;

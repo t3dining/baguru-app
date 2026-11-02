@@ -13,11 +13,20 @@ const ENV = {
   android: /Android/.test(UA),
   // アプリの中のブラウザ（ホーム画面に追加のメニューがない）
   inApp: / Line\//.test(UA) ? 'LINE' : /Instagram/.test(UA) ? 'インスタ' : /FBAN|FBAV|FB_IAB/.test(UA) ? 'Facebook' : '',
-  installed: matchMedia('(display-mode: standalone)').matches || navigator.standalone === true,
+  installed: matchMedia('(display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui)').matches || navigator.standalone === true,
 };
 const HIDE_DAYS = 14;            // ホームの案内の「×」を押したら、この日数は出さない
 const appUrl = () => location.origin + location.pathname;
 let installPrompt = null;        // Android の「インストールしますか」を出すためのもの（ブラウザから届く）
+let installedNow = false;        // このタブで「インストール」を押し終えた（ホーム画面に追加するまでの画面を「追加しました」にする）
+
+// ★スマホのブラウザで開いたときは、ホーム画面に追加するまで使えない（2026-11-02 ko-dai さんの指示）。
+//   止めるのは公式アプリ（index.html）だけ。ホームページから開く注文の画面（takeout.html）とパソコンは止めない（ko-dai さんの判断）。
+//   マネージの「アプリで見る」、バグる Owner・Staff から開いたとき、この Mac での試し（?gate を付けたときだけ止める）でも止めない
+const INSTALL_GATE = !(window.parent !== window && /[?&]preview\b/.test(location.search)) && !ENV.installed && (ENV.ios || ENV.android)
+  && !(() => { try { return sessionStorage.getItem('bg.fromOwner') === '1'; } catch (e) { return false; } })()
+  && (!/^(localhost|127\.0\.0\.1)$/.test(location.hostname) || /[?&]gate\b/.test(location.search));
+const needInstall = () => INSTALL_GATE && !ORDER_ONLY;   // ORDER_ONLY は app.js（takeout.html は、この js のあとで印を付けるので、呼ぶときに見る）
 
 // Android の Chrome で「インストール」できるようにする（ないとショートカットになり、アイコンに Chrome のマークが付く。sw.js。何も保存しない）
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -28,11 +37,12 @@ if (/[?&]openExternalBrowser=/.test(location.search)) history.replaceState(null,
 addEventListener('beforeinstallprompt', e => {
   e.preventDefault();            // ブラウザが勝手に出す案内は止めて、アプリのボタンから出す
   installPrompt = e;
-  if (routeName() === 'home' && !sheet.classList.contains('show')) render(true);
+  if (['home', 'install'].includes(routeName()) && !sheet.classList.contains('show')) render(true);
 });
 
 addEventListener('appinstalled', () => {
   installPrompt = null;
+  installedNow = true;
   toast('ホーム画面に追加しました', 'good');
   render(true);
 });
@@ -112,26 +122,65 @@ function hideInstallCard() {
 
 const GUIDE_TABS = { ios: 'iPhone', android: 'Android', inapp: 'LINE・インスタ' };
 
-function openInstallGuide(tab) {
-  tab = tab || (ENV.inApp ? 'inapp' : ENV.android ? 'android' : 'ios');
+const guideTab = tab => tab || (ENV.inApp ? 'inapp' : ENV.android ? 'android' : 'ios');
+
+/** 追加の仕方の中身（端末の切り替えと手順）。下から出る画面と、ホーム画面に追加するまでの画面で使う */
+function guideHtml(tab) {
   const body = { ios: guideIos, android: guideAndroid, inapp: guideInApp }[tab];
+  return `<div class="seg">${Object.entries(GUIDE_TABS).map(([k, v]) => `<button class="${k === tab ? 'on' : ''}" data-s="tab:${k}">${v}</button>`).join('')}</div>
+      ${body()}`;
+}
+
+/** 追加の仕方のボタン（data-s）。retab … 端末を切り替えたときに描き直す */
+function guideClick(b, retab) {
+  const [k, arg] = b.dataset.s.split(':');
+  if (k === 'tab') return retab(arg);
+  if (k === 'prompt') return askInstall();
+  if (k === 'open') return openInBrowser();
+  if (k === 'copy') return copyUrl();
+}
+
+function openInstallGuide(tab) {
+  tab = guideTab(tab);
   openSheet(`
     <button class="sheet-x" data-s="close" aria-label="閉じる">×</button>
     <div class="guide">
       <div class="guide-head"><img src="img/icon-192.png" alt=""><div><h2>ホーム画面に追加する</h2><p>ホーム画面の「${esc(SHOP.name)}」から、すぐ開けるようになります。</p></div></div>
-      <div class="seg">${Object.entries(GUIDE_TABS).map(([k, v]) => `<button class="${k === tab ? 'on' : ''}" data-s="tab:${k}">${v}</button>`).join('')}</div>
-      ${body()}
+      ${guideHtml(tab)}
     </div>`);
   sheetBody.onchange = null;
   sheetBody.onclick = e => {
     const b = e.target.closest('[data-s]');
     if (!b) return;
-    const [k, arg] = b.dataset.s.split(':');
-    if (k === 'close') return closeSheet();
-    if (k === 'tab') return openInstallGuide(arg);
-    if (k === 'prompt') return askInstall();
-    if (k === 'open') return openInBrowser();
-    if (k === 'copy') return copyUrl();
+    if (b.dataset.s === 'close') return closeSheet();
+    guideClick(b, openInstallGuide);
+  };
+}
+
+/* ---- ホーム画面に追加するまでの画面（スマホのブラウザで index.html を開いたとき。上の INSTALL_GATE） ---- */
+
+let gateTab = '';
+function viewInstallGate() {
+  if (installedNow) {
+    return {
+      title: 'ホーム画面に追加',
+      html: `<div class="join-head"><img src="img/logo.png" alt=""><h2>ホーム画面に追加しました</h2><p>ホーム画面の牛のアイコン「${esc(SHOP.name)}」から開いてください。</p></div>
+        ${homeMock()}`,
+    };
+  }
+  const tab = gateTab = guideTab(gateTab);
+  return {
+    title: 'ホーム画面に追加',
+    html: `
+      <div class="join-head"><img src="img/logo.png" alt=""><h2>ホーム画面に追加して<br>ご利用ください</h2><p>公式アプリは、スマホのホーム画面に追加してから使えます。追加したら、ホーム画面の牛のアイコンから開いてください。</p></div>
+      <div class="guide gate-guide">${guideHtml(tab)}</div>
+      <p class="hint">前にブラウザで会員登録した方は、ホーム画面から開いたあと「前に登録した方」から、スタンプと特典を戻せます。</p>`,
+    after: () => {
+      $('.gate-guide', view).onclick = e => {
+        const b = e.target.closest('[data-s]');
+        if (b) guideClick(b, t => { gateTab = t; render(true); });
+      };
+    },
   };
 }
 

@@ -45,7 +45,7 @@ const saveCart = () => DB.set('cart', cart);
 
 const ROUTES = {
   home: viewHome, menu: viewMenu, cart: viewCart, checkout: viewCheckout, request: viewRequest,
-  order: viewOrder, stamp: viewStamp, shop: viewShop, me: viewMe, reserve: viewReserve, privacy: viewPrivacy, join: viewJoin,
+  order: viewOrder, stamp: viewStamp, shop: viewShop, me: viewMe, reserve: viewReserve, privacy: viewPrivacy, join: viewJoin, install: viewInstallGate,
 };
 // 入力の途中で消えないよう、ほかのタブの書き換えでは描き直さない画面
 const NO_LIVE = ['checkout', 'request', 'me', 'reserve', 'join'];
@@ -53,13 +53,14 @@ const NO_LIVE = ['checkout', 'request', 'me', 'reserve', 'join'];
 // ★会員登録をしていない人には、登録の画面だけを出す（2026-11-02 ko-dai さんの指示）。アプリのどの画面も、予約も注文も、登録のあと。
 // マネージの「アプリで見る」では止めない。受け口では止めていない（ホームページのネット予約が同じ口を使うため）
 const needJoin = () => MEMBER_PLUS && !PREVIEW && !ME.registeredAt;
-const routeName = () => (needJoin() ? 'join' : location.hash.replace(/^#/, '').split('/')[0] || (ORDER_ONLY ? 'menu' : 'home'));
+const routeName = () => (needInstall() ? 'install' : needJoin() ? 'join' : location.hash.replace(/^#/, '').split('/')[0] || (ORDER_ONLY ? 'menu' : 'home'));
 
 function render(keepScroll = false) {
-  let [name, arg] = needJoin() ? ['join', ''] : location.hash.replace(/^#/, '').split('/');
+  let [name, arg] = needInstall() ? ['install', ''] : needJoin() ? ['join', ''] : location.hash.replace(/^#/, '').split('/');
+  if (name === 'install' && !needInstall()) name = '';
   if (name === 'join' && !needJoin() && !PREVIEW) name = '';   // 登録が済んだら、開こうとしていた画面へ
   if (ORDER_ONLY && !needJoin() && !ORDER_ROUTES.includes(name)) { history.replaceState(null, '', '#menu'); name = 'menu'; arg = ''; }
-  document.body.classList.toggle('joining', needJoin());   // 下のタブとカートを隠す（app.css）
+  document.body.classList.toggle('joining', needInstall() || needJoin());   // 下のタブとカートを隠す（app.css）
   const v = (ROUTES[name] || viewHome)(arg && decodeURIComponent(arg));
   if (!v) return;
   const y = window.scrollY;
@@ -1603,4 +1604,4 @@ else {
   syncContent();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) syncContent(); });
 }
-if (stampParam && !needJoin()) claimStamp(stampParam);
+if (stampParam && !needInstall() && !needJoin()) claimStamp(stampParam);
