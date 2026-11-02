@@ -117,7 +117,7 @@ const FX = {
         io.unobserve(e.target);
       });
     }, { rootMargin: '0px 0px -5% 0px' });
-    root.querySelectorAll('.sec, .item, .link-card, .news li, .rows li, .dine details, .rewards li, .hist li, .orders li, .coupon, .cat-note, .home-foot').forEach(el => {
+    root.querySelectorAll('.sec, .item, .link-card, .sister, .news li, .rows li, .dine details, .rewards li, .hist li, .orders li, .coupon, .cat-note, .home-foot').forEach(el => {
       el.classList.add('rv');
       io.observe(el);
     });

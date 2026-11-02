@@ -220,6 +220,16 @@ main { padding: 0 16px; }
 .link-card span { display: flex; flex-direction: column; }
 .link-card small { color: var(--sub); }
 
+/* 系列店（ロゴ・店名・住所と、ホットペッパー・地図のボタン） */
+.sister { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 12px 14px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); }
+.sister-logo { width: 64px; height: 64px; flex: none; padding: 3px; object-fit: contain; border-radius: 12px; background: #fff; border: 1px solid var(--line); }
+.sister-txt { display: flex; flex-direction: column; min-width: 0; }
+.sister-txt small { color: var(--sub); font-size: 12px; }
+.sister-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.sister-links .mini { display: inline-flex; align-items: center; gap: 3px; }
+.sister-links .mini svg { width: 13px; height: 13px; }
+.sister-links .mini + .mini { background: var(--ember); }
+
 /* ---- メニュー ---- */
 .cats {
   position: sticky; top: calc(54px + var(--safe-t)); z-index: 10;

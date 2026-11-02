@@ -38,13 +38,14 @@ const SHOP = {
   extraClosed: [],              // 臨時休業の日（例：'2026-12-31'）
   closedNote: '火曜日（祝日・GW・お盆・正月は営業）',
   instagram: 'https://www.instagram.com/baguru.hamburg/',
-  // 系列店（お店の画面の下に出す。ホットペッパーのお店のページへ。2026-11-02 ko-dai さんの指示）
+  // 系列店（お店の画面の下に出す。ホットペッパーのお店のページと Google マップへ。2026-11-02 ko-dai さんの指示）
+  // logo … img/sisters/ のロゴ（ホームページと同じ T3Works/img のものを小さくした）。addr … ホットペッパーに載っている住所。地図は店名と住所で探す
   sisters: [
-    ['炭焼きこじゃれ', 'https://www.hotpepper.jp/strJ003560433/'],
-    ['炭まろ', 'https://www.hotpepper.jp/strJ001250950/'],
-    ['炭火屋ちゃこる', 'https://www.hotpepper.jp/strJ001193911/'],
-    ['Cafe Stand popo', 'https://www.hotpepper.jp/strJ003917376/'],
-    ['おいでんテラス', 'https://www.hotpepper.jp/strJ004577293/'],
+    { name: '炭焼きこじゃれ', url: 'https://www.hotpepper.jp/strJ003560433/', logo: 'kojare.png', addr: '愛知県豊田市西町6丁目56' },
+    { name: '炭まろ', url: 'https://www.hotpepper.jp/strJ001250950/', logo: 'sumimaro.png', addr: '愛知県豊田市喜多町1-69-2' },
+    { name: '炭火屋ちゃこる', url: 'https://www.hotpepper.jp/strJ001193911/', logo: 'chacoru.png', addr: '愛知県豊田市西町2-36' },
+    { name: 'Cafe Stand popo', url: 'https://www.hotpepper.jp/strJ003917376/', logo: 'popo.png', addr: '愛知県豊田市西町5-5 VITS豊田タウン1F' },
+    { name: 'おいでんテラス', url: 'https://www.hotpepper.jp/strJ004577293/', logo: 'oiden.png', addr: '愛知県豊田市若宮町2-25-1 Zビル6F' },
   ],
   // 公開したお客さまの画面のアドレス（お店に置くスタンプのQRの中身になる）。
   // 空なら、お店の画面（order.html）と同じ場所の index.html。会社の GitHub で公開している（道具/公開する.py）

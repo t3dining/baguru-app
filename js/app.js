@@ -1151,7 +1151,11 @@ function viewShop() {
         </details>`).join('')}
       </div>
       <h2 class="sec" data-en="OUR SHOPS">系列店</h2>
-      ${SHOP.sisters.map(([n, url]) => `<a class="link-card" href="${esc(url)}" target="_blank" rel="noopener">${ICON.pin}<span><b>${esc(n)}</b><small>ホットペッパーで見る</small></span></a>`).join('')}`,
+      ${SHOP.sisters.map(s => `<div class="sister">
+        <img class="sister-logo" src="img/sisters/${esc(s.logo)}" alt="" width="64" height="64" loading="lazy">
+        <div class="sister-txt"><b>${esc(s.name)}</b><small>${esc(s.addr.replace(/^愛知県/, ''))}</small>
+          <span class="sister-links"><a class="mini" href="${esc(s.url)}" target="_blank" rel="noopener">ホットペッパー</a><a class="mini" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${s.name} ${s.addr}`)}" target="_blank" rel="noopener">${ICON.pin}地図</a></span></div>
+      </div>`).join('')}`,
   };
 }
 
