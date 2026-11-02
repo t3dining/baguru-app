@@ -19,6 +19,9 @@ const HIDE_DAYS = 14;            // ホームの案内の「×」を押したら
 const appUrl = () => location.origin + location.pathname;
 let installPrompt = null;        // Android の「インストールしますか」を出すためのもの（ブラウザから届く）
 
+// Android の Chrome で「インストール」できるようにする（ないとショートカットになり、アイコンに Chrome のマークが付く。sw.js。何も保存しない）
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+
 // LINE から開き直したときに付く印は、アドレスから消しておく
 if (/[?&]openExternalBrowser=/.test(location.search)) history.replaceState(null, '', location.pathname + location.hash);
 
@@ -161,7 +164,7 @@ function guideAndroid() {
         `<div class="mock m-bar and"><span class="m-ic">${ICON.home}</span><span class="m-url">${host()}</span><span class="m-ic hl">${ICON.kebab}</span></div>`)}
       ${step('<b>「ホーム画面に追加」</b>または<b>「アプリをインストール」</b>を押します', '',
         `<div class="mock m-list and"><span>新しいタブ</span><span>履歴</span><span class="hl">ホーム画面に追加</span></div>`)}
-      ${step('<b>「インストール」</b>（または「追加」）を押します', '',
+      ${step('<b>「インストール」</b>を押します', '「ショートカットを作成」を選ぶと、アイコンに Chrome のマークが付きます。',
         `<div class="mock m-dlg"><div><b>アプリをインストール</b>${appRow()}<p><em>キャンセル</em><em class="hl">インストール</em></p></div></div>`)}
       ${lastStep()}
     </ol>`;
