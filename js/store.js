@@ -300,8 +300,19 @@ function sayOrder() {
     speechSynthesis.resume();   // 裏に回ったあと、止まったままの端末がある
     const u = new SpeechSynthesisUtterance(VOICE_TEXT);
     u.lang = 'ja-JP';
+    const v = bestVoice();
+    if (v) u.voice = v;
     speechSynthesis.speak(u);
   }, VOICE_AFTER);
+}
+
+/** 読み上げの声（2026-11-02 ko-dai さんの指示：もう少し流暢に）。タブレットに入っている日本語の声のうち、高品質なもの
+ *  （iPad の設定で足した「プレミアム」「拡張」、Chrome の Google の声）を選ぶ。無ければ null で、端末の決めた声のまま */
+const VOICE_BETTER = [/premium|プレミアム/i, /enhanced|拡張|高品質/i, /google/i];   // 前にあるほど良い
+function bestVoice() {
+  const rank = v => VOICE_BETTER.findIndex(re => re.test(`${v.name} ${v.voiceURI}`));
+  const good = speechSynthesis.getVoices().filter(v => /^ja/i.test(v.lang) && rank(v) >= 0);
+  return good.sort((a, b) => rank(a) - rank(b) || b.default - a.default)[0] || null;
 }
 // ブラウザの決まりで、読み上げは画面に触ったあとでないと動かない。最初に触ったときに、声の出ない読み上げを1回しておく
 document.addEventListener('click', () => { window.speechSynthesis?.speak(new SpeechSynthesisUtterance('')); }, { once: true, capture: true });

@@ -483,7 +483,6 @@ main { padding: 0 16px; }
 .coupon-big h2 { font-size: 24px; margin: 14px 0 10px; }
 .cb-live { display: flex; align-items: center; justify-content: center; gap: 8px; font-weight: 700; color: var(--green); }
 .cb-live i { width: 10px; height: 10px; border-radius: 50%; background: var(--green); animation: blink 1s infinite; }
-.coupon-big h2.member-no { font-size: 32px; letter-spacing: .08em; overflow-wrap: anywhere; }
 .coupon-big p { color: var(--sub); font-size: 14px; }
 .coupon-big .btn { margin-top: 18px; }
 @keyframes blink { 50% { opacity: .2; } }

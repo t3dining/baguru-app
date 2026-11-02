@@ -4,7 +4,7 @@
  *    （ホーム画面のアプリのまま、そのアプリのカードにたまる）
  *  ・スマホのカメラアプリで読んだとき … アドレスの ?stamp= から同じ流れに入る（app.js のいちばん下）
  *  お店の外（STAMP.place から radius メートルより遠い）では押さない。
- *  ・LINE のポイントの引き継ぎは、会員番号を見せてお店の人が数を入れるか（下の openLineMove）、紙の券を読む（下の claimTicket）
+ *  ・LINE のポイントの引き継ぎは、お店の人が見せる紙の券を読む形だけ（下の openLineMove・claimTicket。2026-11-02 ko-dai さんの指示で、会員番号を見せてお店の人が数を入れる形はやめた）
  *  ※ app.js より先に読む（openSheet などは app.js にあるが、使うのは押されたあと）
  * ===================================================================== */
 
@@ -74,7 +74,7 @@ async function openScanner({ ticket = false } = {}) {
   const video = $('video', sheetBody);
   const stillOpen = () => id === scanId;
   const msg = t => { if (stillOpen()) $('.scan-msg', sheetBody).textContent = t; };
-  const noCamera = t => msg(ticket ? 'カメラを使えません。スマホの設定でカメラを許可するか、お店の人に会員番号を見せてください。' : t);
+  const noCamera = t => msg(ticket ? 'カメラを使えません。スマホの設定でカメラを許可してから、もう一度開いてください。' : t);
 
   if (!navigator.mediaDevices?.getUserMedia) return noCamera('この開き方ではカメラを使えません。スマホのカメラアプリでQRを読んでください。');
   const reader = qrReader();   // カメラを待つあいだに読みこんでおく
@@ -172,48 +172,10 @@ function giveStamp() {
 
 /* ---- LINE のポイントを引き継ぐ ---- */
 
-/** 会員番号を見せて、お店の人が数を入れるのを待つ。数を決めるのはお店（受け口の lineGive。1会員1回）。
- *  お客さまが LINE の画面を見せに行って戻ってくるので、見えていないあいだは読まずに待つ */
-const LINE_EVERY = 6000, LINE_WAIT = 10 * 60000;
+/** スタンプの「LINEのポイントカードをお持ちの方」。お店の人が見せる紙の券を、そのまま読む画面を開く（引き継げるのは登録した人だけ） */
 function openLineMove() {
-  if (MEMBER_PLUS && !ME.registeredAt) return stampProblem('先に会員登録をお願いします', STAMP_MSG.need_register);
-  const before = getStamps().total;
-  memberReady().then(a => {
-    openSheet(`
-      <button class="sheet-x" data-s="close" aria-label="閉じる">×</button>
-      <div class="coupon-big" id="lineWait">
-        <p class="cb-label">LINEのポイントの引き継ぎ</p>
-        <h2 class="member-no">${esc(a.no)}</h2>
-        <p>この会員番号と、LINEのショップカードの画面を、お店の人に見せてください。お店の人が数を入れると、この画面が変わります。</p>
-        ${MEMBER_PLUS ? '<p>お店の人が紙のQRを見せたときは、下のボタンから読んでください。</p><button class="btn btn-sub btn-block" data-s="ticket">紙のQRを読む</button>' : ''}
-      </div>`);
-    sheetBody.onchange = null;
-    sheetBody.onclick = e => {
-      const k = e.target.closest('[data-s]')?.dataset.s;
-      if (k === 'close') closeSheet();
-      if (k === 'ticket') openScanner({ ticket: true });
-    };
-    const until = Date.now() + LINE_WAIT;
-    const waiting = () => !sheet.hidden && $('#lineWait', sheetBody);
-    const look = () => {
-      if (!waiting() || Date.now() > until) return;
-      if (document.visibilityState !== 'visible') return setTimeout(look, LINE_EVERY);
-      stampPost('stampRead').then(() => {
-        if (!waiting()) return;
-        const s = getStamps();
-        if (!s.lineMovedAt) return setTimeout(look, LINE_EVERY);
-        lastStampTotal = s.total;
-        render(true);
-        if (s.total <= before) { closeSheet(); return toast('LINEのポイントは引き継ぎ済みです'); }
-        showStamped({ on: stampOnCard(s.total), from: stampOnCard(before), got: [], moved: true }, `${s.total - before}ポイント引き継ぎました`);
-      }).catch(e => {
-        if (e.code !== 'bad_member') return setTimeout(look, LINE_EVERY);   // つながらないときは、次の回に
-        closeSheet();
-        toast(stampMessage(e), 'warn');
-      });
-    };
-    setTimeout(look, LINE_EVERY);
-  }).catch(e => toast(stampMessage(e), 'warn'));
+  if (!ME.registeredAt) return stampProblem('先に会員登録をお願いします', STAMP_MSG.need_register);
+  openScanner({ ticket: true });
 }
 
 /** 紙の LINE 引き継ぎ券（スタンプ台帳の決めごと.md の10節）。券は何度でも使える。1会員1回は受け口が止める。★QRの中身はアドレスにしない。カメラアプリで開くと、ホーム画面のアプリとは別の場所の空の会員に入ってしまうため */
@@ -227,7 +189,7 @@ function claimTicket(code) {
   }).catch(e => {
     if (e.code === 'line_done') return stampProblem('LINEのポイントは引き継ぎ済みです', '引き継ぎは1回だけです。QRはお店の人に返してください。');
     if (e.code === 'need_register') return stampProblem('先に会員登録をお願いします', STAMP_MSG.need_register);
-    if (e.code === 'bad_ticket') return stampProblem('このQRは使えません', 'お店の人に、会員番号を見せてください。');
+    if (e.code === 'bad_ticket') return stampProblem('このQRは使えません', '古いQRかもしれません。お店の人に声をかけてください。');
     stampProblem('引き継げませんでした', stampMessage(e));
   });
 }

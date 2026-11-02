@@ -962,7 +962,7 @@ function viewStamp() {
       </div>
       <button class="btn btn-main btn-block" data-act="stamp" ${doneToday ? 'disabled' : ''}>${doneToday ? '今日のスタンプはもらいました' : `${ICON.qr}QRを読んでスタンプをもらう`}</button>
       <p class="hint">お店に置いてあるQRを読むと、1個たまります。お店の中（駐車場を含む）にいるときだけ読めます（位置情報を使います）。テイクアウトは、受け取りのときに自動で1個たまります。スタンプは1日${STAMP.perDay}個までです（初回登録の${STAMP.welcome.points}ポイントは別）。</p>
-      ${s.lineMovedAt || !STAMPS_ONLINE ? '' : `<button class="link-card" data-act="lineMove">${ICON.card}<span><b>LINEのポイントカードをお持ちの方</b><small>お会計のときに、ここを押して出る会員番号と、LINEのショップカードの画面をお店の人に見せてください。お店の人が同じ数のポイントをこのカードに入れます（1回だけ）。引き継いだ分のマスの特典は出ません（LINEでもらった特典と重ならないように）。既に獲得済みのLINEの特典は、ご利用いただけます</small></span></button>`}
+      ${s.lineMovedAt || !STAMPS_ONLINE || !MEMBER_PLUS ? '' : `<button class="link-card" data-act="lineMove">${ICON.card}<span><b>LINEのポイントカードをお持ちの方</b><small>お会計のときに、LINEのショップカードの画面をお店の人に見せてください。お店の人が見せるQRを、ここを押して読むと、同じ数のポイントがこのカードに入ります（1回だけ）。引き継いだ分のマスの特典は出ません（LINEでもらった特典と重ならないように）。既に獲得済みのLINEの特典は、ご利用いただけます</small></span></button>`}
       ${coupons.length ? `
         <h2 class="sec">使える特典</h2>
         ${useOk ? '' : `<p class="notice">${ICON.check}<span>今日はもう特典を使いました。<small>特典は1日${STAMP.couponsPerDay}枚までです（他の特典とは一緒に使えません）。また次のご来店でどうぞ。</small></span></p>`}
