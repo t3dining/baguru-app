@@ -1,6 +1,6 @@
 /* =====================================================================
  *  お店の画面（タブレットで開いておく想定）
- *  届いた注文を「受け付ける → できあがり → お渡し済み」と進める。
+ *  届いた注文を「受け付ける → 調理完了 → お渡し済み」と進める。
  *  受け付けた注文は、受け取りの30分前（TAKEOUT.cookBefore）までは「受付済み」に入り、それを過ぎると「調理中」に移る。
  *  ★ポイント・スタンプは、この画面では一切操作しない（2026-11-02 ko-dai さんの指示）。お渡し済みのあとのスタンプは、受け口と公式アプリの側で動く。
  *  電話・店頭の注文も、ここから入れる。
@@ -16,7 +16,7 @@
 
 const NEXT = {
   new:      { to: 'accepted', label: '受け付ける' },
-  accepted: { to: 'ready',    label: 'できあがり' },
+  accepted: { to: 'ready',    label: '調理完了' },   // 2026-11-02 ko-dai さんの指示（前は「できあがり」。行き先の列の名前は「できあがり・お渡し待ち」のまま）
   ready:    { to: 'done',     label: 'お渡し済み' },
 };
 const BACK = { accepted: 'new', ready: 'accepted', done: 'ready' };
@@ -59,6 +59,7 @@ const COOK_GLOW = 60000;             // 調理中に移った注文を光らせ�
 const VOICE_TEXT = 'モバイルオーダーが入りました';   // 新しい注文が入ったときに読み上げる言葉
 const VOICE_AFTER = 1900;            // 注文の音が終わるのを待ってから読み上げる（ミリ秒。order.wav が1.8秒）
 const VOICE_LONG = 3000;             // 読み上げが終わるまで、次の音を待つ長さ（ミリ秒）
+const VOICE_WAIT = 1500;             // 高品質な声が、この長さ（ミリ秒）のうちに読み始めなければ、端末の声で読み直す
 
 // タブレット（iPad など。画面の短いほうが600以上）は、開いたときから音はオン。「音」のボタンで、そのときだけ止められる。
 // スマホは前のように、音はオフで始まり「音」のボタンで選ぶ（2026-10-30 ko-dai さん）。パソコンはタブレットと同じ扱い
@@ -69,6 +70,8 @@ let chime = null;   // 読み込んだ音。読めなかったときは、前の
 let cookChime = null;   // 調理を始める時間の音。読めなかったときは、低い「ピッピッ」で鳴らす
 let ringTimer = null;
 let voiceUntil = 0;   // この時刻までは、読み上げのために次の音を待つ
+let voiceBad = false;   // 高品質な声で読めなかった。開き直すまで、端末の声で読む
+let voiceNow = null;    // いま読んでいる言葉（読み直しが、あとの注文の読み上げを止めないように）
 // 新しく届いた注文に印を付けるため。受け口につないだときは、はじめて読めたときに埋める（開いたときからある注文には印を付けない）
 let known = ORDERS_ONLINE ? null : new Set(getOrders().map(o => o.id));
 const fresh = new Set();
@@ -298,12 +301,35 @@ function sayOrder() {
     if (!soundOn) return;
     if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
     speechSynthesis.resume();   // 裏に回ったあと、止まったままの端末がある
-    const u = new SpeechSynthesisUtterance(VOICE_TEXT);
-    u.lang = 'ja-JP';
-    const v = bestVoice();
-    if (v) u.voice = v;
+    const v = voiceBad ? null : bestVoice();
+    const u = voiceLine(v);
+    if (v) {
+      // 高品質な声は、端末によっては鳴らない（2026-11-02 ko-dai さんの報告）。読み始めない・すぐ終わる・失敗したら、端末の声で読み直す
+      let started = 0;
+      const plain = () => {
+        if (voiceNow !== u) return;
+        voiceNow = null;
+        voiceBad = true;
+        voiceUntil = Date.now() + VOICE_LONG;
+        speechSynthesis.cancel();
+        setTimeout(() => speechSynthesis.speak(voiceLine(null)), 100);
+      };
+      u.onstart = () => { started = Date.now(); };
+      u.onend = () => { if (!started || Date.now() - started < 600) plain(); };
+      u.onerror = e => { if (!/interrupted|canceled/.test(e.error)) plain(); };
+      setTimeout(() => { if (!started) plain(); }, VOICE_WAIT);
+    }
     speechSynthesis.speak(u);
   }, VOICE_AFTER);
+}
+
+/** 読み上げる言葉。v が無ければ端末の決めた声 */
+function voiceLine(v) {
+  const u = new SpeechSynthesisUtterance(VOICE_TEXT);
+  u.lang = v ? v.lang : 'ja-JP';
+  if (v) u.voice = v;
+  voiceNow = u;
+  return u;
 }
 
 /** 読み上げの声（2026-11-02 ko-dai さんの指示：もう少し流暢に）。タブレットに入っている日本語の声のうち、高品質なもの
@@ -429,7 +455,7 @@ function card(o) {
   const isToday = dateKey(t) === dateKey(new Date());
   const live = ACTIVE.includes(o.status);   // 進めている注文には、上の帯（本日か明日より先か）を付ける。日付は帯に出す
   const late = ACTIVE.includes(o.status) && t < new Date();
-  // 受付済みでも、今日の分は早くできたときのために「できあがり」を出す。明日より先の分は出さない
+  // 受付済みでも、今日の分は早くできたときのために「調理完了」を出す。明日より先の分は出さない
   const next = isBooked(o) && !isToday ? null : NEXT[o.status];
   const back = backOf(o);
   const map = o.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(o.address)}` : '';
