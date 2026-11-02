@@ -59,7 +59,7 @@ async function openScanner({ ticket = false } = {}) {
   openSheet(`
     <button class="sheet-x" data-s="close" aria-label="閉じる">×</button>
     <div class="scan">
-      ${ticket ? '<h2>引き継ぎのQRを読む</h2><p>お店の人が見せている紙のQRを、枠の中に入れてください。</p>' : '<h2>お店のQRを読む</h2><p>レジの横などに置いてある、スタンプのQRを枠の中に入れてください。</p>'}
+      ${ticket ? '<h2>引き継ぎのQRを読む</h2><p>お店の人が見せているQR（紙か画面）を、枠の中に入れてください。</p>' : '<h2>お店のQRを読む</h2><p>レジの横などに置いてある、スタンプのQRを枠の中に入れてください。</p>'}
       <div class="scan-view"><video playsinline muted></video><i class="scan-frame"></i></div>
       <p class="scan-msg">カメラを準備しています…</p>
       ${ticket ? '' : '<p class="hint">カメラが使えないときは、スマホのカメラアプリでQRを読んでもスタンプがたまります。</p>'}
