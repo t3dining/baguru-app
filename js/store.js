@@ -65,7 +65,6 @@ let audio = null;
 let chime = null;   // 読み込んだ音。読めなかったときは、前の「ピッピッ」で鳴らす
 let cookChime = null;   // 調理を始める時間の音。読めなかったときは、低い「ピッピッ」で鳴らす
 let ringTimer = null;
-let beepN = 0, beepAt = 0;   // 鳴らした回数と最後の時刻（音を試す窓に出す）
 // 新しく届いた注文に印を付けるため。受け口につないだときは、はじめて読めたときに埋める（開いたときからある注文には印を付けない）
 let known = ORDERS_ONLINE ? null : new Set(getOrders().map(o => o.id));
 const fresh = new Set();
@@ -260,8 +259,6 @@ function loadChime() {
 function beep(buf = chime, freq = 880) {
   if (!soundOn || !audio) return;
   if (audio.state !== 'running') audio.resume().catch(() => {});   // タブレットがしばらく裏に回ると止まることがある（iPad は suspended でなく interrupted にもなる）
-  beepN++;
-  beepAt = Date.now();
   if (buf) {
     const s = audio.createBufferSource();
     s.buffer = buf;
@@ -845,61 +842,14 @@ document.addEventListener('visibilitychange', () => {
 
 /* 画面が消えると、注文も音も来なくなる（2026-11-02 ko-dai さんの報告）。タブレットでこの画面を開いているあいだは、画面を消さない。
    裏に回ると外れるので、戻ったときに取り直す。使えない端末は、今までどおり端末の設定に任せる（README「営業中は」） */
-let awake = null, awakeErr = '';
+let awake = null;
 function keepAwake() {
   if (!TABLET || awake || !navigator.wakeLock || document.visibilityState !== 'visible') return;
   navigator.wakeLock.request('screen').then(l => {
     awake = l;
-    awakeErr = '';
     l.onrelease = () => { awake = null; };
-  }).catch(e => { awakeErr = e.name; });
+  }).catch(() => {});
 }
-
-/* 音を試す窓（2026-11-02 ko-dai さんの報告）。タブレットの中は手元から見えないので、どこで止まっているかを数字で出す。
-   ①は注文の音と同じ鳴らし方（Web Audio）、②は別の鳴らし方（audio の部品）。①だけ聞こえないなら鳴らし方の問題、どちらも聞こえないなら端末の音量か消音 */
-let soundPaint = null, sdClock = null, sdB = '';
-function paintSoundDlg() {
-  const clock = audio ? audio.currentTime : null;
-  const moving = clock === null ? 'まだ無い' : sdClock === null ? '見ています' : clock > sdClock ? '進んでいる' : '止まっている';
-  sdClock = clock;
-  const rows = [
-    ['音の設定', soundOn ? 'オン' : 'オフ'],
-    ['音の状態', audio ? audio.state : 'まだ無い'],
-    ['音の時計', clock === null ? moving : `${moving}（${clock.toFixed(1)}）`],
-    ['音のファイル', `注文 ${chime ? '○' : '×'}・調理 ${cookChime ? '○' : '×'}`],
-    ['消音でも鳴らす', navigator.audioSession ? navigator.audioSession.type : 'この端末には無い'],
-    ['画面を消さない', awake ? 'はたらいている' : !navigator.wakeLock ? 'この端末には無い' : `はたらいていない ${awakeErr}`],
-    ['最後に鳴らした', beepAt ? `${new Date(beepAt).toLocaleTimeString('ja-JP')}（${beepN}回）` : 'まだ'],
-    ['鳴らし続け', ringTimer ? 'はい' : 'いいえ'],
-    ['②の結果', sdB || 'まだ'],
-    ['開き方', matchMedia('(display-mode: standalone)').matches || navigator.standalone ? 'ホーム画面' : 'ブラウザ'],
-    ['画面', `${screen.width}×${screen.height}・${TABLET ? 'タブレット' : 'スマホ'}・タッチ${navigator.maxTouchPoints}`],
-    ['端末', navigator.userAgent],
-  ];
-  $('#sdInfo').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('');
-}
-$('#soundTest')?.addEventListener('click', () => {
-  unlockSound();
-  keepAwake();
-  sdClock = null;
-  sdB = '';
-  paintSoundDlg();
-  clearInterval(soundPaint);
-  soundPaint = setInterval(paintSoundDlg, 1000);
-  $('#soundDlg').showModal();
-});
-$('#soundDlg')?.addEventListener('close', () => clearInterval(soundPaint));
-$('#sdA')?.addEventListener('click', () => {
-  soundOn = true;
-  unlockSound();
-  checkSound();
-  render();
-  beep();
-});
-$('#sdB')?.addEventListener('click', () => {
-  sdB = '鳴らしています';
-  new Audio(CHIME_URL).play().then(() => { sdB = '再生できた'; }).catch(e => { sdB = `再生できない ${e.name}`; });
-});
 
 DB.onChange(key => {
   if (key === 'orders' && !ORDERS_ONLINE) checkNew();
