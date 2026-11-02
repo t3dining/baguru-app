@@ -142,8 +142,9 @@ button { font: inherit; cursor: pointer; border: 0; }
 .c-cancel { margin: 8px 0 0; color: var(--red); font-weight: 700; font-size: 13px; }
 .c-check { margin: 8px 0 0; padding: 6px 10px; border-radius: 8px; background: var(--red); color: #fff; font-size: 14px; font-weight: 800; }   /* 値段・食数がメニューと合わない注文 */
 .c-msg { margin: 8px 0 0; padding: 6px 10px; border-radius: 8px; background: var(--green-soft); font-size: 13px; }
-.c-btns { display: flex; gap: 8px; margin-top: 10px; }
+.c-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .c-btns:empty { display: none; }
+.c-btns button { white-space: nowrap; }   /* 「調理完了」などの字を2行に割らない（2026-11-02 ko-dai さんの指示）。入りきらないときは、大きいボタンが下の段に回る */
 .b-main { flex: 1; height: 46px; border-radius: 12px; color: #fff; font-weight: 800; font-size: 16px; background: var(--main); }
 .b-accepted { background: var(--accent); }
 .b-ready { background: var(--green); }
@@ -231,4 +232,11 @@ button { font: inherit; cursor: pointer; border: 0; }
 @media (max-width: 900px) {
   .board { grid-template-columns: 1fr; }
   .s-brand { width: 100%; }
+}
+
+/* 3列でいちばん狭いところ（列の幅が約230〜280px）。カードの下のボタンを1段に収める */
+@media (min-width: 901px) and (max-width: 1100px) {
+  .c-btns { gap: 6px; }
+  .c-btns .b-sub { padding: 0 10px; }
+  .c-btns .b-main { padding: 0 4px; font-size: 15px; }
 }
