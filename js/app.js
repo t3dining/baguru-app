@@ -288,6 +288,16 @@ function groupHtml(g) {
       </label>`).join('')}</div></div>`;
 }
 
+/** 次の欄を、見えている範囲のまん中へ動かす（下の「カートに入れる」に隠れる分は除く）。入りきらないときは欄の頭を見せる */
+function showNextGroup(cur) {
+  const next = cur.nextElementSibling;
+  if (!next) return;   // 待っているあいだに閉じた
+  const box = sheetBody.getBoundingClientRect();
+  const r = next.getBoundingClientRect();
+  const seen = box.height - $('.sheet-foot', sheetBody).offsetHeight;
+  sheetBody.scrollTo({ top: sheetBody.scrollTop + r.top - box.top - Math.max(0, (seen - r.height) / 2), behavior: FX.calm ? 'auto' : 'smooth' });
+}
+
 function openItem(id) {
   const item = ITEM_BY_ID[id];
   const sel = {};
@@ -318,14 +328,24 @@ function openItem(id) {
     btn.textContent = missing ? `${missing.name}を選んでください` : `カートに入れる　${yen(unit * qty)}`;
   };
 
+  // 選んだら、次の欄へ動かす（選んだ色が見えるように、少し待つ）
+  let nextTimer;
+  const goNext = (el, wait = 200) => {
+    clearTimeout(nextTimer);
+    nextTimer = setTimeout(() => showNextGroup(el), wait);
+  };
+
   sheetBody.onchange = e => {
     const g = item.groups.find(x => x.id === e.target.name);
     if (!g) return;
+    const el = e.target.closest('.g');
     if (g.type === 'count') {
       // 「なし」を押したら 0 個。外したら、また「まだ選んでいない」に
       sel[g.id] = e.target.checked ? 0 : null;
       $(`.stepper[data-id="${g.id}"] b`, sheetBody).textContent = 0;
-      return refresh();
+      refresh();
+      if (e.target.checked) goNext(el);
+      return;
     }
     if (g.type === 'many') {
       // 「なし」（none）と、ほかのものは一緒に選べない
@@ -337,6 +357,8 @@ function openItem(id) {
       ? Number(e.target.value)
       : $$(`input[name="${g.id}"]:checked`, sheetBody).map(i => Number(i.value));
     refresh();
+    // いくつでも選べる欄は、続けて選ぶので動かさない（「なし」のときだけ次へ）
+    if (g.type === 'one' || (e.target.checked && g.choices[Number(e.target.value)].none)) goNext(el);
   };
 
   sheetBody.onclick = e => {
@@ -355,6 +377,7 @@ function openItem(id) {
         sel[gid] = v;
         const none = $(`input[name="${gid}"][value="none"]`, sheetBody);
         if (none) none.checked = v === 0;
+        goNext(box.closest('.g'), 800);   // 続けて押すので、押し終わるのを待つ（この欄は1行なので、動いても見えたまま）
       }
       $('b', box).textContent = v;
       refresh();
@@ -1234,8 +1257,8 @@ function viewMe() {
 
 function openSheet(html) {
   sheetBody.innerHTML = html;
-  sheetBody.scrollTop = 0;
   sheet.hidden = false;
+  sheetBody.scrollTop = 0;   // ★hidden を外してから。隠れたままでは効かず、前に開いたときの位置から始まってしまう
   requestAnimationFrame(() => sheet.classList.add('show'));
   document.body.classList.add('lock');
 }

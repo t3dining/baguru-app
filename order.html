@@ -26,7 +26,7 @@
 <link rel="manifest" href="manifest-store.json">
 <link rel="icon" href="img/store-icon-192.png">
 <link rel="apple-touch-icon" href="img/store-apple-touch-icon.png">
-<link rel="stylesheet" href="css/store.css?v=d0a93f9a">
+<link rel="stylesheet" href="css/store.css?v=9c7da0ce">
 </head>
 <body>
 <header class="s-top">
@@ -41,6 +41,8 @@
   <!-- 「スタンプのQR」のボタン（QRを出す・印刷する・作り直す）は、2026-10-30 に外した（ko-dai さんの指示） -->
   <label class="s-accept"><input type="checkbox" id="accepting"><span class="sw"></span><span id="acceptText"></span></label>
   <button id="sound" class="s-btn"></button>
+  <!-- 音を試す窓を開く。タブレットで音が鳴らないときに、どこで止まっているかを見る（2026-11-02 ko-dai さんの報告。js/store.js の paintSoundDlg） -->
+  <button id="soundTest" class="s-btn">🔈 音を試す</button>
 </header>
 <!-- 試作か、受け口から注文を読めているか（読めないときは赤くなる）。文は js/store.js の paintNet が書く -->
 <div id="netBar" class="net-bar demo"></div>
@@ -120,6 +122,15 @@
   <div class="dlg-btns"><button type="button" class="b-sub" data-close>やめる</button><button type="button" id="tOk" class="b-main">この時間にする</button></div>
 </dialog>
 
+<!-- 音を試す。①は注文の音と同じ鳴らし方、②は別の鳴らし方。下の数字は js/store.js の paintSoundDlg が書く -->
+<dialog id="soundDlg" class="dlg">
+  <h3>音を試す</h3>
+  <p class="f-note">①と②を順に押して、聞こえたかどうかを確かめてください。</p>
+  <div class="dlg-btns sd-btns"><button type="button" id="sdA" class="b-main">① 注文の音</button><button type="button" id="sdB" class="b-main">② 別の鳴らし方</button></div>
+  <dl id="sdInfo" class="sd-info"></dl>
+  <div class="dlg-btns"><button type="button" class="b-sub" data-close>閉じる</button></div>
+</dialog>
+
 <!-- 電話・店頭の注文を入れる。受け付けた形で入り、お客様のアプリには出ない -->
 <dialog id="phoneDlg" class="dlg wide">
   <h3>電話・店頭の注文を入れる</h3>
@@ -163,6 +174,6 @@
 <script src="js/content.js?v=b4609d7d"></script>
 <!-- 受け口とのやりとり（公式アプリと同じもの。切り替え ORDERS_ONLINE・受け口の場所・送り方）。公式アプリのセッションの持ち物 -->
 <script src="js/order-api.js?v=fee737e5"></script>
-<script src="js/store.js?v=add6ce30"></script>
+<script src="js/store.js?v=afd9d88c"></script>
 </body>
 </html>
