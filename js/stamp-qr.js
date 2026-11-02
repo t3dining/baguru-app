@@ -53,7 +53,7 @@ const CAMERA_NG = {
 
 /** QRを読む画面。ticket … 紙の LINE 引き継ぎ券を読むとき（今日のスタンプをもらったあとでも読める。スマホのカメラアプリでは読めない） */
 async function openScanner({ ticket = false } = {}) {
-  if (!ticket && stampedToday()) return toast(`スタンプは1日${STAMP.perDay}個までです`);
+  if (!ticket && stampDoneToday()) return toast(`スタンプは1日${STAMP.perDay}個までです`);
   stopCamera();
   const id = scanId;
   openSheet(`
@@ -121,7 +121,8 @@ const farText = m => m < 1000 ? `${Math.round(m / 10) * 10}m` : `${(m / 1000).to
 
 function claimStamp(token) {
   pendingToken = token;
-  if (stampedToday()) return stampProblem('今日のスタンプはもらいました', `スタンプは1日${STAMP.perDay}個までです。またのご来店をお待ちしています。`);
+  if (stampDoneToday()) return stampProblem('今日のスタンプはもらいました', `スタンプは1日${STAMP.perDay}個までです。またのご来店をお待ちしています。`);
+  if (TEST_MEMBER) return claimOnline(token, STAMP.place.lat, STAMP.place.lng, 0);   // テスト用アカウントは位置を聞かない（受け口も確かめない。15節）
   if (!navigator.geolocation) return stampProblem('お店にいるかを確かめられません', 'このスマホ・ブラウザでは位置情報を使えません。', { demo: true });
   openSheet(`
     <div class="checking">

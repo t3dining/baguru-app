@@ -10,6 +10,11 @@ const LOCAL_TEST = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) && /[?&]
 const STAMPS_ONLINE = !!STAMP.online || LOCAL_TEST;
 const MEMBER_PLUS = !!STAMP.memberPlus || LOCAL_TEST;
 const MEMBER_DELETE = !!STAMP.memberDelete || LOCAL_TEST;
+// バグる Owner から開いたときのテスト用アカウント（js/db.js が箱を bgtest. に替えたとき。スタンプ台帳の決めごと.md の15節）
+const TEST_MEMBER = DB.prefix === 'bgtest.' && STAMPS_ONLINE;
+// テスト用アカウントは、端末の側でも「1日1個」「特典は1日1枚」で止めない（受け口もゆるめる）
+const stampDoneToday = () => !TEST_MEMBER && stampedToday();
+const couponOkToday = () => TEST_MEMBER || canUseCoupon();
 
 const STAMP_MSG = {
   bad_member: 'この端末の会員の情報が使えなくなりました。もう一度お試しください',
@@ -65,7 +70,10 @@ async function joinMember() {
 }
 
 let joining = null;
-const memberReady = () => (memberAuth() ? Promise.resolve(memberAuth()) : joining ||= joinMember().finally(() => { joining = null; }));
+// テスト用アカウントの箱では、ふつうの会員を作らない（作るのは makeTestMember だけ）
+const memberReady = () => (memberAuth() ? Promise.resolve(memberAuth())
+  : TEST_MEMBER ? Promise.reject(Object.assign(new Error('need_test'), { code: 'need_test' }))
+  : joining ||= joinMember().finally(() => { joining = null; }));
 
 /** ほかのスマホへ引き継いで鍵が変わったとき。この端末の写しを消して、次は新しい会員として始める */
 function memberLost() {
@@ -120,3 +128,28 @@ async function takeMember(code, tel) {
   DB.set('memberAuth', { no: r.member, key: r.key });
   keepState(r.state);
 }
+
+/* ---- テスト用アカウント（バグる Owner から開いたときだけ。スタンプ台帳の決めごと.md の15節） ---- */
+
+// 合言葉は、予約ボード・Order受付・マネージがこの端末に覚えた置き場所から読むだけ。★公式アプリは覚えない（作るときに1回使うだけ）
+const storePin = () => { try { return localStorage.getItem('baguru.daicho.pin') || ''; } catch (e) { return ''; } };
+const TEST_MSG = {
+  bad_pin: '合言葉が違います。',
+  locked: '合言葉を何度も間違えたため、しばらく使えません。時間を置いてから、もう一度お試しください。',
+  need_test: 'テスト用アカウントを作ってから、お試しください。',
+  not_test: 'この会員はテスト用ではありません。',
+  unknown_action: '受け口がまだテスト用アカウントに対応していません。',
+};
+const testMessage = e => TEST_MSG[e.code] || stampMessage(e);
+
+/** テスト用の会員を作る（お店の action。合言葉が要る）。お名前「テスト」、登録済みとして返る */
+async function makeTestMember(pin) {
+  const rid = DB.get('memberRid') || randomRid('t');
+  DB.set('memberRid', rid);
+  const r = await orderPost({ action: 'memberTest', rid, pin });
+  DB.set('memberAuth', { no: r.member, key: r.key });
+  keepState(r.state);
+}
+
+/** テスト用の会員のスタンプ・特典・LINE の引き継ぎを0に戻す（お名前と登録は残る） */
+const resetTestMember = () => stampPost('memberTestReset');

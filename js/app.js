@@ -45,22 +45,25 @@ const saveCart = () => DB.set('cart', cart);
 
 const ROUTES = {
   home: viewHome, menu: viewMenu, cart: viewCart, checkout: viewCheckout, request: viewRequest,
-  order: viewOrder, stamp: viewStamp, shop: viewShop, me: viewMe, reserve: viewReserve, privacy: viewPrivacy, join: viewJoin, install: viewInstallGate,
+  order: viewOrder, stamp: viewStamp, shop: viewShop, me: viewMe, reserve: viewReserve, privacy: viewPrivacy, join: viewJoin, install: viewInstallGate, test: viewTestGate,
 };
 // 入力の途中で消えないよう、ほかのタブの書き換えでは描き直さない画面
-const NO_LIVE = ['checkout', 'request', 'me', 'reserve', 'join'];
+const NO_LIVE = ['checkout', 'request', 'me', 'reserve', 'join', 'test'];
 
 // ★会員登録をしていない人には、登録の画面だけを出す（2026-11-02 ko-dai さんの指示）。アプリのどの画面も、予約も注文も、登録のあと。
 // マネージの「アプリで見る」では止めない。受け口では止めていない（ホームページのネット予約が同じ口を使うため）
 const needJoin = () => MEMBER_PLUS && !PREVIEW && !ME.registeredAt;
-const routeName = () => (needInstall() ? 'install' : needJoin() ? 'join' : location.hash.replace(/^#/, '').split('/')[0] || (ORDER_ONLY ? 'menu' : 'home'));
+// バグる Owner から開いたとき、テスト用アカウントがまだ無ければ、作る画面だけを出す（スタンプ台帳の決めごと.md の15節）
+const needTest = () => TEST_MEMBER && !memberAuth();
+const routeName = () => (needInstall() ? 'install' : needTest() ? 'test' : needJoin() ? 'join' : location.hash.replace(/^#/, '').split('/')[0] || (ORDER_ONLY ? 'menu' : 'home'));
 
 function render(keepScroll = false) {
-  let [name, arg] = needInstall() ? ['install', ''] : needJoin() ? ['join', ''] : location.hash.replace(/^#/, '').split('/');
+  let [name, arg] = needInstall() ? ['install', ''] : needTest() ? ['test', ''] : needJoin() ? ['join', ''] : location.hash.replace(/^#/, '').split('/');
   if (name === 'install' && !needInstall()) name = '';
+  if (name === 'test' && !needTest()) name = '';
   if (name === 'join' && !needJoin() && !PREVIEW) name = '';   // 登録が済んだら、開こうとしていた画面へ
   if (ORDER_ONLY && !needJoin() && !ORDER_ROUTES.includes(name)) { history.replaceState(null, '', '#menu'); name = 'menu'; arg = ''; }
-  document.body.classList.toggle('joining', needInstall() || needJoin());   // 下のタブとカートを隠す（app.css）
+  document.body.classList.toggle('joining', needInstall() || needTest() || needJoin());   // 下のタブとカートを隠す（app.css）
   const v = (ROUTES[name] || viewHome)(arg && decodeURIComponent(arg));
   if (!v) return;
   const y = window.scrollY;
@@ -932,8 +935,8 @@ function viewStamp() {
   const cardNo = Math.floor(Math.max(s.total - 1, 0) / STAMP.goal) + 1;
   const next = STAMP.rewards.find(r => r.at > on);
   const coupons = s.coupons.filter(c => !c.usedAt);
-  const doneToday = stampedToday();
-  const useOk = canUseCoupon();
+  const doneToday = stampDoneToday();
+  const useOk = couponOkToday();
   // 新しく押されたマス（前に見せたときより後の分）は、ぽんと押す動き。ゴールして新しいカードになったときは 0 から
   const from = on < stampSeen ? 0 : stampSeen;
   const fresh = on !== stampSeen && sheet.hidden;   // 下から出る画面が開いているあいだ（開き始めも）は、閉じてから
@@ -963,7 +966,7 @@ function viewStamp() {
       </div>
       <button class="btn btn-main btn-block" data-act="stamp" ${doneToday ? 'disabled' : ''}>${doneToday ? '今日のスタンプはもらいました' : `${ICON.qr}QRを読んでスタンプをもらう`}</button>
       <p class="hint">お店に置いてあるQRを読むと、1個たまります。お店の中（駐車場を含む）にいるときだけ読めます（位置情報を使います）。テイクアウトは、受け取りのときに自動で1個たまります。スタンプは1日${STAMP.perDay}個までです（初回登録の${STAMP.welcome.points}ポイントは別）。</p>
-      ${s.lineMovedAt || !STAMPS_ONLINE || !MEMBER_PLUS ? '' : `<button class="link-card line-card" data-act="lineMove"><span><b>${ICON.card}LINEのポイントカードをお持ちの方</b>
+      ${(s.lineMovedAt && !TEST_MEMBER) || !STAMPS_ONLINE || !MEMBER_PLUS ? '' : `<button class="link-card line-card" data-act="lineMove"><span><b>${ICON.card}LINEのポイントカードをお持ちの方</b>
         <span class="l-step"><i>1</i>お会計で、LINEのショップカードを見せる</span>
         <span class="l-step"><i>2</i>お店の人が見せるQRを、ここを押して読む</span>
         <em class="l-get">同じ数のポイントを引き継げます（1回だけ）</em>
@@ -1050,7 +1053,7 @@ function showStamped(r, title = 'スタンプがたまりました') {
         <div class="sc-bar" aria-hidden="true"><i style="--p:${Math.round((r.on - prevAt) / (next.at - prevAt) * 100)}%"></i></div>` : ''}
       ${r.got.map(g => `<p class="got-gift">${ICON.gift}特典「${esc(couponName(g))}」をもらいました</p>`).join('')}
       ${r.moved ? '<p class="hint">引き継いだ分のマスの特典は出ません（LINEでもらった特典と重ならないように）。既に獲得済みのLINEの特典は、ご利用いただけます。次の特典からは、ふつうにたまります。</p>' : ''}
-      ${title !== 'スタンプがたまりました' && !stampedToday() ? '<p class="hint">今日お店のQRを読むと、もう1ポイントたまります。</p>' : ''}
+      ${title !== 'スタンプがたまりました' && !stampDoneToday() ? '<p class="hint">今日お店のQRを読むと、もう1ポイントたまります。</p>' : ''}
       <button class="btn btn-main btn-block" data-s="close">閉じる</button>
     </div>`);
   sheetBody.onchange = null;
@@ -1071,7 +1074,7 @@ function showStamped(r, title = 'スタンプがたまりました') {
 function openCoupon(id) {
   const c = getStamps().coupons.find(x => x.id === id);
   if (!c || c.usedAt) return;
-  if (!canUseCoupon()) return toast(`特典は1日${STAMP.couponsPerDay}枚までです（今日はもう使いました）`, 'warn');
+  if (!couponOkToday()) return toast(`特典は1日${STAMP.couponsPerDay}枚までです（今日はもう使いました）`, 'warn');
   const opts = c.options || [c.title];
   openSheet(`
     <button class="sheet-x" data-s="close" aria-label="閉じる">×</button>
@@ -1093,7 +1096,7 @@ function openCoupon(id) {
     if (b.dataset.s !== 'use') return;
     const chose = opts.length > 1 ? $('input[name="cb-opt"]:checked', sheetBody)?.value : opts[0];
     if (!chose) return toast('どれにするか、選んでください', 'warn');
-    if (!canUseCoupon()) { closeSheet(); return toast(`特典は1日${STAMP.couponsPerDay}枚までです`, 'warn'); }
+    if (!couponOkToday()) { closeSheet(); return toast(`特典は1日${STAMP.couponsPerDay}枚までです`, 'warn'); }
     if (!confirm(`「${chose}」で、この特典を使用済みにします。よろしいですか？`)) return;
     const used = () => {
       closeSheet();
@@ -1246,13 +1249,16 @@ function viewMe() {
             <b class="o-total">${yen(o.total)}</b>
           </a></li>`;
       }).join('')}</ul>` : '<p class="hint">まだありません。</p>'}
-      ${STAMPS_ONLINE ? `<h2 class="sec">スマホを替えるとき</h2>
+      ${TEST_MEMBER ? `<h2 class="sec">テスト用アカウント</h2>
+      <p class="hint">バグる Owner から開いたときだけの、テスト用のアカウントです。スタンプ・特典・LINEの引き継ぎを0に戻して、最初から試せます（お名前は「テスト」のまま）。</p>
+      <button class="btn btn-sub btn-block danger" data-act="testReset">テストのアカウントを0に戻す</button>` : ''}
+      ${STAMPS_ONLINE && !TEST_MEMBER ? `<h2 class="sec">スマホを替えるとき</h2>
       <p class="hint">前のスマホで引き継ぎコードを出して、新しいスマホで入れると、スタンプと特典を続けて使えます。コードは24時間使えます。</p>
       <button class="btn btn-sub btn-block" data-act="memberCode">引き継ぎコードを出す</button>
       ${moveFields()}` : ''}
       ${privacyLink()}
       ${installRow()}
-      ${MEMBER_DELETE && (ME.registeredAt || memberAuth()) ? `<h2 class="sec">アカウントの削除</h2>
+      ${MEMBER_DELETE && !TEST_MEMBER && (ME.registeredAt || memberAuth()) ? `<h2 class="sec">アカウントの削除</h2>
       <p class="hint">会員情報・スタンプ・特典を消して、会員をやめられます。</p>
       <button class="btn btn-sub btn-block danger" data-act="memberDelete">アカウントを削除する</button>` : ''}
       ${DEV_HOST ? `<h2 class="sec">この試作版について</h2>
@@ -1342,6 +1348,83 @@ function openDeleteMember() {
   };
 }
 
+/* ---- テスト用アカウント（バグる Owner から開いたときだけ。スタンプ台帳の決めごと.md の15節） ---- */
+
+let testPinAsk = false;   // 覚えてある合言葉が無い・違ったときだけ、入れる欄を出す
+
+/** テスト用アカウントを作る画面。合言葉は、この端末に覚えてあれば入れなくてよい */
+function viewTestGate() {
+  return {
+    title: 'テスト用アカウント',
+    html: `
+      <div class="join-head"><img src="img/logo.png" alt=""><h2>テスト用アカウントで開きます</h2><p>バグる Owner から開いた公式アプリは、お客さまとは別の、テスト用のアカウントで動きます。</p></div>
+      <ul class="test-points">
+        <li>お店のQRのスタンプを、何度でも読めます（1日1個・お店にいるかの確かめをしません）</li>
+        <li>LINEの引き継ぎのQRも、何度でも読めます</li>
+        <li>特典は、1日に何枚でも使えます</li>
+        <li>マイページの「テストのアカウントを0に戻す」で、最初からやり直せます</li>
+      </ul>
+      <p class="notice warn">${ICON.bag}<span>テイクアウトの注文と席のご予約は、本物としてお店に届きます。</span></p>
+      ${testPinAsk || !storePin() ? '<label class="field"><span>お店の合言葉（予約ボードと同じ）</span><input id="test-pin" type="password" autocomplete="off"></label>' : ''}
+      <button class="btn btn-main btn-block" data-act="testMake">テスト用アカウントを作る</button>`,
+  };
+}
+
+function makeTestFrom(b) {
+  const typed = $('#test-pin')?.value.trim() || '';
+  const pin = typed || (testPinAsk ? '' : storePin());
+  if (!pin) return toast('合言葉を入れてください', 'warn');
+  b.disabled = true;
+  b.textContent = '作っています…';
+  makeTestMember(pin).then(() => {
+    lastStampTotal = getStamps().total;
+    render();
+    toast('テスト用アカウントを作りました', 'good');
+  }).catch(e => {
+    b.disabled = false;
+    b.textContent = 'テスト用アカウントを作る';
+    if (e.code === 'bad_pin' && !testPinAsk) { testPinAsk = true; render(true); }
+    toast(testMessage(e), 'warn');
+  });
+}
+
+/** マイページの「テストのアカウントを0に戻す」 */
+function openTestReset() {
+  const s = getStamps(), left = s.coupons.filter(c => !c.usedAt).length;
+  openSheet(`
+    <button class="sheet-x" data-s="close" aria-label="閉じる">×</button>
+    <div class="del-member">
+      <h2>テストのアカウントを0に戻しますか？</h2>
+      <ul>
+        <li>スタンプ ${s.total}個${left ? `と、使える特典 ${left}枚` : ''}が消えます</li>
+        <li>LINEの引き継ぎも、まだの形に戻ります</li>
+      </ul>
+      <p class="hint">会員番号とお名前（テスト）はそのままです。</p>
+      <button class="btn btn-main btn-block test-reset" data-s="go">0に戻す</button>
+      <button class="btn btn-sub btn-block" data-s="close">やめる</button>
+    </div>`);
+  sheetBody.onchange = null;
+  sheetBody.onclick = e => {
+    const b = e.target.closest('[data-s]');
+    if (!b) return;
+    if (b.dataset.s === 'close') return closeSheet();
+    if (b.dataset.s !== 'go' || b.disabled) return;
+    b.disabled = true;
+    b.textContent = '戻しています…';
+    resetTestMember().then(() => {
+      lastStampTotal = getStamps().total;
+      stampSeen = stampOnCard(getStamps().total);
+      closeSheet();
+      render(true);
+      toast('テストのアカウントを0に戻しました', 'good');
+    }).catch(e => {
+      b.disabled = false;
+      b.textContent = '0に戻す';
+      toast(testMessage(e), 'warn');
+    });
+  };
+}
+
 const ACTIONS = {
   item: id => openItem(id),
   cat: id => $('#cat-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
@@ -1422,6 +1505,8 @@ const ACTIONS = {
   contactEdit: () => openContact(),
   privacy: () => openPrivacy(),
   memberDelete: () => openDeleteMember(),
+  testMake: (_, el) => makeTestFrom(el),
+  testReset: () => openTestReset(),
   memberBack: () => {
     const name = $('#b-name').value.trim(), tel = toHalf($('#b-tel').value.trim());
     if (!name || !tel) return toast('お名前と電話番号を入れてください', 'warn');
@@ -1568,6 +1653,7 @@ if (stampParam) history.replaceState(null, '', location.pathname + '#stamp');
 // 戻り先は、バグる Owner が控えた sessionStorage の bg.owner（?test で開いたときは ?test 付き）
 const OWNER_HOME = 'https://t3dining.github.io/baguru-app/owner/';
 const OWNER_MODE = (() => { try { return sessionStorage.getItem('bg.fromOwner') === '1'; } catch (e) { return false; } })();
+if (TEST_MEMBER) { $('#testBand').hidden = false; document.body.classList.add('test-account'); }   // テスト用アカウントの帯（15節）
 if (OWNER_MODE && $('#ownerHome')) {
   $('#ownerHome').hidden = false;
   $('.top').classList.add('has-owner');   // 名前の字を少し小さくして、ボタンと並べても名前が切れないように
@@ -1604,4 +1690,4 @@ else {
   syncContent();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) syncContent(); });
 }
-if (stampParam && !needInstall() && !needJoin()) claimStamp(stampParam);
+if (stampParam && !needInstall() && !needTest() && !needJoin()) claimStamp(stampParam);

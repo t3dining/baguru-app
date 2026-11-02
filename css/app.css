@@ -90,6 +90,14 @@ small { font-size: 12px; }
 .owner-home { flex: none; height: 32px; padding: 0 11px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .35); background: rgba(255, 255, 255, .08); color: #fff; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
 .owner-home[hidden] { display: none; }
 .top.has-owner h1 { font-size: 15px; letter-spacing: .02em; }
+/* テスト用アカウント（バグる Owner から開いたときだけ。スタンプ台帳の決めごと.md の15節）。上の帯のすぐ下に、黄色の帯を出す */
+.test-band { position: absolute; left: 0; right: 0; top: 100%; margin: 0; height: 22px; display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: #f5c400; color: #1f1916; font-size: 12px; font-weight: 900; letter-spacing: .06em; box-shadow: 0 2px 6px rgba(10, 8, 7, .25); }
+.test-band small { font-size: 10.5px; font-weight: 700; opacity: .7; letter-spacing: 0; }
+.test-band[hidden] { display: none; }
+body.test-account main { padding-top: 22px; }
+.test-points { margin: 14px 0 12px; padding-left: 1.2em; font-size: 14px; line-height: 1.7; }
+.test-reset { background: var(--red); margin-bottom: 8px; }
 .owner-home:active { background: rgba(255, 255, 255, .2); }
 #back[hidden] + h1 { padding-left: 8px; }
 .top-btn { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 50%; position: relative; }

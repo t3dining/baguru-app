@@ -11,6 +11,8 @@
     var owner = /[?&]from=owner\b/.test(location.search);
     try { owner = owner || sessionStorage.getItem('bg.fromOwner') === '1'; } catch (e) {}
     if (!owner) return;
+    // テスト用アカウントの印（js/db.js が保存の箱を替える。マネージの「アプリで見る」の中では付けない）
+    window.OWNER_TEST = !(window.parent !== window && /[?&]preview\b/.test(location.search));
     var v = document.querySelector('meta[name="viewport"]');
     v.setAttribute('content', v.getAttribute('content').replace(/,\s*viewport-fit=cover/, ''));
     addEventListener('pageshow', function (e) { if (!e.persisted) scrollTo(0, 0); });   // 切り替えたときのずれが残らないように
@@ -28,7 +30,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
-<link rel="stylesheet" href="css/app.css?v=564666bb">
+<link rel="stylesheet" href="css/app.css?v=a7a63c41">
 </head>
 <body>
 <div class="app">
@@ -37,6 +39,7 @@
     <h1 id="title"></h1>
     <button id="ownerHome" class="owner-home" hidden>🏠 ホーム</button>   <!-- バグる Owner から開いたときだけ出す（app.js の OWNER_MODE） -->
     <a id="cartBtn" class="top-btn cart-btn" href="#cart" aria-label="カート" data-icon="cart"><span class="badge" hidden></span></a>
+    <p id="testBand" class="test-band" hidden>テスト用アカウント<small>Owner から開いたときだけ</small></p>   <!-- app.js の TEST_MEMBER -->
   </header>
 
   <main id="view"></main>
@@ -57,17 +60,17 @@
 </div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<script src="js/data.js?v=e428c49e"></script>
-<script src="js/db.js?v=feb3337d"></script>
+<script src="js/data.js?v=a7b50f6d"></script>
+<script src="js/db.js?v=97e9d111"></script>
 <script src="js/common.js?v=22a285af"></script>
 <script src="js/content.js?v=b4609d7d"></script>   <!-- バグるマネージで直した中身を重ねる -->
 <script src="js/install.js?v=885d992f"></script>
-<script src="js/stamp-qr.js?v=3cd71131"></script>
+<script src="js/stamp-qr.js?v=3a069d97"></script>
 <script src="js/fx.js?v=24d62bd3"></script>
 <script src="js/order-api.js?v=fee737e5"></script>
-<script src="js/stamp-api.js?v=631f5991"></script>
+<script src="js/stamp-api.js?v=699cfe0a"></script>
 <script src="js/privacy.js?v=dd39884d"></script>
 <script src="js/reserve.js?v=17e6ed85"></script>
-<script src="js/app.js?v=b38ce1b7"></script>
+<script src="js/app.js?v=b2968c4d"></script>
 </body>
 </html>
