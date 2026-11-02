@@ -9,6 +9,7 @@
 const LOCAL_TEST = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) && /[?&]test\b/.test(location.search);
 const STAMPS_ONLINE = !!STAMP.online || LOCAL_TEST;
 const MEMBER_PLUS = !!STAMP.memberPlus || LOCAL_TEST;
+const MEMBER_DELETE = !!STAMP.memberDelete || LOCAL_TEST;
 
 const STAMP_MSG = {
   bad_member: 'この端末の会員の情報が使えなくなりました。もう一度お試しください',
@@ -102,6 +103,15 @@ async function backMember(name, tel) {
   const r = await orderPost({ action: 'memberBack', name, tel, rid: randomRid('b') });
   DB.set('memberAuth', { no: r.member, key: r.key });
   keepState(r.state);
+}
+
+/** アカウントを削除する（2026-11-02 ko-dai さんの指示。スタンプ台帳の決めごと.md の14節）。
+ *  受け口の会員・スタンプ・特典を全部消してから、この端末の保存も全部消す（注文・予約の記録はお店の台帳に残る）。
+ *  鍵がもう使えない（bad_member）ときは、受け口に会員がいないので、端末だけ消す */
+async function deleteMember() {
+  const a = memberAuth();
+  if (a && STAMPS_ONLINE) await orderPost({ action: 'memberDelete', member: a.no, key: a.key }).catch(e => { if (e.code !== 'bad_member') throw e; });
+  DB.clearAll();
 }
 
 /** 新しいスマホで、前のスマホの続きを使う（鍵が新しくなり、前のスマホでは使えなくなる） */

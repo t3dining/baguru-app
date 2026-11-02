@@ -130,6 +130,13 @@ main { padding: 0 16px; }
 .btn-main:disabled { background: #d9cfc6; color: #fff; cursor: default; }
 .btn-sub { background: var(--paper); border: 1.5px solid var(--line); color: var(--coal); }
 .btn-sub.danger { color: var(--red); }
+/* アカウントの削除（2026-11-02） */
+.del-member h2 { margin: 30px 0 8px; font-size: 20px; }
+.del-member ul { margin: 8px 0 10px; padding-left: 1.2em; font-weight: 700; line-height: 1.6; }
+.del-ok { display: flex; align-items: center; gap: 10px; margin: 14px 0; padding: 12px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--paper); font-weight: 700; font-size: 14px; }
+.del-ok input { width: 20px; height: 20px; margin: 0; flex: none; accent-color: var(--red); }
+.del-member .del-go { background: var(--red); margin-bottom: 8px; }
+.del-member .del-go:disabled { opacity: .4; }
 .btn-small { height: 34px; padding: 0 16px; font-size: 13px; background: var(--coal); color: #fff; border-radius: 999px; font-weight: 700; }
 .btn-block { display: flex; width: 100%; }
 .foot {

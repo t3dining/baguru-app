@@ -1251,6 +1251,9 @@ function viewMe() {
       ${moveFields()}` : ''}
       ${privacyLink()}
       ${installRow()}
+      ${MEMBER_DELETE && (ME.registeredAt || memberAuth()) ? `<h2 class="sec">アカウントの削除</h2>
+      <p class="hint">会員情報・スタンプ・特典を消して、会員をやめられます。</p>
+      <button class="btn btn-sub btn-block danger" data-act="memberDelete">アカウントを削除する</button>` : ''}
       ${DEV_HOST ? `<h2 class="sec">この試作版について</h2>
       <div class="about">
         <p>この Mac で試すときだけ出ます（公開先には出ません）。</p>
@@ -1297,6 +1300,46 @@ function toast(text, kind = '') {
 /* ---------------------------------------------------------------------
  *  ボタン
  * --------------------------------------------------------------------- */
+
+/** マイページの「アカウントを削除する」（2026-11-02 ko-dai さんの指示。スタンプ台帳の決めごと.md の14節）。
+ *  消えるものを見せて、確かめてから消す。受け取り前の注文やこれからの予約があるあいだは消さない（この端末で様子を見られなくなるため） */
+function openDeleteMember() {
+  const busy = myOrders().some(o => ACTIVE.includes(o.status)) || DB.get('reserves', []).some(r => rsvAhead(r) && ['request', 'ok'].includes(r.state || 'request'));
+  if (busy) return toast('受け取り前の注文や、これからのご予約があるあいだは削除できません。済んでから、もう一度お試しください', 'warn');
+  const s = getStamps(), left = s.coupons.filter(c => !c.usedAt).length;
+  openSheet(`
+    <button class="sheet-x" data-s="close" aria-label="閉じる">×</button>
+    <div class="del-member">
+      <h2>アカウントを削除しますか？</h2>
+      <p>次のものが消えます。<b>元に戻せません。</b></p>
+      <ul>
+        <li>会員番号 ${esc(ME.no)} と、お名前・電話番号などの会員情報</li>
+        <li>スタンプ ${s.total}個${left ? `と、使える特典 ${left}枚` : ''}</li>
+      </ul>
+      <p class="hint">テイクアウトの注文と席のご予約の記録は、お店の記録として残ります。消したいときは、お店にお電話ください。</p>
+      <label class="del-ok"><input type="checkbox" data-s="agree">スタンプと特典がなくなることを確かめました</label>
+      <button class="btn btn-main btn-block del-go" data-s="go" disabled>削除する</button>
+      <button class="btn btn-sub btn-block" data-s="close">やめる</button>
+    </div>`);
+  sheetBody.onchange = e => { if (e.target.dataset.s === 'agree') $('[data-s="go"]', sheetBody).disabled = !e.target.checked; };
+  sheetBody.onclick = e => {
+    const b = e.target.closest('[data-s]');
+    if (!b || b.dataset.s === 'agree') return;
+    if (b.dataset.s === 'close') return closeSheet();
+    if (b.dataset.s !== 'go' || b.disabled) return;
+    b.disabled = true;
+    b.textContent = '削除しています…';
+    deleteMember().then(() => {
+      try { sessionStorage.setItem('bg.deleted', '1'); } catch (e) { /* 知らせが出ないだけ */ }
+      location.hash = '#home';
+      location.reload();
+    }).catch(e => {
+      b.disabled = false;
+      b.textContent = '削除する';
+      toast(stampMessage(e), 'warn');
+    });
+  };
+}
 
 const ACTIONS = {
   item: id => openItem(id),
@@ -1377,6 +1420,7 @@ const ACTIONS = {
   },
   contactEdit: () => openContact(),
   privacy: () => openPrivacy(),
+  memberDelete: () => openDeleteMember(),
   memberBack: () => {
     const name = $('#b-name').value.trim(), tel = toHalf($('#b-tel').value.trim());
     if (!name || !tel) return toast('お名前と電話番号を入れてください', 'warn');
@@ -1397,7 +1441,7 @@ const ACTIONS = {
 };
 
 // バグるマネージの「アプリで見る」の中では、注文・スタンプ・特典・登録など、動かすと本物に残るものは止める（js/content.js の PREVIEW）
-const PREVIEW_STOP = new Set(['submit', 'request', 'cancel', 'stamp', 'lineMove', 'coupon', 'register', 'reset', 'install-guide', 'memberCode', 'memberTake', 'memberBack']);
+const PREVIEW_STOP = new Set(['submit', 'request', 'cancel', 'stamp', 'lineMove', 'coupon', 'register', 'reset', 'install-guide', 'memberCode', 'memberTake', 'memberBack', 'memberDelete']);
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
   if (!el) return;
@@ -1547,6 +1591,9 @@ FX.parallax();
 FX.ripples();
 render();
 startTexts();   // バグるマネージで直した文章に置きかえる（js/content.js）
+try {   // アカウントを削除して開き直したとき
+  if (sessionStorage.getItem('bg.deleted')) { sessionStorage.removeItem('bg.deleted'); setTimeout(() => toast('アカウントを削除しました', 'good'), 400); }
+} catch (e) { /* 何もしない */ }
 syncDays();
 if (PREVIEW) setTimeout(previewFocus, 700);   // バグるマネージの「アプリで見る」。画面が出そろってから、確かめている文へ
 else {
