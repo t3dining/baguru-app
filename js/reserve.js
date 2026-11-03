@@ -105,10 +105,18 @@ function readAvail() {
     .then(a => { DB.set('avail', { a, got: Date.now() }); return a; })
     .finally(() => { availReq = null; });
 }
-/** 控えを画面に出す形に（日をまたいでいたら、今日より前の日は外す） */
+/** 控えを画面に出す形に（日をまたいでいたら、今日より前の日は外す）。
+ *  読んだあとに締め切り（来店の何時間前まで）を過ぎた枠は、受け口と同じ数え方で late にし直す。
+ *  leadHours は受け口の版 2026-11-03a から返る。無ければ、締め切りは付け直さない */
 function availCopy(c) {
-  const today = dateKey(new Date());
-  return { ...c.a, days: c.a.days.filter(d => d.date >= today) };
+  const now = new Date(), today = dateKey(now), nowMin = now.getHours() * 60 + now.getMinutes();
+  const lead = Number(c.a.leadHours), days = c.a.days.filter(d => d.date >= today);
+  if (!(c.a.leadHours !== undefined && lead >= 0)) return { ...c.a, days };
+  const min = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+  return { ...c.a, days: days.map(d => {
+    const ahead = Math.round((ymdDate(d.date) - ymdDate(today)) / 864e5) * 1440 - nowMin;
+    return { ...d, slots: d.slots.map(s => s.late || ahead + min(s.t) >= lead * 60 ? s : { ...s, late: true, left: 0 }) };
+  }) };
 }
 /** ネット予約へのリンクがある画面を開いたとき、空き状況を裏で先に読んでおく（app.js の render から） */
 function availAhead() {
