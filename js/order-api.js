@@ -34,10 +34,10 @@ const ORDER_MSG = {
 };
 const orderMessage = e => ORDER_MSG[e.code] || ORDER_MSG.no_answer;
 
-/** 予約ボードの公開先から、受け口の場所（config.js）と、やりとりの道具（api.js）を読む（ネット予約と同じもの） */
+/** 予約ボードの公開先から、受け口の場所（config.js）と、やりとりの道具（api.js）を読む（ネット予約と同じもの）。
+ *  2つは同時に読む（api.js は送るときに BAGURU を見るので、読む順は関係ない。2026-11-03 に、順に読むのをやめた） */
 function baguruLib() {
-  return loadScript({ src: SHOP.reserveBase + 'config.js', integrity: '' })
-    .then(() => loadScript({ src: SHOP.reserveBase + 'api.js', integrity: '' }))
+  return Promise.all(['config.js', 'api.js'].map(f => loadScript({ src: SHOP.reserveBase + f, integrity: '' })))
     .then(() => { if (!window.BaguruApi?.ready()) throw Object.assign(new Error('not_ready'), { code: 'not_ready' }); });
 }
 const orderPost = payload => baguruLib().then(() => BaguruApi.post(payload));

@@ -75,6 +75,7 @@ function render(keepScroll = false) {
   view.classList.remove('enter');
   if (!keepScroll) { void view.offsetWidth; view.classList.add('enter'); }
   v.after?.();   // 描いたあとに動かすもの（ネット予約の空き状況・演出）
+  if (!keepScroll && view.querySelector('a[href="#reserve"]')) availAhead();   // ネット予約へのリンクがある画面では、空き状況を裏で先に読む（reserve.js）
   if (!keepScroll) FX.reveal(view);   // スクロールで順に出す（js/fx.js。1分ごとの描き直しでは動かさない）
   view.dataset.route = name || 'home';     // ヨコ画面のとき、メニューだけ横に広げる（app.css の最後）
   $$('.tabs a').forEach(a => a.classList.toggle('on', a.dataset.tab === v.tab));

@@ -41,7 +41,7 @@ const toKatakana = s => s.normalize('NFKC').replace(/[\u3041-\u3096]/g, c => Str
 /** 「苗字 名前」を2つに分ける（マイページの控えから入れるとき。分けられなければ、全部を前の欄に） */
 const twoParts = s => { const [a = '', ...b] = String(s || '').trim().split(/\s+/); return [a, b.join('')]; };
 
-let rsv = { avail: null, people: 0, date: '', time: '', month: '', v: null, rid: '', step: 'form', done: null, err: '', busy: false };   // month：カレンダーで見せている月（'2026-10'）
+let rsv = { avail: null, people: 0, date: '', time: '', month: '', v: null, rid: '', step: 'form', done: null, err: '', busy: false, checking: false };   // month：カレンダーで見せている月（'2026-10'）。checking：前に読んだ分を出して、裏で読み直している
 
 function rsvMessage(e) {
   const d = e.data || {};
@@ -71,11 +71,73 @@ function rsvStart() {
   box.onclick = rsvClick;
   if (rsv.step !== 'form') return rsvDraw();
   rsv.err = '';
-  baguruLib()
-    .then(() => BaguruApi.post({ action: 'avail' }))
+  const c = availNow(), age = c ? Date.now() - c.got : Infinity;
+  if (age < AVAIL_SHOW) {   // 前に読んだ分をすぐ出し、1分より前の分なら裏で読み直す
+    rsv.avail = availCopy(c);
+    rsvDropUnfit();
+    rsv.checking = age >= AVAIL_FRESH;
+    rsvDraw();
+    if (rsv.checking) readAvail().then(rsvFresh, () => rsvFresh(null));
+    return;
+  }
+  rsv.checking = false;
+  readAvail()
     .then(a => { rsv.avail = a; rsvDropUnfit(); })
     .catch(e => { rsv.avail = null; rsv.err = rsvMessage(e); })
     .then(rsvDraw);
+}
+
+/* ---------- 空き状況を先に読む・端末に控える（2026-11-03 ko-dai さんの指示：「空き状況の確認の時間を短縮」） ----------
+ *  受け口の avail は1回3〜4秒かかる（ほとんどが受け口の中の計算。2026-11-03 に本物で測った。受け口を呼ぶだけで約1.4秒）。そこで
+ *  ・読んだ空き状況を端末に控える（DB 'avail'：{ a, got }）。予約の画面を開いたとき、30分以内に読んだ分ならすぐ出し、
+ *    裏で読み直して、日にちと時間だけを描き直す（入れている途中のお名前などは消さない）
+ *  ・ネット予約へのリンクがある画面（ホーム・お店の情報）を開いたら、裏で先に読んでおく（同じ端末から5分に1回まで。app.js の render が availAhead を呼ぶ）
+ *  ・★控えは目安。送ったときに受け口が確かめるので、埋まっていれば full が返り、読み直して選び直してもらう（rsvSend）
+ */
+const AVAIL_SHOW = 30 * 60e3, AVAIL_FRESH = 60e3, AVAIL_AHEAD = 5 * 60e3;
+let availReq = null, aheadT = 0;   // availReq：読んでいる途中の avail（同じ時に2回読まない）
+const availNow = () => DB.get('avail', null);
+const dropAvail = () => DB.set('avail', null);
+/** 受け口から読み、端末に控える */
+function readAvail() {
+  return availReq ??= baguruLib()
+    .then(() => BaguruApi.post({ action: 'avail' }))
+    .then(a => { DB.set('avail', { a, got: Date.now() }); return a; })
+    .finally(() => { availReq = null; });
+}
+/** 控えを画面に出す形に（日をまたいでいたら、今日より前の日は外す） */
+function availCopy(c) {
+  const today = dateKey(new Date());
+  return { ...c.a, days: c.a.days.filter(d => d.date >= today) };
+}
+/** ネット予約へのリンクがある画面を開いたとき、空き状況を裏で先に読んでおく（app.js の render から） */
+function availAhead() {
+  if (PREVIEW || !navigator.onLine) return;
+  const stale = () => { const c = availNow(); return !c || Date.now() - c.got >= AVAIL_AHEAD; };
+  if (!stale()) return;
+  clearTimeout(aheadT);
+  // 開いた直後のほかの読み込み（注文・スタンプなど）と重ならないよう、少し待ってから
+  aheadT = setTimeout(() => { if (!document.hidden && stale()) readAvail().catch(() => {}); }, 1500);
+}
+/** 裏で読み直した空き状況で描き直す。読めなかったときは、控えのまま（送るときに受け口が確かめる） */
+function rsvFresh(a) {
+  rsv.checking = false;
+  const note = $('#r-checking');
+  if (!a) { if (note) note.textContent = '最新の空き状況を読めませんでした（少し前の空き状況です）。送るときに、空いているかを確かめます。'; return; }
+  const was = rsv.avail, date = rsv.date, time = rsv.time;
+  rsv.avail = a;
+  if (rsv.step !== 'form') return;   // 確認の画面では、送ったときに受け口が確かめる
+  if (rsv.people > a.maxPeople) rsv.people = 0;
+  rsvDropUnfit();
+  if (!$('#r-days') || !was || a.accepting !== was.accepting || a.maxPeople !== was.maxPeople) {
+    if ($('#r-tel')) rsv.v = rsvValues();   // 全部を描き直すときも、入れている途中のものは残す
+    return rsvDraw();
+  }
+  note?.remove();
+  $('#r-days').innerHTML = rsvDaysHtml();
+  $('#r-times').innerHTML = rsvTimesHtml();
+  const lost = date && !rsv.date ? '日' : time && !rsv.time ? '時間' : '';
+  if (lost) toast(`選んでいた${lost}は、いま空きがなくなりました。選び直してください`, 'warn');
 }
 
 /* ---------- 空き状況（ホームページのフォームと同じ見方） ---------- */
@@ -155,6 +217,7 @@ function rsvDraw() {
     <div class="r-people">${Array.from({ length: max }, (_, i) => `<label class="r-chip"><input type="radio" name="r-people" value="${i + 1}" ${rsv.people === i + 1 ? 'checked' : ''}><span>${i + 1}名</span></label>`).join('')}</div>
     <p class="hint">${max + 1}名以上のご予約は、お電話でお受けします。</p>
     <h2 class="sec">日にち</h2>
+    ${rsv.checking ? '<p class="hint r-checking" id="r-checking">最新の空き状況を確かめています…</p>' : ''}
     <div id="r-days">${rsvDaysHtml()}</div>
     <h2 class="sec">時間</h2>
     <div id="r-times">${rsvTimesHtml()}</div>
@@ -335,6 +398,7 @@ function rsvSend() {
       Object.assign(ME, { name: rsv.v.name, tel: rsv.v.tel, email: rsv.v.email, ...(rsv.v.kana ? { kana: rsv.v.kana } : {}) });
       DB.set('member', ME);
       rsv = { ...rsv, step: 'done', done: r, v: null, people: 0, date: '', time: '', month: '', busy: false, avail: null };
+      dropAvail();   // 自分の予約で空きが変わったので、控えは使わない
       rsvDraw();
       window.scrollTo(0, 0);
     })
@@ -344,6 +408,7 @@ function rsvSend() {
         // 枠が埋まったときは、空き状況を読み直して、時間を選び直してもらう
         rsv.time = '';
         rsv.step = 'form';
+        dropAvail();   // 控えは古いので、読み終わるまで待ってもらう
         $('#rsv').innerHTML = '<p class="hint">空き状況を読み込んでいます…</p>';
         rsvStart();
         return toast(rsvMessage(e), 'warn');
