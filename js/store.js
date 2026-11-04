@@ -16,7 +16,7 @@
 
 const NEXT = {
   new:      { to: 'accepted', label: '受け付ける' },
-  accepted: { to: 'ready',    label: '調理完了' },   // 2026-11-02 ko-dai さんの指示（前は「できあがり」。行き先の列の名前は「できあがり・お渡し待ち」のまま）
+  accepted: { to: 'ready',    label: '調理完了' },   // 2026-11-02 ko-dai さんの指示（前は「できあがり」）。行き先の列の名前も 2026-11-04 に「調理完了・お渡し待ち」へ
   ready:    { to: 'done',     label: 'お渡し済み' },
 };
 const BACK = { accepted: 'new', ready: 'accepted', done: 'ready' };
