@@ -472,6 +472,7 @@ function render() {
   const all = list();
   const today = dateKey(new Date());
   checkCook(all);
+  ringCancel();
   const byTime = (a, b) => a.pickupAt.localeCompare(b.pickupAt);
   for (const col of $$('.col')) {
     const items = all.filter(o => o.status === col.dataset.col && !isBooked(o)).sort(byTime);
@@ -504,6 +505,18 @@ function render() {
   paintNet();
 }
 
+/** お客様の取り消しの音を鳴らす。音を出せないあいだ（「画面をタッチ」の前・スリープから戻った直後など）に来た分は、出せるようになったら鳴らす。
+ *  10分より前の分は鳴らさない（調理開始の音と同じ考え。2026-11-05 の Codex のレビュー） */
+let cancelDue = 0;   // 鳴らしていない取り消しが来た時刻
+function ringCancel() {
+  if (!cancelDue) return;
+  if (!soundOn || Date.now() - cancelDue > 600000) { cancelDue = 0; return; }
+  if (audio?.state !== 'running') return;
+  cancelDue = 0;
+  quietUntil = Date.now() + CANCEL_RINGS * RING_EVERY - 100;   // ほかの受付待ちの音は、取り消しの音が終わるまで休む
+  for (let i = 0; i < CANCEL_RINGS; i++) setTimeout(() => beep(cancelChime, 330), i * RING_EVERY);
+}
+
 function checkNew() {
   const all = list();
   if (!known) { known = new Map(all.map(o => [o.id, o.status])); return; }   // 受け口から、はじめて読めたとき
@@ -516,10 +529,7 @@ function checkNew() {
   // お客様が取り消したら、取り消しとわかる音を鳴らす（2026-11-04 ko-dai さんの指示）。お客様が取り消せるのは、受付待ち・申請のあいだだけ（受け口の orderCancel_）。
   // お店で取り消した（canceledBy が「お店」）ときは鳴らさない。閉じているあいだに取り消された分も鳴らさない（新しい注文と同じ）
   const gone = all.filter(o => o.status === 'canceled' && o.canceledBy === 'お客様' && ['new', 'request'].includes(known.get(o.id)));
-  if (gone.length && soundOn) {
-    quietUntil = Date.now() + CANCEL_RINGS * RING_EVERY - 100;   // ほかの受付待ちの音は、取り消しの音が終わるまで休む
-    for (let i = 0; i < CANCEL_RINGS; i++) setTimeout(() => beep(cancelChime, 330), i * RING_EVERY);
-  }
+  if (gone.length) { cancelDue = Date.now(); ringCancel(); }
   known = new Map(all.map(o => [o.id, o.status]));
 }
 
@@ -569,12 +579,11 @@ function paintTime() {
   $('#tAt').textContent = hhmm(at);
   $('#tLeft').textContent = untilText(at.toISOString());
   // 過ぎた時刻・明日にはできない
-  $$('#tBtns [data-min]').forEach(b => {
-    const next = new Date(timing.at + Number(b.dataset.min) * 60000);
-    b.disabled = next <= new Date() || dateKey(next) !== dateKey(new Date());
-  });
-  $('#tOk').disabled = timing.at === timing.from;
+  $$('#tBtns [data-min]').forEach(b => { b.disabled = !timeOk(timing.at + Number(b.dataset.min) * 60000); });
+  $('#tOk').disabled = timing.at === timing.from || !timeOk(timing.at);
 }
+/** 動かした先の時刻にしてよいか（過ぎていない・今日のうち）。23:57 ごろに開くと、初めの5分きざみが翌日の 0:00 になるので、保存の前にも見る（2026-11-05 の Codex のレビュー） */
+const timeOk = ms => ms > Date.now() && dateKey(new Date(ms)) === dateKey(new Date());
 
 // ★?. は、公開の直後に古い order.html（最大10分）と新しいこの js が組み合わさっても、ここで止まって注文を読まなくならないように
 $('#tBtns')?.addEventListener('click', e => {
@@ -587,6 +596,7 @@ $('#tBtns')?.addEventListener('click', e => {
 $('#tOk')?.addEventListener('click', async () => {
   const o = list().find(x => x.id === timing?.id);
   if (!o || !canAdjust(o)) { $('#timeDlg').close(); return alert('この注文は、もう先に進んでいます。時間は変えられません。'); }
+  if (!timeOk(timing.at)) { paintTime(); return alert('この時刻は、もう過ぎたか、明日になっています。時間を選び直してください。'); }   // 窓を開いたまま時間がたったとき
   $('#tOk').disabled = true;
   // expect は窓を開いたときの値で送る。開いているあいだにほかの端末が変えていたら、黙って上書きしない
   const ok = await change({ ...o, updatedAt: timing.updatedAt }, { pickupAt: new Date(timing.at).toISOString() });
