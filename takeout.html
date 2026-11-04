@@ -2,8 +2,23 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="bg-version" content="4bc6f664">
+<meta name="bg-version" content="921f5b0d">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script>
+  /* バグる Owner から開いたとき（?from=owner、またはこのタブの sessionStorage の bg.fromOwner）だけ、index.html と同じにする
+     （2026-11-04 ko-dai さんの指示：「ホームページからテイクアウトのモバイルオーダーまで飛ぶと、ホームボタンが消える・テストアカウントにならない」。
+     Owner → ホームページ → 「モバイルオーダーで注文」で、この画面に来るため）。★index.html の最初の <script> と同じ中身。変えるときは両方を直す */
+  (function () {
+    var owner = /[?&]from=owner\b/.test(location.search);
+    try { owner = owner || sessionStorage.getItem('bg.fromOwner') === '1'; } catch (e) {}
+    if (!owner) return;
+    // テスト用アカウントの印（js/db.js が保存の箱を替える。マネージの「アプリで見る」の中では付けない）
+    window.OWNER_TEST = !(window.parent !== window && /[?&]preview\b/.test(location.search));
+    var v = document.querySelector('meta[name="viewport"]');
+    v.setAttribute('content', v.getAttribute('content').replace(/,\s*viewport-fit=cover/, ''));
+    addEventListener('pageshow', function (e) { if (!e.persisted) scrollTo(0, 0); });   // 切り替えたときのずれが残らないように
+  })();
+</script>
 <meta name="robots" content="noindex, nofollow">   <!-- 試作のあいだは検索に出さない（2026-10-29 決定。本番で外す） -->
 <meta name="theme-color" content="#1f1916">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -25,7 +40,9 @@
   <header class="top">
     <button id="back" class="top-btn" hidden aria-label="戻る" data-icon="back"></button>
     <h1 id="title"></h1>
+    <button id="ownerHome" class="owner-home" hidden>🏠 ホーム</button>   <!-- バグる Owner から開いたときだけ出す（app.js の OWNER_MODE。2026-11-04 からこの画面にも） -->
     <a id="cartBtn" class="top-btn cart-btn" href="#cart" aria-label="カート" data-icon="cart"><span class="badge" hidden></span></a>
+    <p id="testBand" class="test-band" hidden>テスト用アカウント<small>Owner から開いたときだけ</small></p>   <!-- app.js の TEST_MEMBER -->
   </header>
 
   <main id="view"></main>
@@ -51,6 +68,6 @@
 <script src="js/privacy.js?v=fa10d97a"></script>
 <script src="js/reserve.js?v=b0d084e9"></script>
 <script>window.ORDER_ONLY = true;</script>
-<script src="js/app.js?v=80e77d37"></script>
+<script src="js/app.js?v=68e82c0c"></script>
 </body>
 </html>

@@ -68,7 +68,8 @@ function render(keepScroll = false) {
   if (name === 'install' && !needInstall()) name = '';
   if (name === 'test' && !needTest()) name = '';
   if (name === 'join' && !needJoin() && !PREVIEW) name = '';   // 登録が済んだら、開こうとしていた画面へ
-  if (ORDER_ONLY && !needJoin() && !ORDER_ROUTES.includes(name)) { history.replaceState(null, '', '#menu'); name = 'menu'; arg = ''; }
+  // 注文だけの画面は、注文の画面だけ。登録とテスト用アカウントの入口（バグる Owner から開いたとき。2026-11-04）は、そのまま出す
+  if (ORDER_ONLY && !needJoin() && !needTest() && !ORDER_ROUTES.includes(name)) { history.replaceState(null, '', '#menu'); name = 'menu'; arg = ''; }
   document.body.classList.toggle('joining', needInstall() || needTest() || needJoin());   // 下のタブとカートを隠す（app.css）
   const v = (ROUTES[name] || viewHome)(arg && decodeURIComponent(arg));
   if (!v) return;
