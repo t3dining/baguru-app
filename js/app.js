@@ -1454,6 +1454,7 @@ function makeTestFrom(b) {
     b.disabled = false;
     b.textContent = 'テスト用アカウントを作る';
     if (e.code === 'bad_pin' && !testPinAsk) { testPinAsk = true; render(true); }
+    console.warn('テスト用アカウントを作れませんでした', e.code, e.message, e.data);   // パソコンでは開発ツールでも見られる
     toast(testMessage(e), 'warn');
   });
 }

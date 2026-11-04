@@ -140,7 +140,14 @@ const TEST_MSG = {
   not_test: 'この会員はテスト用ではありません。',
   unknown_action: '受け口がまだテスト用アカウントに対応していません。',
 };
-const testMessage = e => TEST_MSG[e.code] || stampMessage(e);
+/** テスト用アカウントの知らせ。お店の人だけが見る画面なので、知らない答えのときは、受け口の答え（エラーの名前・文）もそのまま添える
+ *  （2026-11-04 ko-dai さんの報告：パソコンの Owner から作ろうとすると「つながりませんでした」と出る。受け口の中のエラーも、アプリには同じ字に見えていたため） */
+const testMessage = e => {
+  const known = TEST_MSG[e.code] || STAMP_MSG[e.code] || (!['no_answer', 'offline'].includes(e.code) && ORDER_MSG[e.code]);
+  if (known) return known;
+  const why = String(e.code || e.message || '').slice(0, 80);   // offline：届かなかった・no_answer：答えが読めなかった・それ以外：受け口の中のエラー
+  return `${e.code === 'offline' ? ORDER_MSG.offline : ORDER_MSG.no_answer}${why ? `（受け口の答え：${why}）` : ''}`;
+};
 
 /** テスト用の会員を作る（お店の action。合言葉が要る）。お名前「テスト」、登録済みとして返る */
 async function makeTestMember(pin) {
