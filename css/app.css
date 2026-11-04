@@ -855,6 +855,9 @@ button.link-card { width: 100%; text-align: left; }
  *  ネット予約（js/reserve.js）
  * --------------------------------------------------------------------- */
 .r-people, .r-row { display: flex; flex-wrap: wrap; gap: 6px; }
+/* 人数は、1行に5個ずつ同じ幅で並べる（15名まで＝横5×縦3。2けたの人数でも並びが崩れないように。2026-11-04 ko-dai さんの指示） */
+.r-people { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.r-people .r-chip span { display: flex; width: 100%; min-width: 0; padding: 9px 2px; white-space: nowrap; }
 .r-chip { position: relative; }
 .r-chip input, .r-day input { position: absolute; opacity: 0; pointer-events: none; }
 .r-chip span { display: inline-flex; align-items: center; gap: 4px; min-width: 54px; justify-content: center; padding: 9px 12px; border-radius: 12px; background: var(--paper); border: 1.5px solid var(--line); font-weight: 700; }

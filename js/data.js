@@ -57,6 +57,9 @@ const SHOP = {
   reserveBase: 'https://t3dining.github.io/baguru-yoyaku/',
   // ネット予約のお名前を4欄（苗字・名前・セイ・メイ）にする（2026-11-01 ko-dai さんの指示。予約ボードのセッションから）。受け口の版 2026-11-01e から
   reserveKana: true,
+  // バグるマネージの「写真」のタブ（2026-11-04 ko-dai さんの指示）。受け口の savePhoto（写真を Google ドライブに置く口）を使う。
+  // 受け口の版 2026-11-04b が本物に入った（2026-11-04。setup とドライブの許可も済み）ので true にした
+  photoEdit: true,
   hero: 'img/menu/arabiki1.jpg',
   shopPhoto: 'img/menu/teppan1.jpg',
 };

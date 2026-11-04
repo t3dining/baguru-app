@@ -151,7 +151,7 @@ const cartTotal = () => cart.map(cartLine).reduce((s, l) => s + l.unit * l.qty, 
 const cartMeals = () => mealCount(cart);
 
 const photo = (i, cls = 'thumb') => i.img
-  ? `<img class="${cls}${i.cut ? ' cut' : ''}" src="img/menu/${i.img}" alt="" loading="lazy">`
+  ? `<img class="${cls}${i.cut ? ' cut' : ''}" src="${esc(photoSrc(i.img))}" alt="" loading="lazy">`
   : `<span class="${cls} noimg"><img src="img/logo.png" alt=""></span>`;
 
 function linesHtml(lines, total) {
@@ -174,7 +174,7 @@ function viewHome() {
     tab: 'home',
     html: `
       <section class="hero">
-        <img src="${SHOP.hero}" alt="">
+        <img src="${esc(SHOP.hero)}" alt="">
         <div class="hero-in">
           <img class="hero-logo" src="img/logo.png" alt="">
           <div><p class="hero-en">CHARCOAL GRILLED HAMBURG</p><p class="hero-catch">${esc(SHOP.catch)}</p><p class="hero-name">${esc(SHOP.name)}</p></div>
@@ -1156,7 +1156,7 @@ function viewShop() {
   return {
     tab: 'shop', title: 'お店の情報',
     html: `
-      <img class="shop-photo" src="${SHOP.shopPhoto}" alt="">
+      <img class="shop-photo" src="${esc(SHOP.shopPhoto)}" alt="">
       <div class="shop-name"><img src="img/logo.png" alt=""><div><small>${esc(SHOP.catch)}</small><b>${esc(SHOP.name)}</b></div></div>
       ${stateHtml(shopState())}
       ${callBtn()}
@@ -1211,7 +1211,7 @@ function dineItem(i) {
     ? `<span class="sizes">${i.sizes.map(([n, p, more = '']) => `<span>${esc(n)} <b>${yen(p)}${more}</b></span>`).join('')}</span>`
     : `<b class="dine-p">${yen(i.p)}</b>`;
   // 写真があるものは、左に小さく（2026-10-30 ホームページと同じ写真）
-  const pic = i.img ? `<img class="dine-pic" src="img/menu/${i.img}" alt="" loading="lazy">` : '';
+  const pic = i.img ? `<img class="dine-pic" src="${esc(photoSrc(i.img))}" alt="" loading="lazy">` : '';
   return `<li class="${pic ? 'has-pic' : ''}">${pic}<div><b>${esc(i.n)}</b>${i.d ? `<small>${esc(i.d)}</small>` : ''}${i.sizes ? price : ''}</div>${i.sizes ? '' : price}</li>`;
 }
 

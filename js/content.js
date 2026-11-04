@@ -20,6 +20,9 @@
              x が 2 なら、文の途中に飾りの字（<b>・<em> など）が入る文。元の文は、飾りの所を {1}・{2}… にした形（runSig）。
                飾りはそのまま残し、そのあいだの字だけを入れかえる（runMark。2026-11-04 から）
  *             ★画面に出た字（テキストノード）を置きかえるだけなので、アプリの動きは変わらない。HTML としては読まない（字のまま出る）
+    menu:    { cats, order, added, removed, dineCats, dineOrder, dineAdded, dineRemoved } … 商品を足す・消す・並べる（下の applyMenu。2026-11-04 から）
+    photos:  { 'hero' | 'shop' | 'item:商品id' | 'dine:見出し/名前': { id } } … 写真（マネージの「写真」のタブ。2026-11-04 から）。
+             id は、マネージが受け口の savePhoto で Google ドライブに置いた写真の番号。出すときの URL は photoUrl が作る（1か所だけ）
  * ===================================================================== */
 
 const CONTENT_EVERY = 3 * 60000;   // 受け口に読みに行くのは、この間隔に1回まで
@@ -34,7 +37,80 @@ const CONTENT_BASE = {
   dine: DINE_IN.map(cat => cat.items.map(it => ({ p: it.p ?? null, sizes: it.sizes ? it.sizes.map(s => s[1]) : null }))),
   news: NEWS.slice(),
   rewards: STAMP.rewards.map(r => ({ options: r.options.slice(), title: r.title, picks: r.picks ? r.picks.slice() : undefined })),
+  photos: { hero: SHOP.hero, shop: SHOP.shopPhoto, items: ITEMS.map(i => ({ img: i.img || '', cut: !!i.cut })), dine: DINE_IN.map(cat => cat.items.map(it => it.img || '')) },
 };
+
+/* ---- 写真（マネージの「写真」のタブ） ----
+ *  受け口（savePhoto）が Google ドライブに置いた写真の id から、出す URL を作る。★URL の形は、ここ1か所だけで決める
+ *  （ドライブの「リンクを知っている人は見られる」の写真。形が変わったら、ここだけ直す） */
+const PHOTO_ID = /^[A-Za-z0-9_-]{10,100}$/;   // 受け口（版 2026-11-04b）の saveAppContent が確かめる形と同じ
+// この Mac の ?test では、にせの受け口が写真を配る（/api/photo/id）。
+// ★lh3 の形は Google が約束している形ではない。出なくなったら、ここを直す（ドライブの縮小の形は、公開の確かめがドライブのアドレスとして止めるので使わない。2026-11-04）
+const PHOTO_TEST = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) && /[?&]test\b/.test(location.search);
+const photoUrl = id => (PHOTO_TEST ? `/api/photo/${id}` : `https://lh3.googleusercontent.com/d/${id}=w1280`);
+/** 画面に出す写真の場所。data.js の写真（img/menu/ の名前）か、マネージで入れた写真（https の URL。この Mac の ?test では /api/photo/） */
+const photoSrc = img => (/^(https:\/\/|\/api\/photo\/)/.test(img) ? img : `img/menu/${img}`);
+
+/* ---- 商品を足す・消す・並べる（menu。2026-11-04 ko-dai さんの指示：「マネージで商品の追加や削除、同カテゴリー内での順番の入れ替え、カテゴリー自体の順番の入れ替え」） ----
+ *  menu: {
+ *    cats:  [カテゴリーid…]                 … テイクアウトのカテゴリーの順。書いていないものは、後ろに data.js の順で
+ *    order: { カテゴリーid: [商品id…] }     … カテゴリーの中の商品の順（同じ）
+ *    added: [{ id: 'n_…', cat, name, sub, desc, price, regular, like }]
+ *                                           … 足した商品。like は「選ぶもの」を同じにする data.js の商品の id（ソース・ご飯の量など）。
+ *                                             'acai' はアサイーボウルと同じ（サイズとトッピング。regular がレギュラーの値段）。'' は選ぶものなし
+ *    removed: [商品id…]                     … 消した data.js の商品。メニューに出さない（前の注文・カートで名前を引けるよう、ITEM_BY_ID には残す）
+ *    dineCats: [見出し…]、dineOrder: { 見出し: [名前 か 足した商品の id…] }
+ *    dineAdded: [{ id: 'm_…', cat: 見出し, n, d, p }]、dineRemoved: ['見出し/名前'…]   … 店内のメニュー（同じ考え方）
+ *  }
+ *  ★売り切れ・出さない・値段の直し・写真は、今までどおり items・dine・photos に、商品の id（店内は 見出し/名前）で入れる。
+ *    足した商品の値段だけは added の中に持つ（items の値段の直しは、data.js の値段からの直しなので）
+ *  ★毎回 data.js の並びから作り直す（applyContent は何度呼んでも同じになる）。Order受付（バグるOrder受付）も、この ITEMS・CATEGORIES を使う */
+const MENU_BASE = { items: ITEMS.slice(), cats: CATEGORIES.slice(), dine: DINE_IN.map(cat => ({ cat, items: cat.items.slice() })) };
+const ITEM_BASE = new Map(ITEMS.map((i, k) => [i, k]));                                  // data.js の商品 → CONTENT_BASE の番号
+const DINE_BASE = new Map(DINE_IN.flatMap((cat, a) => cat.items.map((it, b) => [it, [a, b]])));
+const MENU_ID = /^[nm]_[a-z0-9]{6,16}$/;
+/** list を、want の順（key が同じもの）に並べる。want に無いものは、後ろにもとの順で */
+function orderBy(list, key, want) {
+  const pos = new Map((Array.isArray(want) ? want : []).map((k, i) => [k, i]));
+  return list.map((x, i) => [x, pos.has(key(x)) ? pos.get(key(x)) : 1e6 + i]).sort((a, b) => a[1] - b[1]).map(([x]) => x);
+}
+const cnum = v => (Number.isInteger(v) && v >= 0 && v <= 99999 ? v : null);
+const ctext = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+/** 足した商品を、data.js の商品と同じ形にする */
+function addedItem(a) {
+  const price = cnum(a.price) ?? 0, name = ctext(a.name, 60), desc = ctext(a.desc, 120) || undefined, sub = ctext(a.sub, 40) || undefined;
+  if (a.like === 'acai') {
+    const reg = Math.max(price, cnum(a.regular) ?? price);
+    return { ...acai(a.id, name, desc, undefined, price, reg), cat: a.cat, sub, added: true, price0: price, regular0: reg };
+  }
+  const like = MENU_BASE.items.find(i => i.id === a.like && !i.groups.some(g => g.id === 'size'));
+  return { id: a.id, cat: a.cat, name, sub, desc, price, groups: like ? like.groups : [], added: true, price0: price };
+}
+function applyMenu(m) {
+  const arr = (v, max) => (Array.isArray(v) ? v.slice(0, max) : []), map = v => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+  // テイクアウト：足した商品は毎回作り直す。消した data.js の商品は、並びから外して「出さない」にする
+  MENU_BASE.items.forEach(i => { delete i.removed; });
+  Object.keys(ITEM_BY_ID).forEach(id => { if (!MENU_BASE.items.some(i => i.id === id)) delete ITEM_BY_ID[id]; });
+  const catIds = new Set(MENU_BASE.cats.map(c => c.id)), seen = new Set(Object.keys(ITEM_BY_ID));
+  const added = arr(m.added, 80).filter(a => a && MENU_ID.test(a.id) && !seen.has(a.id) && seen.add(a.id) && catIds.has(a.cat) && ctext(a.name, 60)).map(addedItem);
+  added.forEach(i => { ITEM_BY_ID[i.id] = i; });
+  const removed = new Set(arr(m.removed, 300).filter(x => typeof x === 'string'));
+  const cats = orderBy(MENU_BASE.cats, c => c.id, arr(m.cats, 50)), ord = map(m.order);
+  const all = [...MENU_BASE.items.filter(i => !removed.has(i.id)), ...added];
+  CATEGORIES.splice(0, CATEGORIES.length, ...cats);
+  ITEMS.splice(0, ITEMS.length, ...cats.flatMap(c => orderBy(all.filter(i => i.cat === c.id), i => i.id, arr(ord[c.id], 300))));
+  MENU_BASE.items.forEach(i => { if (removed.has(i.id)) { i.removed = true; i.hidden = true; } });
+  // 店内のメニュー
+  const dcats = orderBy(MENU_BASE.dine, d => d.cat.name, arr(m.dineCats, 50)), dOrd = map(m.dineOrder);
+  const dRemoved = new Set(arr(m.dineRemoved, 300).filter(x => typeof x === 'string')), dSeen = new Set();
+  const dAdded = arr(m.dineAdded, 100).filter(a => a && MENU_ID.test(a.id) && !dSeen.has(a.id) && dSeen.add(a.id) && ctext(a.n, 60) && dcats.some(d => d.cat.name === a.cat));
+  DINE_IN.splice(0, DINE_IN.length, ...dcats.map(d => d.cat));
+  dcats.forEach(({ cat, items }) => {
+    const mine = dAdded.filter(a => a.cat === cat.name).map(a => ({ n: ctext(a.n, 60), d: ctext(a.d, 120) || undefined, p: cnum(a.p) ?? 0, p0: cnum(a.p) ?? 0, added: a.id }));
+    const list = [...items.filter(it => !dRemoved.has(contentKey.dine(cat, it))), ...mine];
+    cat.items.splice(0, cat.items.length, ...orderBy(list, it => it.added || it.n, arr(dOrd[cat.name], 300)));
+  });
+}
 
 /** お店からの一言（ホームとメニューの上に出す。無ければ null） */
 let APP_NOTICE = null;
@@ -49,10 +125,12 @@ function applyContent(c) {
   const list = (v, max) => (Array.isArray(v) && v.length && v.every(x => text(x, max)) ? v.map(x => text(x, max)) : null);
   const show = n => '¥' + n.toLocaleString('ja-JP');
 
+  // 商品を足す・消す・並べる（値段などを重ねる前に、並びを作り直す）
+  applyMenu(obj(c.menu));
   // テイクアウトの商品：値段・売り切れ・出さない
   const items = obj(c.items);
-  ITEMS.forEach((i, k) => {
-    const b = CONTENT_BASE.items[k], o = obj(items[i.id]);
+  ITEMS.forEach(i => {
+    const k = ITEM_BASE.get(i), b = k === undefined ? { price: i.price0, regular: i.regular0 ?? null } : CONTENT_BASE.items[k], o = obj(items[i.id]);
     i.price = num(o.price) ?? b.price;
     i.soldOut = o.soldOut === true;
     i.hidden = o.hidden === true;
@@ -72,8 +150,8 @@ function applyContent(c) {
   }));
   // 店内のメニュー：値段・出さない
   const dine = obj(c.dine);
-  DINE_IN.forEach((cat, a) => cat.items.forEach((it, b) => {
-    const base = CONTENT_BASE.dine[a][b], o = obj(dine[contentKey.dine(cat, it)]);
+  DINE_IN.forEach(cat => cat.items.forEach(it => {
+    const di = DINE_BASE.get(it), base = di ? CONTENT_BASE.dine[di[0]][di[1]] : { p: it.p0, sizes: null }, o = obj(dine[contentKey.dine(cat, it)]);
     if (base.p != null) it.p = num(o.p) ?? base.p;
     if (base.sizes) it.sizes.forEach((s, k) => { s[1] = num(Array.isArray(o.sizes) ? o.sizes[k] : null) ?? base.sizes[k]; });
     it.hidden = o.hidden === true;
@@ -91,6 +169,22 @@ function applyContent(c) {
     if (b.title !== undefined) r.title = text(o.title, 40) || b.title;
     if (b.picks) r.picks = list(o.picks, 20) || b.picks.slice();
   });
+  // 写真：マネージで入れたものがあれば、それ。無ければ data.js の写真
+  const ph = obj(c.photos), pid = k => { const o = obj(ph[k]); return typeof o.id === 'string' && PHOTO_ID.test(o.id) ? photoUrl(o.id) : null; };
+  const pb = CONTENT_BASE.photos;
+  SHOP.hero = pid('hero') || pb.hero;
+  SHOP.shopPhoto = pid('shop') || pb.shop;
+  ITEMS.forEach(i => {
+    const u = pid('item:' + i.id), k = ITEM_BASE.get(i), b = k === undefined ? { img: '', cut: false } : pb.items[k];
+    i.img = u || b.img || undefined;
+    i.cut = u ? false : b.cut;   // 飲みものの切り抜き写真の見せ方は、data.js の写真のときだけ
+    if (!i.img) delete i.img;
+  });
+  DINE_IN.forEach(cat => cat.items.forEach(it => {
+    const u = pid('dine:' + contentKey.dine(cat, it)), di = DINE_BASE.get(it);
+    it.img = u || (di ? pb.dine[di[0]][di[1]] : '') || undefined;
+    if (!it.img) delete it.img;
+  }));
   // 画面の文章
   setTexts(c.texts);
   // お店からの一言（until の日を過ぎたら出さない）

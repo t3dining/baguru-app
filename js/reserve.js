@@ -52,6 +52,10 @@ function rsvMessage(e) {
 
 // 受け口の場所（config.js）と、やりとりの道具（api.js）は、テイクアウトの注文と同じものを読む（js/order-api.js の baguruLib）
 
+// アプリで選べる人数は15名まで（2026-11-04 ko-dai さんの指示。横5×縦3。16名以上はお電話で）。受け口の「1組の最大人数」がこれより少なければ、そちらに合わせる
+const RSV_PEOPLE_MAX = 15;
+const rsvMax = a => Math.min(RSV_PEOPLE_MAX, Number(a?.maxPeople) || RSV_PEOPLE_MAX);
+
 const ymdDate = ymd => { const [y, m, d] = ymd.split('-').map(Number); return new Date(y, m - 1, d); };
 const rsvDay = ymd => mdw(ymdDate(ymd));
 
@@ -135,9 +139,9 @@ function rsvFresh(a) {
   const was = rsv.avail, date = rsv.date, time = rsv.time;
   rsv.avail = a;
   if (rsv.step !== 'form') return;   // 確認の画面では、送ったときに受け口が確かめる
-  if (rsv.people > a.maxPeople) rsv.people = 0;
+  if (rsv.people > rsvMax(a)) rsv.people = 0;
   rsvDropUnfit();
-  if (!$('#r-days') || !was || a.accepting !== was.accepting || a.maxPeople !== was.maxPeople) {
+  if (!$('#r-days') || !was || a.accepting !== was.accepting || rsvMax(a) !== rsvMax(was)) {
     if ($('#r-tel')) rsv.v = rsvValues();   // 全部を描き直すときも、入れている途中のものは残す
     return rsvDraw();
   }
@@ -219,11 +223,11 @@ function rsvDraw() {
   if (!rsv.avail.accepting) { box.innerHTML = `<p class="notice warn">${esc(RSV_MSG.not_accepting)}</p>${tel}`; return; }
   const [sei, mei] = twoParts(ME.name), [seiKana, meiKana] = twoParts(ME.kana);
   const v = rsv.v || { name: ME.name, sei, mei, seiKana, meiKana, tel: ME.tel, email: ME.email || '', dessert: false, plateMsg: '', note: '' };
-  const max = rsv.avail.maxPeople;
+  const max = rsvMax(rsv.avail);
   box.innerHTML = `
     <h2 class="sec">人数</h2>
     <div class="r-people">${Array.from({ length: max }, (_, i) => `<label class="r-chip"><input type="radio" name="r-people" value="${i + 1}" ${rsv.people === i + 1 ? 'checked' : ''}><span>${i + 1}名</span></label>`).join('')}</div>
-    <p class="hint">${max + 1}名以上のご予約は、お電話でお受けします。</p>
+    <p class="hint">${max + 1}名以上のご予約は、<a class="link-inline" href="tel:${SHOP.tel.replace(/-/g, '')}">お電話（${esc(SHOP.tel)}）</a>でお問い合わせください。</p>
     <h2 class="sec">日にち</h2>
     ${rsv.checking ? '<p class="hint r-checking" id="r-checking">最新の空き状況を確かめています…</p>' : ''}
     <div id="r-days">${rsvDaysHtml()}</div>
