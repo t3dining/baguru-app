@@ -14,6 +14,12 @@ const ENV = {
   // アプリの中のブラウザ（ホーム画面に追加のメニューがない）
   inApp: / Line\//.test(UA) ? 'LINE' : /Instagram/.test(UA) ? 'インスタ' : /FBAN|FBAV|FB_IAB/.test(UA) ? 'Facebook' : '',
   installed: matchMedia('(display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui)').matches || navigator.standalone === true,
+  // バグる Owner の中にはめ込まれて開いたか（iframe。?from=owner の印があり、マネージの「アプリで見る」ではないとき）。
+  // ★2026-11-05 お店用アプリの引っ越し：Owner が新しい場所（t3dining-store.github.io）に移ったので、Owner から公式アプリを開くとブラウザの画面になる。
+  //   そこで Owner が、自分の中に公式アプリをはめ込んで開く（バグるOwner のセッション）。はめ込まれたときは、ホーム画面に追加の案内を出さない（Owner がホーム画面のアプリ）。
+  //   🏠 と外へのリンクは、枠の外で開く（js/app.js）。お客様がふつうに開いたとき（枠の外）は、何も変えない
+  ownerFrame: window.top !== window && !/[?&]preview\b/.test(location.search)
+    && (/[?&]from=owner\b/.test(location.search) || (() => { try { return sessionStorage.getItem('bg.fromOwner') === '1'; } catch (e) { return false; } })()),
 };
 const HIDE_DAYS = 14;            // ホームの案内の「×」を押したら、この日数は出さない
 const appUrl = () => location.origin + location.pathname;
@@ -48,7 +54,7 @@ addEventListener('appinstalled', () => {
 });
 
 function installMode() {
-  if (ENV.installed) return '';
+  if (ENV.installed || ENV.ownerFrame) return '';
   if (ENV.inApp) return 'inapp';
   if (ENV.ios) return 'ios';
   if (installPrompt) return 'prompt';
@@ -78,6 +84,7 @@ function installCard() {
 }
 
 function installRow() {
+  if (ENV.ownerFrame) return '';   // Owner の中にはめ込まれているとき（Owner がホーム画面のアプリ）
   if (ENV.installed) return `<h2 class="sec">ホーム画面</h2><p class="notice">${ICON.check}<span>ホーム画面から開いています</span></p>`;
   return `<h2 class="sec">ホーム画面に追加</h2>
     <button class="link-card" data-act="install-guide">${ICON.addbox}<span><b>ホーム画面に追加の仕方</b><small>アプリのように、ワンタップで開けます</small></span></button>`;

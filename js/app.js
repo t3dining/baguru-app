@@ -1871,7 +1871,30 @@ if (TEST_MEMBER) { $('#testBand').hidden = false; document.body.classList.add('t
 if (OWNER_MODE && $('#ownerHome')) {
   $('#ownerHome').hidden = false;
   $('.top').classList.add('has-owner');   // 名前の字を少し小さくして、ボタンと並べても名前が切れないように
-  $('#ownerHome').onclick = () => { location.href = ownerHome(); };
+  $('#ownerHome').onclick = () => {
+    const to = ownerHome();
+    // Owner の中にはめ込まれているときは、枠の外の窓（Owner の画面そのもの）を移す（枠の中で開くと、Owner の中に Owner が出る）。
+    // 押したときだけ動く（ブラウザは、押していないのに枠の外を移すのを止める）。移せなかったときは、枠の中で開く
+    if (ENV.ownerFrame) { try { if (window.open(to, '_top')) return; } catch (e) { /* 下で枠の中に */ } }
+    location.href = to;
+  };
+}
+// ★Owner の中にはめ込まれているとき（ENV.ownerFrame。js/install.js）：外へのリンクは、枠の中で開かない（2026-11-05 お店用アプリの引っ越し）。
+//   地図・Instagram・ホットペッパーなどは新しい窓（ほかのサイトの多くは、枠の中では開けない）、電話・メールなどは枠の外の窓で開く。
+//   公式アプリの中の画面（同じ場所の、このファイルと同じフォルダの下）は、そのまま枠の中で開く。押したときに a の target を付け替えるだけ
+if (ENV.ownerFrame) {
+  const APP_DIR = location.origin + location.pathname.replace(/[^/]*$/, '');
+  document.addEventListener('click', e => {
+    const a = e.target.closest?.('a[href]');
+    if (!a) return;
+    let u;
+    try { u = new URL(a.getAttribute('href'), location.href); } catch (err) { return; }
+    if (/^https?:$/.test(u.protocol)) {
+      if (u.href.startsWith(APP_DIR)) return;
+      a.target = '_blank';
+      a.rel = 'noopener';
+    } else if (u.protocol !== 'javascript:') a.target = '_top';   // tel: mailto: など
+  }, true);
 }
 
 // バグるマネージで直した中身（js/content.js）。前に読んだ分をすぐ重ねてから描き、そのあと受け口から読み直す（変わっていたら描き直す）
