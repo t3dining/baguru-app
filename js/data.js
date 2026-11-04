@@ -51,9 +51,9 @@ const SHOP = {
   // 空なら、お店の画面（order.html）と同じ場所の index.html。会社の GitHub で公開している（道具/公開する.py）
   appUrl: 'https://t3dining.github.io/baguru-app/',
   // バグるマネージの場所（この公式アプリを枠の中に開いて、保存前の直しを postMessage で渡してくる親）。js/content.js が名指しで確かめる。
-  // ★2026-11-05 お店用アプリの引っ越しの段階1（計画書 `お店用アプリの引っ越し.md`）。段階2で、新しい組織の場所（t3dining-store。ko-dai さんが作った）を足した。
-  //   前の場所（t3dining.github.io の baguru-manage）は、引っ越しの日まで今の版のまま動くので残す。引っ越しの日のあとに外す
-  manageOrigins: ['https://t3dining-store.github.io', 'https://t3dining.github.io'],
+  // ★2026-11-05 お店用アプリの引っ越しの段階1（計画書 `お店用アプリの引っ越し.md`）。段階2で、新しい組織の場所（t3dining-store。ko-dai さんが作った）を足し、
+  //   引っ越しの日（2026-11-05）に、前の場所（t3dining.github.io。前の baguru-manage は「引っ越しました」のページだけになった）を外した
+  manageOrigins: ['https://t3dining-store.github.io'],
   // お店用のアプリが引っ越したあとか（js/app.js の clearOldStore が、前のお店の保存を消す）。
   // ★ここは false のまま。引っ越しの日に 道具/公開する.py の MOVED を True にすると、公開する data.js だけが true になる
   //   （先に true にすると、古いアイコンで使っているお店の人の合言葉が消える。この Mac の試しの画面でも消さないように）

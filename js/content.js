@@ -344,22 +344,19 @@ function startTexts() {
 }
 
 /* ---- バグるマネージの「アプリで見る」（2026-11-01 ko-dai さんの指示：改行などの見え方を、保存する前に確かめる） ----
- *  マネージが、公式アプリを画面の中に開く（iframe・?preview）。保存前の直しは sessionStorage の bg.preview（同じ場所のページだけが読める）。
+ *  マネージが、公式アプリを画面の中に開く（iframe・?preview）。保存前の直しは postMessage で届く（下）。
  *  ★見え方を確かめるだけ：受け口から読み直さず、この端末の保存も変えず（DB はこの画面の中だけ）、注文などは動かさない（app.js の PREVIEW_STOP） */
 const PREVIEW = window.parent !== window && /[?&]preview\b/.test(location.search);
 /* ★2026-11-05（お店用アプリの引っ越しの段階1）：マネージが別の場所に引っ越すと、sessionStorage は読めなくなる。そこで、直しは postMessage で受け取る。
  *  ・開いたら（load）、マネージに { type: 'baguru-preview', kind: 'hello' } を送る。マネージが { type: 'baguru-manage', kind: 'preview', content, focus } を返す
  *  ・受けるのは、親の画面（parent）からで、場所が data.js の SHOP.manageOrigins のどれかのときだけ（この Mac では同じ場所 localhost も）
- *  ・引っ越しの日までは、前の sessionStorage の bg.preview・bg.previewFocus も読む（同じ場所なら、開いてすぐ直しが出る） */
+ *  ・前の渡し方（同じ場所の sessionStorage の bg.preview・bg.previewFocus）は、引っ越しの日（2026-11-05）に外した（場所が分かれて読めないため） */
 const MANAGE_ORIGINS = new Set([...((typeof SHOP === 'object' && SHOP.manageOrigins) || []), ...(/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? [location.origin] : [])]);
 const fromManage = e => e.source === parent && MANAGE_ORIGINS.has(e.origin);
 let manageAt = '';   // 返事を送る先（届いた親の場所。分かるまでは、名指しの場所のどれにも送る。合わない場所には、ブラウザが届けない）
 const toManage = msg => (manageAt ? [manageAt] : [...MANAGE_ORIGINS]).forEach(o => { try { parent.postMessage(msg, o); } catch (e) { /* 届かないだけ */ } });
 let previewData = null;   // マネージから届いた直し { content, focus }
-const previewContent = () => {
-  if (previewData) return previewData.content;
-  try { return JSON.parse(sessionStorage.getItem('bg.preview') || 'null'); } catch (e) { return null; }
-};
+const previewContent = () => (previewData ? previewData.content : null);   // 届くまでは、ふだんの中身で描く
 if (PREVIEW) {
   addEventListener('message', e => {
     if (!fromManage(e)) return;
@@ -380,8 +377,7 @@ if (PREVIEW && typeof DB === 'object') {
 }
 /** 確かめている文までスクロールして、枠で示す。見つからなかったことはマネージに知らせる */
 function previewFocus() {
-  let focus = previewData ? previewData.focus.trim() : '';
-  if (!previewData) try { focus = (sessionStorage.getItem('bg.previewFocus') || '').trim(); } catch (e) {}
+  const focus = previewData ? previewData.focus.trim() : '';
   if (!focus) return;
   const find = text => {
     const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
