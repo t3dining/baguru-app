@@ -3,7 +3,7 @@
  *  届いた注文を「受け付ける → 調理完了 → お渡し済み」と進める。
  *  受け付けた注文は、受け取りの30分前（TAKEOUT.cookBefore）までは「受付済み」に入り、それを過ぎると「調理中」に移る。
  *  ★ポイント・スタンプは、この画面では一切操作しない（2026-11-02 ko-dai さんの指示）。お渡し済みのあとのスタンプは、受け口と公式アプリの側で動く。
- *  電話・店頭の注文も、ここから入れる。
+ *  予約注文（前の名前は「電話・店頭の注文」）も、ここから入れる。
  *  ★テイクアウトの操作は、すべてこの画面でする（2026-10-30 ko-dai さん。予約ボードのテイクアウトの画面は見るだけ）
  *  ★お店に置くスタンプのQRを出す・印刷する・作り直すボタンは、2026-10-30 に外した（ko-dai さんの指示）
  *  ★LINE のポイントの引き継ぎのQRを出すボタンは、2026-11-01 に外した（ko-dai さんの指示）
@@ -412,7 +412,7 @@ function card(o) {
     isRequest(o) && needsFee(o) && o.fee == null ? '<span class="c-kind k-ask">要相談・配達料</span>' : '',
     cookNow.has(o.id) ? '<span class="c-kind k-cook">🔔 調理開始</span>' : '',
     o.asap ? '<span class="c-kind k-asap">できしだい</span>' : '',
-    o.route && o.route !== 'アプリ' ? `<span class="c-kind k-route">${esc(o.route)}</span>` : '',   // 電話・店頭で入れた注文
+    o.route && o.route !== 'アプリ' ? `<span class="c-kind k-route">${esc(o.route)}</span>` : '',   // 予約注文（いまは「予約」。前の注文は「電話」「店頭」）
   ].join('');
   const pay = o.kind !== 'delivery' ? '（店頭で支払い）'
     : `（お届けのときに現金で${o.fee != null ? `・配達料 ${yen(o.fee)} は別` : needsFee(o) ? '・配達料は承認のときに決めます' : ''}）`;
@@ -620,7 +620,7 @@ $('#dOk').addEventListener('click', async () => {
 });
 
 /* ---------------------------------------------------------------------
- *  電話・店頭の注文を入れる（受け付けた形で入る：調理中か受付済み。お客様のアプリには出ない）
+ *  予約注文を入れる（受け付けた形で入る：調理中か受付済み。お客様のアプリには出ない。2026-11-04 に「電話・店頭の注文」から名前を変えた）
  *  品物と値段は、公式アプリと同じ（data.js の ITEMS に、バグるマネージで直した分を重ねたもの。common.js の priceOf）。テイクアウトだけ（配達・大量注文は申請から）
  *  バグるマネージで止めたものは、お客様のアプリと同じ扱い：出さないものは並べず、売り切れは選べない（2026-10-31 ko-dai さんの指示）
  * --------------------------------------------------------------------- */
@@ -631,7 +631,7 @@ function phoneErr(text) { $('#pErr').textContent = text; $('#pErr').hidden = !te
 
 function openPhone() {
   phone = { lines: [], rid: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10) };
-  $('#phoneDlg input[name="pRoute"][value="電話"]').checked = true;
+  $('input[name="pRoute"]')?.closest('.seg')?.remove();   // 前の画面（電話か店頭かを選ぶ形）が、端末にまだ残っているとき
   // 受け取りの日と時刻は、はじめは空にして必ず選んでもらう（2026-11-04 ko-dai さんの指示。「できしだい」は外した）
   ['#pName', '#pTel', '#pNote', '#pDay', '#pHm'].forEach(s => { $(s).value = ''; });
   $('#pDay').min = dateKey(new Date());
@@ -733,12 +733,13 @@ $('#pLines').addEventListener('click', e => {
 $$('dialog [data-close]').forEach(b => b.addEventListener('click', () => b.closest('dialog').close()));
 
 $('#pSend').addEventListener('click', async () => {
-  const route = $('input[name="pRoute"]:checked').value;
+  // 経路は「予約」だけ（2026-11-04 ko-dai さんの指示。電話か店頭かの選択は外した）。カードに「予約」の札が付く
+  const route = '予約';
   const name = $('#pName').value.trim();
   const at = new Date(`${$('#pDay').value}T${$('#pHm').value}`);
   const tel = $('#pTel').value.trim();
-  if (route === '電話' && !name) return phoneErr('お名前を入れてください');
-  // 電話番号は、電話でも店頭でも必ず入れる（2026-11-04 ko-dai さんの指示）。けた数は公式アプリと同じ（10〜11けた）
+  if (!name) return phoneErr('お名前を入れてください');
+  // 電話番号は必ず入れる（2026-11-04 ko-dai さんの指示）。けた数は公式アプリと同じ（10〜11けた）
   if (!tel) return phoneErr('電話番号を入れてください');
   const telDigits = tel.replace(/[^\d]/g, '').length;
   if (telDigits < 10 || telDigits > 11) return phoneErr('電話番号を確かめてください（10〜11けた）');
@@ -754,7 +755,7 @@ $('#pSend').addEventListener('click', async () => {
   if (ok) $('#phoneDlg').close();
 });
 
-/** 電話・店頭の注文を入れる。うまくいったら true */
+/** 予約注文を入れる。うまくいったら true */
 async function addPhoneOrder(row) {
   if (!ORDERS_ONLINE) {
     const now = new Date();
@@ -866,7 +867,7 @@ DB.onChange(key => {
 const syncDays = () => refreshDays().then(changed => changed && render());
 setInterval(() => { render(); syncDays(); refreshContent(); }, 30000);
 $('#cookBefore').textContent = TAKEOUT.cookBefore;   // 「受付済み」の見出しの「◯分前」
-// バグるマネージで直した値段・売り切れ（../js/content.js）を重ねる。電話・店頭の注文の窓を、公式アプリとそろえるため（2026-10-31 ko-dai さんの指示）。
+// バグるマネージで直した値段・売り切れ（../js/content.js）を重ねる。予約注文の窓を、公式アプリとそろえるため（2026-10-31 ko-dai さんの指示）。
 // 前に読んだ分をすぐ重ね、そのあと受け口から読み直す（CONTENT_EVERY に1回まで）。読めないときは、前の控え（無ければ data.js）のまま
 applyContent(contentNow()?.content);
 refreshContent();

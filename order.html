@@ -33,8 +33,8 @@
   <div class="s-brand"><img src="img/logo.png" alt=""><h1>バグる<small>店舗用・テイクアウト注文</small></h1></div>
   <!-- バグる Owner（フォルダーアプリ）から開いたとき（?from=owner）だけ出す。押すとバグる Owner に戻る（2026-10-30 ko-dai さんの指示。js/store.js の FROM_OWNER） -->
   <button id="homeBtn" class="s-btn" hidden>🏠 ホーム</button>
-  <!-- 電話・店頭の注文を入れる（2026-10-30。テイクアウトの操作は、すべて Order受付でする決まりになったため） -->
-  <button id="phoneBtn" class="s-btn">＋ 電話・店頭の注文</button>
+  <!-- 予約注文を入れる（2026-10-30。テイクアウトの操作は、すべて Order受付でする決まりになったため。2026-11-04 に「電話・店頭の注文」から名前を変えた） -->
+  <button id="phoneBtn" class="s-btn">＋ 予約注文</button>
   <!-- ★ポイント・スタンプは、この画面では一切操作しない（2026-11-02 ko-dai さんの指示）。「LINEの引き継ぎ」のボタンと、会員を探す画面は外した -->
   <!-- 画面を読み直す。ホーム画面に置いたアプリには、ブラウザの更新ボタンが無いため（2026-10-30 ko-dai さん） -->
   <button id="reloadBtn" class="s-btn">↻ 更新</button>
@@ -120,13 +120,9 @@
   <div class="dlg-btns"><button type="button" class="b-sub" data-close>やめる</button><button type="button" id="tOk" class="b-main">この時間にする</button></div>
 </dialog>
 
-<!-- 電話・店頭の注文を入れる。受け付けた形で入り、お客様のアプリには出ない -->
+<!-- 予約注文を入れる（2026-11-04 に「電話・店頭の注文」から名前を変え、電話か店頭かの選択を外した。ko-dai さんの指示）。受け付けた形で入り、お客様のアプリには出ない -->
 <dialog id="phoneDlg" class="dlg wide">
-  <h3>電話・店頭の注文を入れる</h3>
-  <div class="seg">
-    <label><input type="radio" name="pRoute" value="電話" checked><span>電話</span></label>
-    <label><input type="radio" name="pRoute" value="店頭"><span>店頭</span></label>
-  </div>
+  <h3>予約注文を入れる</h3>
   <div class="f-grid">
     <label class="f-field"><span>お名前</span><input id="pName" maxlength="40" autocomplete="off"></label>
     <label class="f-field"><span>電話番号</span><input id="pTel" type="tel" inputmode="tel" maxlength="20" autocomplete="off"></label>
@@ -155,10 +151,10 @@
 <script src="js/data.js?v=800fd5e1"></script>
 <script src="js/db.js?v=97e9d111"></script>
 <script src="js/common.js?v=02f899df"></script>
-<!-- バグるマネージで直した値段・売り切れを重ねる（公式アプリと同じもの。公式アプリのセッションの持ち物。電話・店頭の注文の窓で使う） -->
+<!-- バグるマネージで直した値段・売り切れを重ねる（公式アプリと同じもの。公式アプリのセッションの持ち物。予約注文の窓で使う） -->
 <script src="js/content.js?v=2614ae48"></script>
 <!-- 受け口とのやりとり（公式アプリと同じもの。切り替え ORDERS_ONLINE・受け口の場所・送り方）。公式アプリのセッションの持ち物 -->
 <script src="js/order-api.js?v=ca3999db"></script>
-<script src="js/store.js?v=1e9423c0"></script>
+<script src="js/store.js?v=0c8b6ba0"></script>
 </body>
 </html>
