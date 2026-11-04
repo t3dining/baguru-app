@@ -396,6 +396,42 @@ html.t-editing .t-ed:hover { background-color: rgba(199, 54, 29, .08); }
 .slot-sep { grid-column: 1 / -1; margin: 6px 2px 0; font-size: 12px; font-weight: 700; color: var(--sub); }
 
 .field { display: block; margin-bottom: 12px; }
+/* 採用情報（2026-11-04。ホームページの採用情報と同じ中身） */
+.recruit-card b em { margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--ember); color: #fff; font-size: 11px; font-style: normal; font-weight: 700; vertical-align: 2px; }
+.recruit-hero { position: relative; margin: 12px 0 0; border-radius: var(--r); overflow: hidden; background: var(--coal); }
+.recruit-hero img { display: block; width: 100%; height: 190px; object-fit: cover; opacity: .62; }
+.recruit-hero div { position: absolute; left: 16px; right: 16px; bottom: 14px; color: #fff; }
+.recruit-hero small { display: block; font: 600 12px "Oswald", sans-serif; letter-spacing: .14em; color: var(--flame); }
+.recruit-hero b { display: block; margin-top: 2px; font-size: 22px; font-weight: 900; line-height: 1.35; text-shadow: 0 2px 10px rgba(0, 0, 0, .45); }
+.recruit-lead { margin: 14px 2px 10px; font-size: 14.5px; line-height: 1.75; }
+.recruit-key { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 12px; }
+.recruit-key div { padding: 12px; border-radius: var(--r); background: #fff; border: 1px solid var(--line); }
+.recruit-key dt { font-size: 12px; font-weight: 700; color: var(--sub); }
+.recruit-key dd { margin: 2px 0 0; font-size: 16px; font-weight: 800; line-height: 1.45; }
+.recruit-go { display: grid; gap: 8px; margin-bottom: 6px; }
+.recruit-sub { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.recruit-sub .btn { gap: 6px; }
+.recruit-wanted { margin: 0 0 10px; padding: 12px 14px; border-radius: var(--r); background: var(--ember-soft); }
+.recruit-wanted b { display: block; color: var(--ember); font-size: 15.5px; font-weight: 900; }
+.recruit-wanted small { display: block; margin-top: 2px; color: var(--sub); font-size: 13px; }
+.recruit-points { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 8px; }
+.recruit-points li { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-radius: var(--r); background: #fff; border: 1px solid var(--line); }
+.recruit-points li svg { color: var(--ember); margin-top: 1px; }
+.recruit-points b { display: block; font-size: 14.5px; font-weight: 800; }
+.recruit-points small { display: block; margin-top: 2px; color: var(--sub); font-size: 13px; line-height: 1.6; }
+.recruit-table { margin: 0 0 8px; border-radius: var(--r); background: #fff; border: 1px solid var(--line); overflow: hidden; }
+.recruit-table div { display: grid; grid-template-columns: 5.6em 1fr; gap: 10px; padding: 11px 12px; }
+.recruit-table div + div { border-top: 1px solid var(--line); }
+.recruit-table dt { font-size: 13px; font-weight: 700; color: var(--sub); }
+.recruit-table dd { margin: 0; font-size: 14px; line-height: 1.6; }
+.field .req { margin-left: 4px; vertical-align: 1px; font-style: normal; }
+.recruit-field { margin-bottom: 12px; }   /* 選ぶ欄は .field の外に置く（.field の span・input の形がかからないように） */
+.recruit-label { display: block; font-size: 13px; font-weight: 600; color: var(--sub); margin-bottom: 4px; }
+.recruit-done { margin: 6px 0 14px; padding: 18px 16px; border-radius: var(--r); background: #fff; border: 1.5px solid var(--green); text-align: center; }
+.recruit-done svg { width: 34px; height: 34px; color: var(--green); }
+.recruit-done b { display: block; margin-top: 4px; font-size: 17px; font-weight: 900; }
+.recruit-done p { margin: 8px 0 0; color: var(--sub); font-size: 13.5px; line-height: 1.7; text-align: left; }
+.recruit-done[hidden] { display: none; }
 .field span { display: block; font-size: 13px; font-weight: 600; color: var(--sub); margin-bottom: 4px; }
 .field input, .field textarea {
   width: 100%; font: inherit; font-size: 16px; padding: 12px 14px;
@@ -904,7 +940,9 @@ button.link-card { width: 100%; text-align: left; }
 .oc-key .k-on { color: var(--green); }
 .oc-hours { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--line); font-size: 13px; }
 .oc-hours .sub-line { display: block; }
-.oc-hours em { font-style: normal; font-weight: 700; color: var(--coal); margin-right: 8px; }
+.oc-hours .sub-line + .sub-line { margin-top: 6px; }
+/* 「平日」「土・日・祝日」の見出しを上の行に置き、その下に時間を並べる（2026-11-04 ko-dai さんの指示：平日の営業時間を平日の下に） */
+.oc-hours em { display: block; font-style: normal; font-weight: 700; color: var(--coal); }
 .r-cal-nav { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 10px; }
 .r-cal-title { margin: 0; font-weight: 700; font-size: 16px; white-space: nowrap; }
 .r-cal-title b { font-family: var(--en); font-size: 26px; font-weight: 600; margin: 0 3px; }

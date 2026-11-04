@@ -46,9 +46,10 @@ const saveCart = () => DB.set('cart', cart);
 const ROUTES = {
   home: viewHome, menu: viewMenu, cart: viewCart, checkout: viewCheckout, request: viewRequest,
   order: viewOrder, stamp: viewStamp, shop: viewShop, me: viewMe, reserve: viewReserve, privacy: viewPrivacy, join: viewJoin, install: viewInstallGate, test: viewTestGate,
+  recruit: viewRecruit,
 };
 // 入力の途中で消えないよう、ほかのタブの書き換えでは描き直さない画面
-const NO_LIVE = ['checkout', 'request', 'me', 'reserve', 'join', 'test'];
+const NO_LIVE = ['checkout', 'request', 'me', 'reserve', 'join', 'test', 'recruit'];
 
 // ★会員登録をしていない人には、登録の画面だけを出す（2026-11-02 ko-dai さんの指示）。アプリのどの画面も、予約も注文も、登録のあと。
 // マネージの「アプリで見る」では止めない。受け口では止めていない（ホームページのネット予約が同じ口を使うため）
@@ -192,6 +193,7 @@ function viewHome() {
       ${callBtn()}
       <a class="link-card" href="#reserve">${ICON.cal}<span><b>ネット予約（席のご予約）</b><small>空いている日と時間を選んで、リクエストを送れます。お店が確かめて、確定をメールとアプリでお知らせします</small></span></a>
       <a class="link-card" href="#shop">${ICON.pin}<span><b>お店の情報</b><small>住所・アクセス・営業時間・営業日カレンダー・駐車場・お支払い</small></span></a>
+      ${recruitCard()}
       <a class="link-card" href="#request">${ICON.truck}<span><b>配達・大量注文の申請</b><small>配達は${TAKEOUT.deliveryFreeMin}食以上で無料（原則${TAKEOUT.deliveryKm}km圏内）・${TAKEOUT.deliveryFreeMin}食未満は要相談。大量注文は${TAKEOUT.bulkMin}食以上。お店が確認してから確定します</small></span></a>
       ${installCard()}
       <h2 class="sec" data-en="NEWS">お知らせ</h2>
@@ -229,7 +231,7 @@ function orderBanner(o) {
  *  メニュー（テイクアウト注文）
  * --------------------------------------------------------------------- */
 
-/** 「5食未満は20分後・5〜9食は30分後・10食以上は40分後」 */
+/** 「10食未満は30分後・10食以上は40分後」（data.js の TAKEOUT.leadByMeals から作る） */
 function leadRuleText() {
   let from = 0;
   return TAKEOUT.leadByMeals.map(([under, min]) => {
@@ -1205,6 +1207,7 @@ function viewShop() {
       <h2 class="sec" data-en="CALENDAR">営業日カレンダー</h2>
       ${openCalHtml()}
       <a class="link-card" href="#menu/dine">${ICON.menu}<span><b>店内のメニュー</b><small>お店でお召し上がりのメニューは、「メニュー」のタブで見られます</small></span></a>
+      ${recruitCard()}
       <h2 class="sec" data-en="OUR SHOPS">系列店</h2>
       ${SHOP.sisters.map(s => `<div class="sister">
         <img class="sister-logo" src="img/sisters/${esc(s.logo)}" alt="" width="64" height="64" loading="lazy">
@@ -1212,6 +1215,87 @@ function viewShop() {
           <span class="sister-links"><a class="mini" href="${esc(s.url)}" target="_blank" rel="noopener">ホットペッパー</a><a class="mini" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${s.name} ${s.addr}`)}" target="_blank" rel="noopener">${ICON.pin}地図</a></span></div>
       </div>`).join('')}`,
   };
+}
+
+/* ---- 採用情報（2026-11-04 ko-dai さんの指示：「ホームページと同じように採用情報をアプリにも入れてください」） ----
+ *  中身は data.js の RECRUIT（ホームページの採用情報と同じ）。ホームと、お店の情報のカードから開く（#recruit。下のタブは「お店」）。
+ *  応募は、ホームページと同じ受け口の contact（kind: '採用'）に送る。受け口が、タブ「設定」の送り先にメールで届け、タブ「問い合わせ」に控えを残す。
+ *  入れるものと決まりも、ホームページと同じ（お名前・電話番号・メールアドレスは必須。電話番号は 0 から始まる10〜11桁） */
+const recruitCard = () => `<a class="link-card recruit-card" href="#recruit">${ICON.user}<span><b>採用情報<em>スタッフ募集中</em></b><small>ホール・キッチンのアルバイト・パート。時給 ${esc(RECRUIT.key[0][1].replace(/\n/g, '／'))}</small></span></a>`;
+const brLines = t => esc(t).replace(/\n/g, '<br>');
+let recruitRid = '';
+function viewRecruit() {
+  const R = RECRUIT;
+  return {
+    tab: 'shop', title: '採用情報', back: '#shop',
+    html: `
+      <div class="recruit-hero"><img src="${esc(R.photo)}" alt=""><div><small>CREW WANTED</small><b>${brLines(R.catch)}</b></div></div>
+      <p class="recruit-lead">${esc(R.lead)}</p>
+      <dl class="recruit-key">${R.key.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${brLines(v)}</dd></div>`).join('')}</dl>
+      <div class="recruit-go">
+        <button class="btn btn-main btn-block" data-act="recruitEntry">応募する</button>
+        <div class="recruit-sub">
+          <a class="btn btn-sub" href="tel:${SHOP.tel.replace(/-/g, '')}">${ICON.phone}電話で応募</a>
+          <a class="btn btn-sub" href="${esc(SHOP.instagram)}" target="_blank" rel="noopener">${ICON.insta}DMで応募</a>
+        </div>
+      </div>
+      <h2 class="sec" data-en="POINT">バグるで働くと</h2>
+      <p class="recruit-wanted"><b>${esc(R.wanted)}</b><small>${esc(R.wantedSub)}</small></p>
+      <ul class="recruit-points">${R.points.map(([t, s]) => `<li>${ICON.check}<div><b>${esc(t)}</b><small>${esc(s)}</small></div></li>`).join('')}</ul>
+      <h2 class="sec" data-en="JOB DETAILS">募集要項</h2>
+      <dl class="recruit-table">${R.details.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${brLines(v)}</dd></div>`).join('')}</dl>
+      <h2 class="sec" data-en="ENTRY" id="r-entry">応募する</h2>
+      <div id="r-form">
+        <p class="hint">入力して送ると、お店から折り返しご連絡します。お電話（${esc(SHOP.tel)}）・Instagram の DM・お店のスタッフへの声かけでも受け付けています。</p>
+        <label class="field"><span>お名前 <em class="req">必須</em></span><input id="r-name" autocomplete="name" maxlength="40" value="${esc(ME.name || '')}"></label>
+        <label class="field"><span>電話番号 <em class="req">必須</em></span><input id="r-tel" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" value="${esc(ME.tel || '')}" placeholder="例：090-1234-5678"></label>
+        <label class="field"><span>メールアドレス <em class="req">必須</em></span><input id="r-email" type="email" inputmode="email" autocomplete="email" maxlength="120" value="${esc(ME.email || '')}" placeholder="ご連絡に使います"></label>
+        <div class="recruit-field"><span class="recruit-label">希望の仕事</span><div class="choices recruit-jobs">${R.jobs.map(j => `<label class="choice"><input type="checkbox" name="r-job" value="${esc(j)}"><b class="c-name">${esc(j)}</b></label>`).join('')}</div></div>
+        <label class="field"><span>働きたい曜日・時間帯</span><input id="r-time" maxlength="200" placeholder="例：土日の昼、平日の夕方から"></label>
+        <label class="field"><span>一言</span><textarea id="r-msg" rows="3" maxlength="2000" placeholder="聞きたいことなど、何でもどうぞ"></textarea></label>
+        <p class="hint">入れていただいた内容は、採用の選考とご連絡のためだけに使います（<button class="link-inline" data-act="privacy">個人情報の扱い</button>）。</p>
+        <button class="btn btn-main btn-block" data-act="recruitSend">この内容で応募する</button>
+      </div>
+      <div id="r-done" class="recruit-done" hidden>
+        ${ICON.check}<b>ご応募ありがとうございます</b>
+        <p>お店から、お電話かメールで折り返しご連絡します。数日たっても連絡がないときは、お電話（<a class="link-inline" href="tel:${SHOP.tel.replace(/-/g, '')}">${esc(SHOP.tel)}</a>）でお知らせください。</p>
+      </div>`,
+  };
+}
+const RECRUIT_MSG = {
+  need_name: 'お名前を入れてください', need_tel: '電話番号を入れてください（お店から折り返しご連絡します）', bad_tel: '電話番号を正しく入れてください（例：090-1234-5678）',
+  need_email: 'メールアドレスを入れてください（ご連絡に使います）', bad_email: 'メールアドレスの形が違います',
+  busy: 'ただいま混み合っています。少し時間を置いて、もう一度お試しください',
+};
+/** 応募を送る（受け口の contact。kind: '採用'）。同じ応募は、受付の印（rid）で1通にまとめる */
+async function sendRecruit(btn) {
+  const val = id => ($(`#${id}`)?.value || '').trim();
+  // via … 公式アプリから来た印（受け口はまだ見ていない。メールの「ホームページの…から届きました」を分けるときに使える）
+  const v = { action: 'contact', kind: '採用', via: 'アプリ', name: val('r-name'), tel: val('r-tel'), email: val('r-email'), time: val('r-time'), message: val('r-msg'), website: '',
+    jobs: $$('input[name="r-job"]:checked').map(c => c.value) };
+  const telD = v.tel.replace(/[^\d]/g, '');
+  const bad = !v.name ? 'need_name' : !v.tel ? 'need_tel' : !/^0\d{9,10}$/.test(telD) ? 'bad_tel' : !v.email ? 'need_email' : !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.email) ? 'bad_email' : '';
+  if (bad) return toast(RECRUIT_MSG[bad], 'warn');
+  btn.disabled = true;
+  const label = btn.textContent;
+  btn.textContent = '送っています…';
+  try {
+    await baguruLib();
+    if (!BaguruApi.ready()) throw Object.assign(new Error('not_ready'), { code: 'not_ready' });
+    recruitRid = recruitRid || BaguruApi.rid();
+    await BaguruApi.post({ ...v, rid: recruitRid });
+    recruitRid = '';
+    $('#r-form').hidden = true;
+    $('#r-done').hidden = false;
+    $('#r-done').scrollIntoView({ block: 'center', behavior: 'smooth' });
+    FX.confetti({ kind: 'pop' });
+  } catch (e) {
+    const code = e.code || 'no_answer';
+    toast(RECRUIT_MSG[code] || `送れませんでした。お手数ですが、お電話（${SHOP.tel}）でお知らせください`, 'warn');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
 }
 
 /* ---- 営業日カレンダー（2026-11-04 ko-dai さんの指示。予約のタブと、お店の情報に出す） ----
@@ -1585,6 +1669,8 @@ const ACTIONS = {
   },
   contactEdit: () => openContact(),
   privacy: () => openPrivacy(),
+  recruitEntry: () => $('#r-entry')?.scrollIntoView({ block: 'start', behavior: 'smooth' }),   // 採用情報の「応募する」（下のフォームへ）
+  recruitSend: (a, el) => sendRecruit(el),
   memberDelete: () => openDeleteMember(),
   testMake: (_, el) => makeTestFrom(el),
   testReset: () => openTestReset(),
@@ -1608,7 +1694,7 @@ const ACTIONS = {
 };
 
 // バグるマネージの「アプリで見る」の中では、注文・スタンプ・特典・登録など、動かすと本物に残るものは止める（js/content.js の PREVIEW）
-const PREVIEW_STOP = new Set(['submit', 'request', 'cancel', 'stamp', 'lineMove', 'coupon', 'register', 'reset', 'install-guide', 'memberCode', 'memberTake', 'memberBack', 'memberDelete']);
+const PREVIEW_STOP = new Set(['submit', 'request', 'cancel', 'stamp', 'lineMove', 'coupon', 'register', 'reset', 'install-guide', 'memberCode', 'memberTake', 'memberBack', 'memberDelete', 'recruitSend']);
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]');
   if (!el) return;
