@@ -1093,6 +1093,9 @@ function register(p) {
     return stampPost('memberSave', { name: c.name, tel: c.tel, ...more }).then(r => {
       lastStampTotal = getStamps().total;
       if (!r.first) return toast('保存しました');
+      // 同じ電話番号で、前に初回の特典を受けている（受け口が welcome: false を返す。2026-11-05 ko-dai さんの指示：消して登録し直しても、2回は出さない）。
+      // welcome が無い答え（前の版の受け口）は、今までどおり特典を出す
+      if (r.welcome === false) { toast('会員登録ありがとうございます。この電話番号では、初回の特典はもう受け取っています', 'good'); render(true); return; }
       showStamped(r, '会員登録ありがとうございます');
       render(true);
     }).catch(e => toast(stampMessage(e), 'warn'));
@@ -1499,6 +1502,7 @@ function openDeleteMember() {
         <li>スタンプ ${s.total}個${left ? `と、使える特典 ${left}枚` : ''}</li>
       </ul>
       <p class="hint">テイクアウトの注文と席のご予約の記録は、お店の記録として残ります。消したいときは、お店にお電話ください。</p>
+      <p class="hint">同じ電話番号で登録し直しても、初回の特典と LINE の引き継ぎは、もう一度は受けられません（そのために、電話番号から作った元に戻せない印と、受けた日付だけを残します）。</p>
       <label class="del-ok"><input type="checkbox" data-s="agree">スタンプと特典がなくなることを確かめました</label>
       <button class="btn btn-main btn-block del-go" data-s="go" disabled>削除する</button>
       <button class="btn btn-sub btn-block" data-s="close">やめる</button>
