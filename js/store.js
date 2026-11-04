@@ -674,7 +674,9 @@ function paintOpts() {
     }
     if (g.type === 'count') {
       const c = g.choices[0];
-      return `<label class="f-opt"><span>${esc(g.name)}（${c.soldOut ? '売り切れ' : `1つ ${yen(c.p)}`}）</span><input type="number" data-g="${g.id}" min="0" max="${g.max || 10}" value="0" inputmode="numeric" ${c.soldOut ? 'disabled' : ''}></label>`;
+      // 打ち込む欄でなく、「なし」〜上限（data.js の max。追加カラアゲは3個）から選ぶ。上限より多くは選べない（2026-11-04 ko-dai さんの指示）。品物1つにつきの数
+      const counts = Array.from({ length: (g.max || 10) + 1 }, (_, n) => `<option value="${n}">${n ? `${n}個（+${yen(c.p * n)}）` : 'なし'}</option>`).join('');
+      return `<label class="f-opt"><span>${esc(g.name)}（${c.soldOut ? '売り切れ' : `1つにつき${g.max || 10}個まで`}）</span><select data-g="${g.id}" ${c.soldOut ? 'disabled' : ''}>${counts}</select></label>`;
     }
     return '';
   }).join('');
@@ -693,7 +695,7 @@ function readSel(item) {
       const none = g.choices.findIndex(c => c.none);
       sel[g.id] = on.length ? on : none >= 0 ? [none] : [];
     }
-    if (g.type === 'count') sel[g.id] = Math.max(0, Math.min(g.max || 10, parseInt($(`#pOpts input[data-g="${g.id}"]`).value, 10) || 0));
+    if (g.type === 'count') sel[g.id] = Math.max(0, Math.min(g.max || 10, parseInt($(`#pOpts select[data-g="${g.id}"]`).value, 10) || 0));
   }
   return sel;
 }
@@ -712,9 +714,6 @@ $('#pAdd').addEventListener('click', () => {
   const item = ITEM_BY_ID[$('#pItem').value];
   if (!item) return phoneErr('品物を選んでください');
   if (item.soldOut || item.hidden) return phoneErr('この品物は、いま売り切れです');
-  // 個数の上限（追加カラアゲは3個まで。data.js の max）を超えて打ったら、黙って減らさずに知らせる（2026-11-04 ko-dai さんの指示）
-  const over = item.groups.find(g => g.type === 'count' && (parseInt($(`#pOpts input[data-g="${g.id}"]`)?.value, 10) || 0) > (g.max || 10));
-  if (over) return phoneErr(`「${over.name}」は${over.max || 10}個までです`);
   const p = priceOf(item, readSel(item));
   if (p.missing) return phoneErr(`「${p.missing.name}」を選んでください`);
   const qty = Math.max(1, Math.min(99, parseInt($('#pQty').value, 10) || 1));
