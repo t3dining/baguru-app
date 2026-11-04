@@ -4,14 +4,36 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<!-- バグる Owner は 2026-10-30 に https://t3dining.github.io/baguru-owner/ へ移った（公式アプリの範囲 /baguru-app/ の外へ）。
-     前のアドレス（/baguru-app/owner/）を開いたら、そちらへ送る。各アプリの「🏠 ホーム」の控えのアドレスも、ここに来ることがある。
-     公開の道具（道具/公開する.py の public_path）が、公開先の owner/index.html として出す -->
+<!-- バグる Owner は https://t3dining-store.github.io/baguru-owner/ へ引っ越す（お店用アプリの引っ越し。../../お店用アプリの引っ越し.md）。
+     ★引っ越しの日まで出さない（用意だけ）。このファイルは、どの公開の一覧にも入っていないので、どこにも出ない。
+     ★となりの index.html は、いま公開中の「前の前の住所」（/baguru-app/owner/ → 今の Owner へ送るだけ）。引っ越しの日まで、そのままにする。
+     引っ越しの日に、このファイルを次の2か所に出す（どちらも前の保存場所 t3dining.github.io なので、中身は同じでよい）：
+       1. 前の公開先 t3dining/baguru-owner の index.html（https://t3dining.github.io/baguru-owner/）
+       2. となりの index.html と入れ替える（公式アプリの公開先の owner/index.html。https://t3dining.github.io/baguru-app/owner/）
+     開いたら、ここに残ったお店の保存を消して、新しいアドレスへのボタンを出す。★自動では移らない（ホーム画面のアイコンを入れ直してもらうため） -->
 <title>バグる Owner</title>
-<script>location.replace('https://t3dining.github.io/baguru-owner/' + location.search + location.hash);</script>
-<meta http-equiv="refresh" content="0; url=https://t3dining.github.io/baguru-owner/">
+<script>
+  (function () {
+    // ★名前を1つずつ消す（bg. で始まる名前は、公式アプリのお客様の保存にも使っている。まとめて消さない）。
+    // Owner の古いアイコンしか開かない端末もあるので、ここで、お店のアプリが残した保存を全部消す（計画書の「古い場所で消すもの」の表）。
+    // bg.owner は公式アプリの 🏠 も読んでいたが、引っ越しの日には、公式アプリはアドレスの印だけで戻る形に直っている（段階2の3）
+    var KEYS = ['baguru.daicho.pin', 'baguru.line.screen', 'bg.hpAdmin', 'baguru.yoyaku.owner', 'baguru.yoyaku.view',
+                'baguru.daicho.seen', 'baguru.daicho.sound', 'baguru.daicho.shell',   // shell には今日の予約の控え（お客様のお名前）が入る
+                'bg.cookRung', 'bg.hub', 'bg.owner'];
+    KEYS.forEach(function (k) {
+      try { localStorage.removeItem(k); } catch (e) {}
+      try { sessionStorage.removeItem(k); } catch (e) {}
+    });
+  })();
+</script>
 </head>
-<body>
-<p>バグる Owner は <a href="https://t3dining.github.io/baguru-owner/">新しいアドレス</a> に移りました。</p>
+<body style="margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;box-sizing:border-box;background:#faf6f0;color:#221c18;font-family:'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;text-align:center;line-height:1.7">
+<div style="max-width:420px">
+  <p style="font-size:20px;font-weight:700;margin:0 0 12px">バグる Owner は、<br>新しいアドレスに引っ越しました</p>
+  <p style="margin:0 0 8px;color:#675d55">ホーム画面に入れているときは、このアイコンを消して、新しいアドレスから入れ直してください。</p>
+  <p style="margin:0 0 24px;color:#675d55">ホームページの管理画面のアドレスと、各アプリの合言葉は、新しいアドレスでもう一度入れてください。</p>
+  <a href="https://t3dining-store.github.io/baguru-owner/" style="display:inline-block;padding:14px 32px;border-radius:999px;background:#c7361d;color:#fff;font-size:17px;font-weight:700;text-decoration:none">新しいアドレスで開く</a>
+  <p style="margin:20px 0 0;font-size:13px;color:#a3988e;">新しいアドレス<br>t3dining-store.github.io/baguru-owner/</p>
+</div>
 </body>
 </html>

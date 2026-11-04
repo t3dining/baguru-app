@@ -57,7 +57,7 @@ const SHOP = {
   // お店用のアプリが引っ越したあとか（js/app.js の clearOldStore が、前のお店の保存を消す）。
   // ★ここは false のまま。引っ越しの日に 道具/公開する.py の MOVED を True にすると、公開する data.js だけが true になる
   //   （先に true にすると、古いアイコンで使っているお店の人の合言葉が消える。この Mac の試しの画面でも消さないように）
-  storeMoved: false,
+  storeMoved: true,
   // ホームページのお問い合わせフォーム（ホームページ/contact.html）のアドレス。公開したら入れると、お店の情報の「配達」にリンクが出る
   contactUrl: '',
   // ネット予約（席の予約のリクエスト）の受け口は、予約ボードの公開先から読む（そこの config.js と api.js。js/reserve.js）。

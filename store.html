@@ -4,12 +4,31 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<!-- お店の画面は 2026-10-30 に order.html へ移った。前のアドレス（store.html）を開いたら、そちらへ送る -->
+<meta name="theme-color" content="#1d3128">
+<!-- バグるOrder受付は 2026-11-05 に https://t3dining-store.github.io/baguru-order/ へ引っ越した（お店用アプリの引っ越し。../../お店用アプリの引っ越し.md）。
+     前のアドレス（https://t3dining.github.io/baguru-app/order.html と store.html）は、公式アプリと保存場所が同じなので、開いたら、ここに残ったお店の保存を消して、新しいアドレスへのボタンを出す。
+     ★自動では移らない（お店のタブレットのホーム画面のアイコンを入れ直してもらうため）。引っ越しの日から、公開の道具（道具/公開する.py の MOVED_APP）が、公式アプリの公開先の order.html と store.html の両方にこのファイルを出す。
+     ★この中に、この画面のフォルダの名前に「/」を付けた字を書かない（公開の道具が、公開先で開けない場所の印として止める） -->
 <title>バグるOrder受付</title>
-<script>location.replace('order.html' + location.search + location.hash);</script>
-<meta http-equiv="refresh" content="0; url=order.html">
+<script>
+  (function () {
+    // ★お店用アプリの引っ越し.md の「古い場所で消すもの」を全部、名前で1つずつ消す（お店のタブレット・社員のスマホは、1つの古いアイコンしか開かないことがある）。
+    //   bg. で始まる名前は、公式アプリのお客様の保存にも使っているので、まとめて消さない（bg.content・bg.days・bg.accepting・bg.orders は消さない）
+    var names = ['baguru.daicho.pin', 'baguru.daicho.seen', 'baguru.daicho.sound', 'baguru.daicho.shell', 'baguru.line.screen',
+      'bg.hpAdmin', 'baguru.yoyaku.owner', 'baguru.yoyaku.view', 'bg.cookRung', 'bg.hub', 'bg.owner'];
+    [function () { return localStorage; }, function () { return sessionStorage; }].forEach(function (box) {
+      try { var b = box(); names.forEach(function (k) { b.removeItem(k); }); } catch (e) {}
+    });
+  })();
+</script>
 </head>
-<body>
-<p>お店の画面は <a href="order.html">order.html</a> に移りました。</p>
+<body style="margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;box-sizing:border-box;background:#e4ebe6;color:#1d3128;font-family:'Hiragino Sans','Hiragino Kaku Gothic ProN',sans-serif;text-align:center;line-height:1.7">
+<div style="max-width:420px">
+  <p style="font-size:20px;font-weight:700;margin:0 0 12px">バグるOrder受付は、<br>新しいアドレスに引っ越しました</p>
+  <p style="margin:0 0 8px;color:#4b5e54">ホーム画面に入れているときは、このアイコンを消して、新しいアドレスから入れ直してください。</p>
+  <p style="margin:0 0 24px;color:#4b5e54">合言葉は、新しいアドレスでもう一度入れてください。</p>
+  <a id="go" href="https://t3dining-store.github.io/baguru-order/order.html" style="display:inline-block;padding:14px 32px;border-radius:999px;background:#1d3128;color:#fff;font-size:17px;font-weight:700;text-decoration:none">新しいアドレスで開く</a>
+</div>
+<script>document.getElementById('go').href += location.search + location.hash;   // バグる Owner・Staff から開いた印（?from=owner&hub=staff など）は、そのまま渡す</script>
 </body>
 </html>
