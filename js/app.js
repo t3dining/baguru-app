@@ -116,7 +116,7 @@ function drawCart() {
   if (cartCount !== null && n > cartCount) { badge.classList.remove('bump'); void badge.offsetWidth; badge.classList.add('bump'); }
   cartCount = n;
   const bar = $('#cartbar');
-  bar.hidden = !(n && routeName() === 'menu');
+  bar.hidden = !(n && routeName() === 'menu' && !/^#menu\/dine/.test(location.hash));   // 店内のメニューでは出さない
   const total = cartTotal();
   if (!bar.hidden) {
     bar.innerHTML = `<span>${ICON.cart}カートを見る<small>${n}点</small></span><b>${yen(cartShown)}</b>`;
@@ -190,6 +190,7 @@ function viewHome() {
       </div>
       ${callBtn()}
       <a class="link-card" href="#reserve">${ICON.cal}<span><b>ネット予約（席のご予約）</b><small>空いている日と時間を選んで、リクエストを送れます。お店が確かめて、確定をメールとアプリでお知らせします</small></span></a>
+      <a class="link-card" href="#shop">${ICON.pin}<span><b>お店の情報</b><small>住所・アクセス・営業時間・営業日カレンダー・駐車場・お支払い</small></span></a>
       <a class="link-card" href="#request">${ICON.truck}<span><b>配達・大量注文の申請</b><small>配達は${TAKEOUT.deliveryFreeMin}食以上で無料（原則${TAKEOUT.deliveryKm}km圏内）・${TAKEOUT.deliveryFreeMin}食未満は要相談。大量注文は${TAKEOUT.bulkMin}食以上。お店が確認してから確定します</small></span></a>
       ${installCard()}
       <h2 class="sec" data-en="NEWS">お知らせ</h2>
@@ -245,7 +246,29 @@ function firstPickup(lead) {
   return d ? `${dayLabel(d.date)} ${hhmm(d.slots[0])}` : '—';
 }
 
-function viewMenu() {
+/* メニューのタブ（2026-11-04 ko-dai さんの指示：「店内メニューとテイクアウトのメニューが全部見れるメニュータブ」）。
+ *  上の切りかえで、テイクアウト（#menu。アプリで注文できる）と、店内のメニュー（#menu/dine。見るだけ）。注文だけの画面（takeout.html）では切りかえを出さない */
+const menuSwitch = on => (ORDER_ONLY ? '' : `<nav class="menu-switch" aria-label="メニューの種類">
+    <a href="#menu" class="${on === 'takeout' ? 'on' : ''}">${ICON.bag}<span><b>テイクアウト</b><small>アプリで注文できます</small></span></a>
+    <a href="#menu/dine" class="${on === 'dine' ? 'on' : ''}">${ICON.menu}<span><b>店内のメニュー</b><small>お店でお召し上がり</small></span></a>
+  </nav>`);
+function viewDine() {
+  return {
+    tab: 'menu', title: 'メニュー',
+    html: `${menuSwitch('dine')}
+      <p class="hint">お店でお召し上がりのメニューです（アプリからは注文できません）。価格は税込です。</p>
+      <div class="dine">${DINE_IN.map((c, i) => `
+        <details ${i === 0 ? 'open' : ''}>
+          <summary>${esc(c.name)}<small>${c.items.filter(x => !x.hidden).length}品</small></summary>
+          ${c.note ? `<p class="dine-note">${esc(c.note)}</p>` : ''}
+          <ul>${c.items.filter(x => !x.hidden).map(dineItem).join('')}</ul>
+        </details>`).join('')}
+      </div>
+      <a class="link-card" href="#reserve">${ICON.cal}<span><b>席のご予約</b><small>ネット予約か、お電話でどうぞ</small></span></a>`,
+  };
+}
+function viewMenu(arg) {
+  if (arg === 'dine' && !ORDER_ONLY) return viewDine();
   const accepting = DB.get('accepting', true);
   const first = firstPickup(leadFor(cartMeals()));
   const setNote = `<p class="cat-note">全定食にお得なセット！ ポテトフライ or 唐揚げ（5個）＋${yen(SET.choices[1].p)}／ミニシーザーサラダ ＋${yen(SALAD.choices[1].p)}</p>`;
@@ -253,8 +276,8 @@ function viewMenu() {
   const shown = c => ITEMS.filter(i => i.cat === c.id && !i.hidden);
   const cats = CATEGORIES.filter(c => shown(c).length);
   return {
-    tab: 'menu', title: 'テイクアウト注文',
-    html: `
+    tab: 'menu', title: ORDER_ONLY ? 'テイクアウト注文' : 'メニュー',
+    html: `${menuSwitch('takeout')}
       <nav class="cats">${cats.map(c => `<button data-act="cat" data-arg="${c.id}">${esc(c.name)}</button>`).join('')}</nav>
       ${ORDER_ONLY ? myOrders().filter(o => ACTIVE.includes(o.status)).map(orderBanner).join('') : ''}
       ${accepting ? '' : '<p class="notice warn">ただいま、アプリからの注文の受付を止めています。お急ぎの方はお電話でどうぞ。</p>'}
@@ -1154,7 +1177,7 @@ function viewShop() {
     ['ご相談・お申し込み', 'アプリの「配達・大量注文の申請」か、ホームページのお問い合わせフォームから'],
   ];
   return {
-    tab: 'shop', title: 'お店の情報',
+    tab: 'home', title: 'お店の情報', back: '#home',   // 下のタブからは外した（2026-11-04）。ホームの「お店の情報」から開く
     html: `
       <img class="shop-photo" src="${esc(SHOP.shopPhoto)}" alt="">
       <div class="shop-name"><img src="img/logo.png" alt=""><div><small>${esc(SHOP.catch)}</small><b>${esc(SHOP.name)}</b></div></div>
@@ -1174,15 +1197,9 @@ function viewShop() {
         ${row(ICON.insta, 'Instagram', '@baguru.hamburg', `<a class="mini" href="${SHOP.instagram}" target="_blank" rel="noopener">見る</a>`)}
       </ul>
       <div class="map"><iframe src="https://www.google.com/maps?q=${q}&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="地図"></iframe></div>
-      <h2 class="sec" data-en="IN-STORE MENU">店内のメニュー</h2>
-      <p class="hint">お店でお召し上がりのメニューです（アプリからは注文できません）。価格は税込です。テイクアウトは「注文」からどうぞ。</p>
-      <div class="dine">${DINE_IN.map((c, i) => `
-        <details ${i === 0 ? 'open' : ''}>
-          <summary>${esc(c.name)}<small>${c.items.filter(x => !x.hidden).length}品</small></summary>
-          ${c.note ? `<p class="dine-note">${esc(c.note)}</p>` : ''}
-          <ul>${c.items.filter(x => !x.hidden).map(dineItem).join('')}</ul>
-        </details>`).join('')}
-      </div>
+      <h2 class="sec" data-en="CALENDAR">営業日カレンダー</h2>
+      ${openCalHtml()}
+      <a class="link-card" href="#menu/dine">${ICON.menu}<span><b>店内のメニュー</b><small>お店でお召し上がりのメニューは、「メニュー」のタブで見られます</small></span></a>
       <h2 class="sec" data-en="OUR SHOPS">系列店</h2>
       ${SHOP.sisters.map(s => `<div class="sister">
         <img class="sister-logo" src="img/sisters/${esc(s.logo)}" alt="" width="64" height="64" loading="lazy">
@@ -1190,6 +1207,35 @@ function viewShop() {
           <span class="sister-links"><a class="mini" href="${esc(s.url)}" target="_blank" rel="noopener">ホットペッパー</a><a class="mini" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${s.name} ${s.addr}`)}" target="_blank" rel="noopener">${ICON.pin}地図</a></span></div>
       </div>`).join('')}`,
   };
+}
+
+/* ---- 営業日カレンダー（2026-11-04 ko-dai さんの指示。予約のタブと、お店の情報に出す） ----
+ *  休みかどうかは isClosedDay（T3Works の定休日・臨時休業・臨時営業 → data.js の順。common.js）。T3Works から来るのは60日先までなので、今月から3か月分。
+ *  休：いつもの定休日、臨休：臨時休業、営：いつもは休みの曜日だが営業（祝日・臨時営業） */
+let openCalYm = '';
+const ymOf = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+function openCalHtml() {
+  const now = new Date(), minYm = ymOf(now), maxYm = ymOf(new Date(now.getFullYear(), now.getMonth() + 2, 1));
+  if (!openCalYm || openCalYm < minYm || openCalYm > maxYm) openCalYm = minYm;
+  const [y, m] = openCalYm.split('-').map(Number), last = new Date(y, m, 0).getDate(), pad = new Date(y, m - 1, 1).getDay(), today = dateKey(now);
+  const cells = [];
+  for (let day = 1; day <= last; day++) {
+    const d = new Date(y, m - 1, day), k = dateKey(d), closed = isClosedDay(d), usual = closedDows().includes(d.getDay()) && !isHoliday(d);
+    const mark = closed ? (usual ? '休' : '臨休') : usual ? '営' : '';
+    const cls = [closed ? 'is-off' : '', closed && !usual ? 'is-extra' : '', !closed && usual ? 'is-on' : '', k === today ? 'is-today' : '', k < today ? 'is-past' : '',
+      d.getDay() === 0 || isHoliday(d) ? 'sun' : d.getDay() === 6 ? 'sat' : ''].filter(Boolean).join(' ');
+    cells.push(`<span class="oc-day ${cls}" aria-label="${mdw(d)} ${closed ? (usual ? '定休日' : '臨時休業') : '営業'}"><b>${day}</b><i>${mark}</i></span>`);
+  }
+  return `<div class="ocal">
+      <div class="oc-nav">
+        <button type="button" class="oc-move" data-act="ocal" data-arg="-1" ${openCalYm <= minYm ? 'disabled' : ''} aria-label="前の月">‹</button>
+        <p class="oc-title">${y}年<b>${m}</b>月</p>
+        <button type="button" class="oc-move" data-act="ocal" data-arg="1" ${openCalYm >= maxYm ? 'disabled' : ''} aria-label="次の月">›</button>
+      </div>
+      <div class="oc-grid">${WEEK.map((w, i) => `<span class="oc-wd ${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}">${w}</span>`).join('')}${'<span></span>'.repeat(pad)}${cells.join('')}</div>
+      <p class="oc-key"><span><i class="k-off">休</i>定休日</span><span><i class="k-extra">臨休</i>臨時休業</span><span><i class="k-on">営</i>祝日などで営業</span></p>
+      <div class="oc-hours">${hoursHtml()}</div>
+    </div>`;
 }
 
 function hoursHtml() {
@@ -1452,6 +1498,11 @@ function openTestReset() {
 const ACTIONS = {
   item: id => openItem(id),
   cat: id => $('#cat-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+  ocal: dir => {   // 営業日カレンダーの前の月・次の月（その場だけ描き直す）
+    const [y, m] = openCalYm.split('-').map(Number);
+    openCalYm = ymOf(new Date(y, m - 1 + Number(dir), 1));
+    $$('.ocal').forEach(el => { el.outerHTML = openCalHtml(); });
+  },
   cq: arg => {
     const [key, d] = arg.split(':');
     const c = cart.find(x => x.key === key);

@@ -478,7 +478,7 @@ function edRunAt(n) {
   }
   return { key: runSig(run), vals, cst, st, inner: run.some(s => s.el === top) };   // inner：飾りの中の字を押した（その字だけも直せる）
 }
-const edRoute = () => location.hash.replace(/^#/, '').split('/')[0] || 'home';
+const edRoute = () => { const h = location.hash.replace(/^#/, '') || 'home'; return h === 'menu/dine' ? h : h.split('/')[0]; };   // 店内のメニュー（#menu/dine）は、マネージの画面の一覧で別に出す
 if (TEXT_EDIT) {
   document.documentElement.classList.add('t-editing');
   // 「文を押して直す」のあいだは、アプリのボタン・リンク・入力欄を動かさず、押した字をマネージに知らせる

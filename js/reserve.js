@@ -59,10 +59,14 @@ const rsvMax = a => Math.min(RSV_PEOPLE_MAX, Number(a?.maxPeople) || RSV_PEOPLE_
 const ymdDate = ymd => { const [y, m, d] = ymd.split('-').map(Number); return new Date(y, m - 1, d); };
 const rsvDay = ymd => mdw(ymdDate(ymd));
 
+// 予約のタブ（2026-11-04 ko-dai さんの指示：「ネット予約もわかりにくいので予約タブ」）。上に営業日カレンダー（app.js の openCalHtml）、その下にネット予約
 function viewReserve() {
   return {
-    tab: 'home', title: 'ネット予約', back: '#home',
+    tab: 'reserve', title: '予約',
     html: `
+      <h2 class="sec" data-en="CALENDAR">営業日カレンダー</h2>
+      ${openCalHtml()}
+      <h2 class="sec" data-en="RESERVATION">ネット予約</h2>
       <p class="notice">${ICON.cal}<span>席のご予約の<b>リクエスト</b>です<small>お店が確かめて承認すると、確定のメールが届き、このアプリでも分かります（それまでは確定ではありません）。お急ぎの方は、お電話でどうぞ。</small></span></p>
       <div id="rsv"><p class="hint">空き状況を読み込んでいます…</p></div>`,
     after: rsvStart,
