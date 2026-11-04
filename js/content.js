@@ -15,6 +15,8 @@
  *    rewards: { マス: { options: [..], title, picks: [..] } }  … スタンプの特典（title・picks はゴールだけ）
  *    texts:   { 元の文: { to: 新しい文, s: 1 | 0 } }           … 画面に出る文章（マネージの「文章」のタブ。元の文の一覧は 道具/文章を集める.py が作る）
  *             s が 1 なら文の一部としても置きかえる（前後に数字などが入る文）。0 なら、字のかたまり全体が同じときだけ
+             x が 1 なら、枠ごとの形（元の文の {1}・{2}… に、数字などその時の字が入る。マネージの APP_FRAMES）。
+               字のかたまり全体がこの形に合えば、直した文の {1} などにその時の字を入れて出す（2026-11-04 から）
  *             ★画面に出た字（テキストノード）を置きかえるだけなので、アプリの動きは変わらない。HTML としては読まない（字のまま出る）
  * ===================================================================== */
 
@@ -96,14 +98,32 @@ function applyContent(c) {
 }
 
 /* ---- 画面の文章：直した文に置きかえる（texts） ---- */
-let TEXT_MAP = new Map(), TEXT_PART = null, TEXT_LOOSE = null, textsStarted = false;
+let TEXT_MAP = new Map(), TEXT_PART = null, TEXT_LOOSE = null, TEXT_TPL = [], textsStarted = false;
 const TEXT_SEEN = new WeakMap();                                                 // 置きかえたあとの字を覚える（同じ字を二度置きかえない）
 const TEXT_FROM = new WeakMap();                                                 // 置きかえる前の字（アプリが書いた字。マネージの「画面で直す」が使う）
 const TEXT_ATTRS = ['placeholder', 'aria-label', 'title', 'data-en'];
 
+/** 枠ごとの形（'配達は{1}食以上…'）を、字のかたまり全体に合う形にする。{1} などは、何の字でも合う（空でも） */
+function tplRe(key) {
+  const nums = [], src = key.split(/\{(\d+)\}/).map((p, i) => {
+    if (i % 2) { nums.push(Number(p)); return '([\\s\\S]*?)'; }
+    return p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+  }).join('');
+  return { re: new RegExp('^' + src + '$'), nums };
+}
+/** 枠ごとの形に合えば、直した文の {1} などに、画面のその時の字を入れて返す。合わなければ null */
+function tplText(t, tpl, to) {
+  const m = t.match(tpl.re);
+  if (!m) return null;
+  const val = {};
+  tpl.nums.forEach((n, i) => { val[n] = m[i + 1]; });
+  return to.replace(/\{(\d+)\}/g, (x, n) => val[n] ?? '');
+}
 function setTexts(c) {
-  const list = Object.entries(c && typeof c === 'object' && !Array.isArray(c) ? c : {})
+  const all = Object.entries(c && typeof c === 'object' && !Array.isArray(c) ? c : {})
     .filter(([k, v]) => k.length <= 800 && v && typeof v.to === 'string' && v.to.trim() && v.to.length <= 800);
+  const list = all.filter(([, v]) => v.x !== 1);
+  TEXT_TPL = all.filter(([, v]) => v.x === 1).map(([k, v]) => ({ ...tplRe(k), to: v.to }));
   TEXT_MAP = new Map(list.map(([k, v]) => [k, v.to]));
   const re = keys => (keys.length ? new RegExp(keys.sort((a, b) => b.length - a.length).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g') : null);
   TEXT_PART = re(list.filter(([, v]) => v.s).map(([k]) => k));
@@ -112,9 +132,10 @@ function setTexts(c) {
 
 /** 字を置きかえる。loose … 全体が同じでなくても置きかえる（注文の文のように、言葉がつながっているもの） */
 function textOf(s, loose = false) {
-  if (!TEXT_MAP.size || !s) return s;
+  if ((!TEXT_MAP.size && !TEXT_TPL.length) || !s) return s;
   const t = s.trim();
   if (TEXT_MAP.has(t)) return s.replace(t, () => TEXT_MAP.get(t));
+  if (!loose) for (const tpl of TEXT_TPL) { const r = tplText(t, tpl, tpl.to); if (r !== null) return s.replace(t, () => r); }   // 枠ごと直した文
   const re = loose ? TEXT_LOOSE : TEXT_PART;
   return re ? s.replace(re, m => TEXT_MAP.get(m)) : s;
 }
@@ -153,7 +174,7 @@ function textEl(el) {
 }
 /** root の中の字を置きかえる。入力欄の中（お客様が書いた字）と、スクリプトには触らない */
 function applyTexts(root = document.body) {
-  if ((!TEXT_MAP.size && !TEXT_EDIT) || !root) return;   // マネージの「画面で直す」では、直した文が無くても見る（直せる文に印を付ける）
+  if ((!TEXT_MAP.size && !TEXT_TPL.length && !TEXT_EDIT) || !root) return;   // マネージの「画面で直す」では、直した文が無くても見る（直せる文に印を付ける）
   if (root.nodeType === 3) { if (!/^(SCRIPT|STYLE|TEXTAREA)$/.test(root.parentNode?.nodeName || '')) textNode(root); return; }
   if (root.nodeType !== 1) return;
   textEl(root);
@@ -170,7 +191,7 @@ function startTexts() {
   for (const f of ['confirm', 'alert']) { const o = window[f].bind(window); window[f] = m => o(textOf(String(m))); }
   applyTexts();
   new MutationObserver(list => {
-    if (!TEXT_MAP.size && !TEXT_EDIT) return;
+    if (!TEXT_MAP.size && !TEXT_TPL.length && !TEXT_EDIT) return;
     for (const m of list) {
       if (m.type === 'characterData') applyTexts(m.target);
       else m.addedNodes.forEach(n => applyTexts(n));
@@ -210,12 +231,12 @@ function previewFocus() {
  *  「アプリを動かす」のあいだは、ふつうに押せる（商品を選ぶ画面など、押して開く所の文を出すため。注文などは PREVIEW_STOP で止まる）
  *  ★やりとりは、同じ場所（/baguru-app/ と /baguru-manage/）の親の画面とだけ。マネージから来た文は字として入れる（HTML として読まない） */
 const TEXT_EDIT = PREVIEW && /[?&]edit\b/.test(location.search);
-const ED = { exact: null, part: null, on: true, key: '', s: 0 };
+const ED = { exact: null, part: null, frames: [], on: true, key: '', s: 0, tpl: null };   // frames：枠ごとの形（マネージの APP_FRAMES）
 const ED_ATTRS = ['placeholder', 'data-en'];   // 画面に字が見える属性（押して直せる）
 const edTell = msg => parent.postMessage({ type: 'baguru-edit', ...msg }, location.origin);
 const edOrig = n => String(TEXT_FROM.get(n) ?? n.nodeValue ?? '').trim();
-const edIs = t => !!t && !!ED.exact && (ED.exact.has(t) || !!ED.part?.test(t));
-const edHits = (t, key, s) => !!t && (t === key || (!!s && t.includes(key)));
+const edIs = t => !!t && !!ED.exact && (ED.exact.has(t) || !!ED.part?.test(t) || ED.frames.some(f => f.re.test(t)));
+const edHits = (t, key, s, tpl) => !!t && (tpl ? tpl.re.test(t) : t === key || (!!s && t.includes(key)));
 function edMark(n) {
   const p = n.parentNode;
   if (ED.exact && p?.nodeType === 1 && edIs(edOrig(n))) p.classList.add('t-ed');
@@ -244,23 +265,43 @@ function edRetext() {
 function edPick() {
   document.querySelectorAll('.t-on').forEach(el => el.classList.remove('t-on'));
   if (!ED.key) return;
-  edWalk(n => { if (n.parentNode?.nodeType === 1 && edHits(edOrig(n), ED.key, ED.s)) n.parentNode.classList.add('t-on'); },
-    el => { const from = TEXT_FROM.get(el); if (from && ED_ATTRS.some(a => edHits(String(from[a] || '').trim(), ED.key, ED.s))) el.classList.add('t-on'); });
+  edWalk(n => { if (n.parentNode?.nodeType === 1 && edHits(edOrig(n), ED.key, ED.s, ED.tpl)) n.parentNode.classList.add('t-on'); },
+    el => { const from = TEXT_FROM.get(el); if (!ED.tpl && from && ED_ATTRS.some(a => edHits(String(from[a] || '').trim(), ED.key, ED.s))) el.classList.add('t-on'); });
 }
-/** 押した所の字（元の字）。main … 指の下の字、more … 押した所のまわりの字、attrs … 字が見える属性 */
+/** その字が画面でどう並ぶか（マネージの直す欄を、同じ幅・同じ字の形にして、改行の場所をアプリとそろえるため）。
+ *  w … 字が並ぶ箱の中の幅（小数まで）、indent … 1行目が、前の字やアイコンのぶん右から始まるときの空き（px）、
+ *  fit … 箱が字の長さに合わせて縮んでいる（ボタンなど）。そのときは max まで、打った字に合わせて広がる */
+function edStyle(n) {
+  const p = n.parentElement;
+  if (!p) return null;
+  let box = p;
+  while (box.parentElement && box !== document.body && /^(inline|contents)$/.test(getComputedStyle(box).display)) box = box.parentElement;
+  const cs = getComputedStyle(p), px = v => parseFloat(v) || 0;
+  const inner = el => { const s = getComputedStyle(el), rc = el.getBoundingClientRect(); return { left: rc.left + px(s.borderLeftWidth) + px(s.paddingLeft), w: rc.width - px(s.borderLeftWidth) - px(s.borderRightWidth) - px(s.paddingLeft) - px(s.paddingRight) }; };
+  const r = document.createRange();
+  r.selectNodeContents(n);
+  const rects = [...r.getClientRects()].filter(x => x.width > 0), first = rects[0], last = rects[rects.length - 1], bi = inner(box);
+  const oneLine = !!first && rects.every(x => Math.abs(x.top - first.top) < 2);
+  const st = { w: bi.w, indent: first ? Math.max(0, first.left - bi.left) : 0, align: getComputedStyle(box).textAlign };
+  if (oneLine && bi.w - (last.right - first.left) < 1.5 && box.parentElement) { st.fit = true; st.max = inner(box.parentElement).w; }
+  for (const k of ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing', 'lineHeight', 'wordBreak', 'overflowWrap', 'lineBreak', 'fontFeatureSettings', 'textTransform', 'whiteSpace', 'color']) st[k] = cs[k];
+  return st;
+}
+/** 押した所の字（元の字）。main … 指の下の字、more … 押した所のまわりの字（どちらも { t: 元の字, now: 今の字, st: 並び方 }）、attrs … 字が見える属性 */
 function edHit(e) {
   const r = document.caretRangeFromPoint?.(e.clientX, e.clientY), p = !r && document.caretPositionFromPoint?.(e.clientX, e.clientY);
   const n = r ? r.startContainer : p ? p.offsetNode : null, t = e.target.nodeType === 1 ? e.target : e.target.parentNode;
   const uniq = list => [...new Set(list.filter(Boolean))];
-  const main = n?.nodeType === 3 && t.contains(n) ? [edOrig(n)] : [];
+  const one = x => ({ t: edOrig(x), now: String(x.nodeValue || '').trim(), st: edStyle(x) });
+  const main = n?.nodeType === 3 && t.contains(n) && edOrig(n) ? [one(n)] : [];
   const more = [], attrs = [], box = t.closest('button, a, label, li, p, h1, h2, h3, dt, dd, th, td') || t;
   const w = document.createTreeWalker(box, NodeFilter.SHOW_TEXT);
-  for (let x = w.nextNode(); x && more.length < 12; x = w.nextNode()) more.push(edOrig(x));
+  for (let x = w.nextNode(); x && more.length < 12; x = w.nextNode()) if (edOrig(x) && !more.some(m => m.t === edOrig(x))) more.push(one(x));
   for (let el = t, i = 0; el && el !== document.body && i < 3; el = el.parentElement, i++) {
     const from = TEXT_FROM.get(el);
     if (from) ED_ATTRS.forEach(a => from[a] && attrs.push(String(from[a]).trim()));
   }
-  return { main: uniq(main), more: uniq(more), attrs: uniq(attrs) };
+  return { main, more, attrs: uniq(attrs) };
 }
 const edRoute = () => location.hash.replace(/^#/, '').split('/')[0] || 'home';
 if (TEXT_EDIT) {
@@ -285,6 +326,7 @@ if (TEXT_EDIT) {
       const part = (Array.isArray(d.part) ? d.part : []).filter(k => typeof k === 'string' && k).sort((a, b) => b.length - a.length);
       ED.exact = new Set((Array.isArray(d.exact) ? d.exact : []).filter(k => typeof k === 'string'));
       ED.part = part.length ? new RegExp(part.map(esc2).join('|')) : null;
+      ED.frames = (Array.isArray(d.frames) ? d.frames : []).filter(k => typeof k === 'string' && k.length <= 800).map(tplRe);
       edWalk(edMark, edMarkEl);
     } else if (d.kind === 'texts') {
       setTexts(d.texts);
@@ -296,6 +338,7 @@ if (TEXT_EDIT) {
     } else if (d.kind === 'pick') {
       ED.key = String(d.key || '');
       ED.s = d.s ? 1 : 0;
+      ED.tpl = d.x && ED.key ? tplRe(ED.key) : null;
     } else if (d.kind === 'go') {   // 上の画面のボタン。開いている下からの画面は閉じてから移る
       if (typeof closeSheet === 'function' && typeof sheet === 'object' && !sheet.hidden) closeSheet();
       location.hash = '#' + String(d.route || 'home');

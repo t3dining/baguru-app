@@ -55,6 +55,8 @@ const RING_EVERY = 3000;   // 受付待ちの注文があるあいだ、この�
 const CHIME_URL = 'snd/order.wav';   // 注文が入ったときの音（1.8秒。道具/注文の音を作る.py で作る）
 const COOK_URL = 'snd/cook.wav';     // 調理を始める時間の音（2.6秒。「ピンポーン」を2回。同じ道具で作る）
 const COOK_RINGS = 3;                // 調理を始める時間の音を、RING_EVERY の間隔で何回鳴らすか
+const CANCEL_URL = 'snd/cancel.wav';   // お客様が注文を取り消したときの音（1.8秒。低いブザーの「ブッ・ブー」を2回。同じ道具で作る）
+const CANCEL_RINGS = 2;                // 取り消しの音を、RING_EVERY の間隔で何回鳴らすか
 const COOK_GLOW = 60000;             // 調理中に移った注文を光らせて「調理開始」の札を付けておく長さ（ミリ秒）
 
 // タブレット（iPad など。画面の短いほうが600以上）は、開いたときから音はオン。「音」のボタンで、そのときだけ止められる。
@@ -64,9 +66,12 @@ let soundOn = TABLET;
 let audio = null;
 let chime = null;   // 読み込んだ音。読めなかったときは、前の「ピッピッ」で鳴らす
 let cookChime = null;   // 調理を始める時間の音。読めなかったときは、低い「ピッピッ」で鳴らす
+let cancelChime = null;   // お客様が取り消したときの音。読めなかったときは、もっと低い「ピッピッ」で鳴らす
 let ringTimer = null;
+let quietUntil = 0;   // この時刻までは、受付待ちの音を休む（取り消しの音と重ねないため）
 // 新しく届いた注文に印を付けるため。受け口につないだときは、はじめて読めたときに埋める（開いたときからある注文には印を付けない）
-let known = ORDERS_ONLINE ? null : new Set(getOrders().map(o => o.id));
+// 注文ごとの前の様子（id → status）も控える。お客様の取り消しを見分けるため
+let known = ORDERS_ONLINE ? null : new Map(getOrders().map(o => [o.id, o.status]));
 const fresh = new Set();
 const cookNow = new Set();   // 受付済みから調理中に移ったばかりの注文（光らせる）
 
@@ -252,7 +257,8 @@ function loadChime() {
     .then(r => r.arrayBuffer())
     .then(b => new Promise((ok, ng) => audio.decodeAudioData(b, ok, ng)))   // 古い Safari は、この書き方しか使えない
     .catch(() => null);
-  return Promise.all([chime || load(CHIME_URL), cookChime || load(COOK_URL)]).then(([a, b]) => { chime = a; cookChime = b; });
+  return Promise.all([chime || load(CHIME_URL), cookChime || load(COOK_URL), cancelChime || load(CANCEL_URL)])
+    .then(([a, b, c]) => { chime = a; cookChime = b; cancelChime = c; });
 }
 
 /** 音を1回鳴らす。ふだんは注文の音。buf が読めていないときは、freq の高さの「ピッピッ」 */
@@ -281,7 +287,7 @@ function beep(buf = chime, freq = 880) {
 
 // 受付待ちがあるあいだは鳴らし続け、なくなったら（受け付けたら）止める
 function ring(on) {
-  if (on && !ringTimer) { beep(); ringTimer = setInterval(beep, RING_EVERY); }
+  if (on && !ringTimer) { beep(); ringTimer = setInterval(() => { if (Date.now() >= quietUntil) beep(); }, RING_EVERY); }
   if (!on && ringTimer) { clearInterval(ringTimer); ringTimer = null; }
 }
 
@@ -482,14 +488,21 @@ function render() {
 
 function checkNew() {
   const all = list();
-  if (!known) { known = new Set(all.map(o => o.id)); return; }   // 受け口から、はじめて読めたとき
+  if (!known) { known = new Map(all.map(o => [o.id, o.status])); return; }   // 受け口から、はじめて読めたとき
   const added = all.filter(o => !known.has(o.id));
   if (added.length) {
     added.forEach(o => fresh.add(o.id));
     ring(false);   // 一度止めて、このあとの render で鳴らし直す（新しい注文はすぐ鳴る）
     setTimeout(() => { added.forEach(o => fresh.delete(o.id)); render(); }, 8000);
   }
-  known = new Set(all.map(o => o.id));
+  // お客様が取り消したら、取り消しとわかる音を鳴らす（2026-11-04 ko-dai さんの指示）。お客様が取り消せるのは、受付待ち・申請のあいだだけ（受け口の orderCancel_）。
+  // お店で取り消した（canceledBy が「お店」）ときは鳴らさない。閉じているあいだに取り消された分も鳴らさない（新しい注文と同じ）
+  const gone = all.filter(o => o.status === 'canceled' && o.canceledBy === 'お客様' && ['new', 'request'].includes(known.get(o.id)));
+  if (gone.length && soundOn) {
+    quietUntil = Date.now() + CANCEL_RINGS * RING_EVERY - 100;   // ほかの受付待ちの音は、取り消しの音が終わるまで休む
+    for (let i = 0; i < CANCEL_RINGS; i++) setTimeout(() => beep(cancelChime, 330), i * RING_EVERY);
+  }
+  known = new Map(all.map(o => [o.id, o.status]));
 }
 
 document.addEventListener('click', async e => {
@@ -753,7 +766,7 @@ async function addPhoneOrder(row) {
     const now = new Date();
     const o = { id: 'o' + now.getTime(), no: nextOrderNo(now), date: dateKey(now), createdAt: now.toISOString(), status: 'accepted', ...row,
       memo: row.note, total: row.lines.reduce((s, l) => s + l.unit * l.qty, 0), times: { accepted: now.toISOString() } };
-    known?.add(o.id);   // 自分で入れた注文には「新しい」の印を付けない
+    known?.set(o.id, o.status);   // 自分で入れた注文には「新しい」の印を付けない
     saveOrders([...getOrders(), o]);
     render();
     return true;
@@ -762,7 +775,7 @@ async function addPhoneOrder(row) {
   try {
     const r = await staffPost({ action: 'saveOrder', row, rid: phone.rid });   // status を省くと accepted になる
     const o = fromServer(r.row);
-    known?.add(o.id);
+    known?.set(o.id, o.status);
     put(o);
     return true;
   } catch (e) {
