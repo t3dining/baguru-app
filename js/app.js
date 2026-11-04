@@ -7,6 +7,20 @@
  * ===================================================================== */
 
 const ORDER_ONLY = !!window.ORDER_ONLY;
+
+/* ★お店用アプリの引っ越し（計画書 `お店用アプリの引っ越し.md` の段階2の5）：お店用のアプリは t3dining-store.github.io に引っ越した。
+ *  この場所（t3dining.github.io）は、前のお店用のアプリと保存場所が同じなので、前のお店のアプリが残したお店の保存（合言葉など）を、開いたときに消す
+ *  （お店の画面を開かない端末にも残さないため）。名前は計画書の「古い場所で消すもの」の表と同じ。
+ *  ★bg. で始まる名前はお客様の会員・スタンプにも使っているので、まとめて消さない。表の名前だけを1つずつ消す。
+ *  ★消すのは引っ越しの日から（SHOP.storeMoved。道具/公開する.py の MOVED で、公開するときだけ true になる）。前の場所の公開先でだけ消す */
+const OLD_STORE_KEYS = ['baguru.daicho.pin', 'baguru.daicho.seen', 'baguru.daicho.sound', 'baguru.daicho.shell',   // shell には今日の予約の控え（お客様のお名前）
+  'baguru.line.screen', 'bg.hpAdmin', 'baguru.yoyaku.owner', 'baguru.yoyaku.view', 'bg.cookRung', 'bg.hub', 'bg.owner'];
+function clearOldStore() {
+  [() => localStorage, () => sessionStorage].forEach(box => {
+    try { const b = box(); OLD_STORE_KEYS.forEach(k => b.removeItem(k)); } catch (e) { /* 保存が使えない端末 */ }
+  });
+}
+if (SHOP.storeMoved && location.hostname === 't3dining.github.io') clearOldStore();
 const ORDER_ROUTES = ['menu', 'cart', 'checkout', 'request', 'order'];
 
 const view = $('#view');
@@ -1831,18 +1845,33 @@ if (stampParam) history.replaceState(null, '', location.pathname + '#stamp');
 
 // バグる Owner（オーナー用の入口）から開いたときだけ、上の帯に「🏠 ホーム」を出す（2026-10-30 ko-dai さんの指示。フォルダーアプリのセッションに頼まれた）。
 // 印は common.js がこのタブの sessionStorage に控えている（アドレスの ? が消えても出し続ける）。お客さまが開いたときは出さない。
-// 戻り先は、バグる Owner が控えた sessionStorage の bg.owner（?test で開いたときは ?test 付き）
-const OWNER_HOME = 'https://t3dining.github.io/baguru-app/owner/';
+// 戻り先は、バグる Owner（バグる Staff から開いた印 hub=staff があれば Staff）。
+// ★2026-11-05 お店用アプリの引っ越しの段階2の3（計画書 `お店用アプリの引っ越し.md`）：Owner・Staff は t3dining-store.github.io に引っ越したので、
+//   Owner が控える sessionStorage の bg.owner は、ここ（t3dining.github.io）からは読めない（前の場所の Owner が書いた古い控えが残っていると、前の Owner に戻ってしまう）。
+//   そこで、bg.owner は読まず、アドレスの印（?from=owner・&hub=staff）だけで決める。印は、このタブの sessionStorage（bg.fromOwner・bg.fromHub）に控えて、アドレスの ? が消えても使う。
+//   この Mac（localhost）で試すときは、手元の バグるOwner/・バグるStaff/ に戻る（?test で開いたときは ?test 付き）
+const OWNER_URL = 'https://t3dining-store.github.io/baguru-owner/';
+const STAFF_URL = 'https://t3dining-store.github.io/baguru-staff/';
 const OWNER_MODE = (() => { try { return sessionStorage.getItem('bg.fromOwner') === '1'; } catch (e) { return false; } })();
+const FROM_STAFF = (() => {
+  const q = location.search, mark = /[?&]hub=staff\b/.test(q);
+  try {   // ?from=owner で開き直したときは、そのときの印に替える（Staff から開いたあと、同じタブで Owner から開いたときに Staff へ戻らないように）
+    if (/[?&]from=owner\b/.test(q)) { if (mark) sessionStorage.setItem('bg.fromHub', 'staff'); else sessionStorage.removeItem('bg.fromHub'); }
+    return sessionStorage.getItem('bg.fromHub') === 'staff';
+  } catch (e) { return mark; }
+})();
+function ownerHome() {
+  if (!/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return FROM_STAFF ? STAFF_URL : OWNER_URL;
+  const u = new URL(FROM_STAFF ? 'バグるStaff/index.html' : 'バグるOwner/index.html', location.href);
+  u.search = /[?&]test\b/.test(location.search) ? '?test' : '';
+  u.hash = '';
+  return u.href;
+}
 if (TEST_MEMBER) { $('#testBand').hidden = false; document.body.classList.add('test-account'); }   // テスト用アカウントの帯（15節）
 if (OWNER_MODE && $('#ownerHome')) {
   $('#ownerHome').hidden = false;
   $('.top').classList.add('has-owner');   // 名前の字を少し小さくして、ボタンと並べても名前が切れないように
-  $('#ownerHome').onclick = () => {
-    let to = '';
-    try { to = sessionStorage.getItem('bg.owner') || ''; } catch (e) {}
-    location.href = to || OWNER_HOME;
-  };
+  $('#ownerHome').onclick = () => { location.href = ownerHome(); };
 }
 
 // バグるマネージで直した中身（js/content.js）。前に読んだ分をすぐ重ねてから描き、そのあと受け口から読み直す（変わっていたら描き直す）

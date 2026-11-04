@@ -54,6 +54,10 @@ const SHOP = {
   // ★2026-11-05 お店用アプリの引っ越しの段階1（計画書 `お店用アプリの引っ越し.md`）。段階2で、新しい組織の場所（t3dining-store。ko-dai さんが作った）を足した。
   //   前の場所（t3dining.github.io の baguru-manage）は、引っ越しの日まで今の版のまま動くので残す。引っ越しの日のあとに外す
   manageOrigins: ['https://t3dining-store.github.io', 'https://t3dining.github.io'],
+  // お店用のアプリが引っ越したあとか（js/app.js の clearOldStore が、前のお店の保存を消す）。
+  // ★ここは false のまま。引っ越しの日に 道具/公開する.py の MOVED を True にすると、公開する data.js だけが true になる
+  //   （先に true にすると、古いアイコンで使っているお店の人の合言葉が消える。この Mac の試しの画面でも消さないように）
+  storeMoved: false,
   // ホームページのお問い合わせフォーム（ホームページ/contact.html）のアドレス。公開したら入れると、お店の情報の「配達」にリンクが出る
   contactUrl: '',
   // ネット予約（席の予約のリクエスト）の受け口は、予約ボードの公開先から読む（そこの config.js と api.js。js/reserve.js）。
