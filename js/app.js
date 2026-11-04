@@ -80,6 +80,7 @@ function render(keepScroll = false) {
   if (!keepScroll) FX.reveal(view);   // スクロールで順に出す（js/fx.js。1分ごとの描き直しでは動かさない）
   view.dataset.route = name || 'home';     // ヨコ画面のとき、メニューだけ横に広げる（app.css の最後）
   $$('.tabs a').forEach(a => a.classList.toggle('on', a.dataset.tab === v.tab));
+  $('#meBtn')?.classList.toggle('on', v.tab === 'me');   // 右上のマイページ（2026-11-04）
   drawCart();
   window.scrollTo(0, keepScroll ? y : 0);
 }
@@ -247,10 +248,12 @@ function firstPickup(lead) {
 }
 
 /* メニューのタブ（2026-11-04 ko-dai さんの指示：「店内メニューとテイクアウトのメニューが全部見れるメニュータブ」）。
- *  上の切りかえで、テイクアウト（#menu。アプリで注文できる）と、店内のメニュー（#menu/dine。見るだけ）。注文だけの画面（takeout.html）では切りかえを出さない */
+ *  上の切りかえで、店内のメニュー（#menu/dine。見るだけ）と、テイクアウト（#menu。アプリで注文できる）。
+ *  ★同じ日の2回目の指示で、テイクアウトの注文は「注文」のタブ（#menu）に分けた。メニューのタブは店内のメニューから開き、切りかえはこちらだけに出す。
+ *  切りかえの「テイクアウト」を押すと、注文のタブに移る。注文だけの画面（takeout.html）では切りかえを出さない */
 const menuSwitch = on => (ORDER_ONLY ? '' : `<nav class="menu-switch" aria-label="メニューの種類">
-    <a href="#menu" class="${on === 'takeout' ? 'on' : ''}">${ICON.bag}<span><b>テイクアウト</b><small>アプリで注文できます</small></span></a>
     <a href="#menu/dine" class="${on === 'dine' ? 'on' : ''}">${ICON.menu}<span><b>店内のメニュー</b><small>お店でお召し上がり</small></span></a>
+    <a href="#menu" class="${on === 'takeout' ? 'on' : ''}">${ICON.bag}<span><b>テイクアウト</b><small>「注文」で注文できます</small></span></a>
   </nav>`);
 function viewDine() {
   return {
@@ -276,8 +279,8 @@ function viewMenu(arg) {
   const shown = c => ITEMS.filter(i => i.cat === c.id && !i.hidden);
   const cats = CATEGORIES.filter(c => shown(c).length);
   return {
-    tab: 'menu', title: ORDER_ONLY ? 'テイクアウト注文' : 'メニュー',
-    html: `${menuSwitch('takeout')}
+    tab: 'order', title: 'テイクアウト注文',   // 下のタブの「注文」（2026-11-04 の2回目。前はメニューのタブの中の切りかえ）
+    html: `
       <nav class="cats">${cats.map(c => `<button data-act="cat" data-arg="${c.id}">${esc(c.name)}</button>`).join('')}</nav>
       ${ORDER_ONLY ? myOrders().filter(o => ACTIVE.includes(o.status)).map(orderBanner).join('') : ''}
       ${accepting ? '' : '<p class="notice warn">ただいま、アプリからの注文の受付を止めています。お急ぎの方はお電話でどうぞ。</p>'}
@@ -512,7 +515,7 @@ function openAllergyList() {
 function viewCart() {
   if (!cart.length) {
     return {
-      tab: 'menu', title: 'カート', back: '#menu',
+      tab: 'order', title: 'カート', back: '#menu',
       html: `<div class="empty">${ICON.cart}<p>カートは空です</p><a class="btn btn-main" href="#menu">メニューを見る</a></div>`,
     };
   }
@@ -521,7 +524,7 @@ function viewCart() {
   const bulk = meals >= TAKEOUT.bulkMin;
   const out = cartOut();
   return {
-    tab: 'menu', title: 'カート', back: '#menu',
+    tab: 'order', title: 'カート', back: '#menu',
     html: `
       ${out.length ? `<p class="notice warn">売り切れになったものがあります。カートから削除してください。</p>` : ''}
       <div class="lines">${lines.map((l, k) => `
@@ -563,7 +566,7 @@ function viewCheckout() {
   const accepting = DB.get('accepting', true);
   const ok = accepting && (asap || days.length);
   return {
-    tab: 'menu', title: '受け取りとお名前', back: '#cart',
+    tab: 'order', title: '受け取りとお名前', back: '#cart',
     html: `
       ${jstOk() ? '' : `<p class="notice warn">${JST_WARN}</p>`}
       <h2 class="sec">受け取りの時間</h2>
@@ -797,7 +800,7 @@ function viewRequest() {
       </ul>`;
   if (!can.delivery) {
     return {
-      tab: 'menu', title: '配達・大量注文の申請', back: cart.length ? '#cart' : '#menu',
+      tab: 'order', title: '配達・大量注文の申請', back: cart.length ? '#cart' : '#menu',
       html: `
         <p class="lead">配達・大量注文は、メニューを選んでカートに入れてから申請します。</p>
         ${rules}
@@ -814,7 +817,7 @@ function viewRequest() {
       <label class="choice ${can[k] ? '' : 'off'}"><input type="radio" name="r-kind" value="${k}" ${req.kind === k ? 'checked' : ''} ${can[k] ? '' : 'disabled'}>
         <span class="c-name">${title}<small>${sub}</small></span></label>`;
   return {
-    tab: 'menu', title: '配達・大量注文の申請', back: '#cart',
+    tab: 'order', title: '配達・大量注文の申請', back: '#cart',
     html: `
       ${rules}
       ${jstOk() ? '' : `<p class="notice warn">${JST_WARN}</p>`}
@@ -1179,7 +1182,7 @@ function viewShop() {
     ['ご相談・お申し込み', 'アプリの「配達・大量注文の申請」か、ホームページのお問い合わせフォームから'],
   ];
   return {
-    tab: 'home', title: 'お店の情報', back: '#home',   // 下のタブからは外した（2026-11-04）。ホームの「お店の情報」から開く
+    tab: 'shop', title: 'お店の情報',   // 下のタブの「お店」（2026-11-04 の2回目の指示で、一番右に戻した）。ホームの「お店の情報」からも開く
     html: `
       <img class="shop-photo" src="${esc(SHOP.shopPhoto)}" alt="">
       <div class="shop-name"><img src="img/logo.png" alt=""><div><small>${esc(SHOP.catch)}</small><b>${esc(SHOP.name)}</b></div></div>
@@ -1765,3 +1768,36 @@ else {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) syncContent(); });
 }
 if (stampParam && !needInstall() && !needTest() && !needJoin()) claimStamp(stampParam);
+
+/* ---------------------------------------------------------------------
+ *  新しい版が出ていたら、開き直す（2026-11-04 ko-dai さんの指示「オーナーから開いても最新の画面になるようにしてください」）
+ *  ホーム画面に追加した Owner・アプリは、戻ってきても前に開いた画面のまま読み直さない。そのため、公開した直し（下のタブなど）が出なかった。
+ *  ・公開の道具（道具/公開する.py）が HTML に書いた版（meta bg-version）と、公開先の version.json を比べる。違えば、新しいアドレスで開き直す
+ *  ・見るのは、開いたとき・画面に戻ったとき（visibilitychange・pageshow）。30秒に1回まで
+ *  ・入力の途中（入れた字・選んだものがある、下から出る画面が開いている）は開き直さない。次に戻ったときにまた見る
+ *  ・同じ版で2回は開き直さない（このタブの sessionStorage の bg.verTry）。この Mac（版が書かれていない）と、マネージの「アプリで見る」では何もしない
+ * --------------------------------------------------------------------- */
+const PAGE_VER = document.querySelector('meta[name="bg-version"]')?.content || '';
+let verAt = 0;
+const typingNow = () => sheet.classList.contains('show') || $$('input, textarea, select').some(el =>
+  el.type === 'checkbox' || el.type === 'radio' ? el.checked !== el.defaultChecked
+    : el.tagName === 'SELECT' ? el.selectedIndex !== Math.max(0, [...el.options].findIndex(o => o.defaultSelected))   // 何も決めていない選ぶ欄は、いちばん上が選ばれている
+      : el.type !== 'hidden' && el.value !== el.defaultValue);
+async function checkVersion() {
+  if (!PAGE_VER || PREVIEW || document.hidden || Date.now() - verAt < 30000) return;
+  verAt = Date.now();
+  let ver = '';
+  try { ver = String((await (await fetch('version.json?t=' + Date.now(), { cache: 'no-store' })).json()).version || ''); } catch (e) { return; }
+  if (!/^[0-9a-f]{6,40}$/.test(ver) || ver === PAGE_VER || typingNow()) return;
+  try { if (sessionStorage.getItem('bg.verTry') === ver) return; sessionStorage.setItem('bg.verTry', ver); } catch (e) { return; }
+  const q = withoutVer(location.search);
+  location.replace(location.pathname + (q ? q + '&' : '?') + 'v=' + ver + location.hash);   // 新しいアドレスにして、端末に残った古い画面を使わせない（開いたあとで消す）
+}
+/** アドレスの ? のところから、開き直しの印 v=… だけを外す（?test・?from=owner などは、そのままの形で残す） */
+function withoutVer(search) { return search.replace(/([?&])v=[^&]*&?/, '$1').replace(/[?&]$/, ''); }
+if (/[?&]v=/.test(location.search)) history.replaceState(history.state, '', location.pathname + withoutVer(location.search) + location.hash);   // 開き直したときに付けた印を消す
+if (PAGE_VER && !PREVIEW) {
+  checkVersion();
+  document.addEventListener('visibilitychange', checkVersion);
+  window.addEventListener('pageshow', e => { if (e.persisted) { verAt = 0; checkVersion(); } });
+}

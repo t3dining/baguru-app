@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
+<meta name="bg-version" content="3a7fa723">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <script>
   /* バグる Owner の中から開いたとき（?from=owner）だけ、viewport-fit=cover を外す（2026-11-01。予約ボードと同じ）。
@@ -30,7 +31,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
-<link rel="stylesheet" href="css/app.css?v=6a29f142">
+<link rel="stylesheet" href="css/app.css?v=7283716d">
 </head>
 <body>
 <div class="app">
@@ -39,6 +40,7 @@
     <h1 id="title"></h1>
     <button id="ownerHome" class="owner-home" hidden>🏠 ホーム</button>   <!-- バグる Owner から開いたときだけ出す（app.js の OWNER_MODE） -->
     <a id="cartBtn" class="top-btn cart-btn" href="#cart" aria-label="カート" data-icon="cart"><span class="badge" hidden></span></a>
+    <a id="meBtn" class="me-btn" href="#me" aria-label="マイページ" data-icon="user"><span>マイページ</span></a>   <!-- 2026-11-04 ko-dai さんの指示：マイページは右上に -->
     <p id="testBand" class="test-band" hidden>テスト用アカウント<small>Owner から開いたときだけ</small></p>   <!-- app.js の TEST_MEMBER -->
   </header>
 
@@ -46,12 +48,14 @@
 
   <a id="cartbar" class="cartbar" href="#cart" hidden></a>
   <nav class="tabs">
-    <!-- 2026-11-04 ko-dai さんの指示：ホーム・メニュー（テイクアウトと店内）・予約・スタンプ・マイページ。お店の情報は、ホームのカードから開く -->
+    <!-- 2026-11-04 ko-dai さんの指示（2回目）：ホーム・メニュー・注文・予約・スタンプ・お店。マイページは右上（上の帯の #meBtn）。
+         メニューは店内のメニュー（上の切りかえでテイクアウトも見られる）、注文はテイクアウトの注文 -->
     <a href="#home" data-tab="home" data-icon="home"><span>ホーム</span></a>
-    <a href="#menu" data-tab="menu" data-icon="menu"><span>メニュー</span></a>
+    <a href="#menu/dine" data-tab="menu" data-icon="menu"><span>メニュー</span></a>
+    <a href="#menu" data-tab="order" data-icon="bag"><span>注文</span></a>
     <a href="#reserve" data-tab="reserve" data-icon="cal"><span>予約</span></a>
     <a href="#stamp" data-tab="stamp" data-icon="card"><span>スタンプ</span></a>
-    <a href="#me" data-tab="me" data-icon="user"><span>マイページ</span></a>
+    <a href="#shop" data-tab="shop" data-icon="pin"><span>お店</span></a>
   </nav>
 </div>
 
@@ -72,6 +76,6 @@
 <script src="js/stamp-api.js?v=79f6e867"></script>
 <script src="js/privacy.js?v=ef69df9d"></script>
 <script src="js/reserve.js?v=b0d084e9"></script>
-<script src="js/app.js?v=c3b9aa82"></script>
+<script src="js/app.js?v=b0b8ecd6"></script>
 </body>
 </html>
