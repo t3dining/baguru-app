@@ -50,6 +50,10 @@ const SHOP = {
   // 公開したお客さまの画面のアドレス（お店に置くスタンプのQRの中身になる）。
   // 空なら、お店の画面（order.html）と同じ場所の index.html。会社の GitHub で公開している（道具/公開する.py）
   appUrl: 'https://t3dining.github.io/baguru-app/',
+  // バグるマネージの場所（この公式アプリを枠の中に開いて、保存前の直しを postMessage で渡してくる親）。js/content.js が名指しで確かめる。
+  // ★2026-11-05 お店用アプリの引っ越しの段階1（計画書 `お店用アプリの引っ越し.md`）。マネージが新しい組織の場所に引っ越したら（段階2）、'https://t3dining-store.github.io' を足す。
+  //   ★組織ができる前には足さない（その名前の場所を、ほかの人が先に作れるため）
+  manageOrigins: ['https://t3dining.github.io'],
   // ホームページのお問い合わせフォーム（ホームページ/contact.html）のアドレス。公開したら入れると、お店の情報の「配達」にリンクが出る
   contactUrl: '',
   // ネット予約（席の予約のリクエスト）の受け口は、予約ボードの公開先から読む（そこの config.js と api.js。js/reserve.js）。

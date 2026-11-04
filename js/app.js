@@ -1529,7 +1529,6 @@ function openDeleteMember() {
 
 /* ---- テスト用アカウント（バグる Owner から開いたときだけ。スタンプ台帳の決めごと.md の15節） ---- */
 
-let testPinAsk = false;   // 覚えてある合言葉が無い・違ったときだけ、入れる欄を出す
 
 /** テスト用アカウントを作る画面。合言葉は、この端末に覚えてあれば入れなくてよい */
 function viewTestGate() {
@@ -1544,14 +1543,14 @@ function viewTestGate() {
         <li>マイページの「テストのアカウントを0に戻す」で、最初からやり直せます</li>
       </ul>
       <p class="notice warn">${ICON.bag}<span>テイクアウトの注文と席のご予約は、本物としてお店に届きます。</span></p>
-      ${testPinAsk || !storePin() ? '<label class="field"><span>お店の合言葉（予約ボードと同じ）</span><input id="test-pin" type="password" autocomplete="off"></label>' : ''}
+      <label class="field"><span>お店の合言葉（予約ボードと同じ。作るときに毎回入れます。この端末には覚えません）</span><input id="test-pin" type="password" autocomplete="off"></label>
       <button class="btn btn-main btn-block" data-act="testMake">テスト用アカウントを作る</button>`,
   };
 }
 
 function makeTestFrom(b) {
   const typed = $('#test-pin')?.value.trim() || '';
-  const pin = typed || (testPinAsk ? '' : storePin());
+  const pin = typed;   // ★お店の合言葉は、入れてもらった字だけを使う（端末の保存からは読まない。2026-11-05）
   if (!pin) return toast('合言葉を入れてください', 'warn');
   b.disabled = true;
   b.textContent = '作っています…';
@@ -1562,7 +1561,6 @@ function makeTestFrom(b) {
   }).catch(e => {
     b.disabled = false;
     b.textContent = 'テスト用アカウントを作る';
-    if (e.code === 'bad_pin' && !testPinAsk) { testPinAsk = true; render(true); }
     console.warn('テスト用アカウントを作れませんでした', e.code, e.message, e.data);   // パソコンでは開発ツールでも見られる
     toast(testMessage(e), 'warn');
   });

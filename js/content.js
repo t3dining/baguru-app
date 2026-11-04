@@ -347,7 +347,32 @@ function startTexts() {
  *  マネージが、公式アプリを画面の中に開く（iframe・?preview）。保存前の直しは sessionStorage の bg.preview（同じ場所のページだけが読める）。
  *  ★見え方を確かめるだけ：受け口から読み直さず、この端末の保存も変えず（DB はこの画面の中だけ）、注文などは動かさない（app.js の PREVIEW_STOP） */
 const PREVIEW = window.parent !== window && /[?&]preview\b/.test(location.search);
-const previewContent = () => { try { return JSON.parse(sessionStorage.getItem('bg.preview') || 'null'); } catch (e) { return null; } };
+/* ★2026-11-05（お店用アプリの引っ越しの段階1）：マネージが別の場所に引っ越すと、sessionStorage は読めなくなる。そこで、直しは postMessage で受け取る。
+ *  ・開いたら（load）、マネージに { type: 'baguru-preview', kind: 'hello' } を送る。マネージが { type: 'baguru-manage', kind: 'preview', content, focus } を返す
+ *  ・受けるのは、親の画面（parent）からで、場所が data.js の SHOP.manageOrigins のどれかのときだけ（この Mac では同じ場所 localhost も）
+ *  ・引っ越しの日までは、前の sessionStorage の bg.preview・bg.previewFocus も読む（同じ場所なら、開いてすぐ直しが出る） */
+const MANAGE_ORIGINS = new Set([...((typeof SHOP === 'object' && SHOP.manageOrigins) || []), ...(/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? [location.origin] : [])]);
+const fromManage = e => e.source === parent && MANAGE_ORIGINS.has(e.origin);
+let manageAt = '';   // 返事を送る先（届いた親の場所。分かるまでは、名指しの場所のどれにも送る。合わない場所には、ブラウザが届けない）
+const toManage = msg => (manageAt ? [manageAt] : [...MANAGE_ORIGINS]).forEach(o => { try { parent.postMessage(msg, o); } catch (e) { /* 届かないだけ */ } });
+let previewData = null;   // マネージから届いた直し { content, focus }
+const previewContent = () => {
+  if (previewData) return previewData.content;
+  try { return JSON.parse(sessionStorage.getItem('bg.preview') || 'null'); } catch (e) { return null; }
+};
+if (PREVIEW) {
+  addEventListener('message', e => {
+    if (!fromManage(e)) return;
+    const d = e.data || {};
+    if (d.type !== 'baguru-manage' || d.kind !== 'preview') return;
+    manageAt = e.origin;
+    previewData = { content: d.content && typeof d.content === 'object' && !Array.isArray(d.content) ? d.content : null, focus: typeof d.focus === 'string' ? d.focus : '' };
+    applyContent(previewData.content);
+    if (typeof render === 'function' && !(typeof sheet === 'object' && !sheet.hidden)) render(true);
+    if (!TEXT_EDIT) setTimeout(previewFocus, 300);
+  });
+  addEventListener('load', () => toManage({ type: 'baguru-preview', kind: 'hello' }));
+}
 if (PREVIEW && typeof DB === 'object') {
   const mem = new Map(), read = DB.get.bind(DB);
   DB.get = (k, fallback) => (mem.has(k) ? mem.get(k) : read(k, fallback));
@@ -355,8 +380,8 @@ if (PREVIEW && typeof DB === 'object') {
 }
 /** 確かめている文までスクロールして、枠で示す。見つからなかったことはマネージに知らせる */
 function previewFocus() {
-  let focus = '';
-  try { focus = (sessionStorage.getItem('bg.previewFocus') || '').trim(); } catch (e) {}
+  let focus = previewData ? previewData.focus.trim() : '';
+  if (!previewData) try { focus = (sessionStorage.getItem('bg.previewFocus') || '').trim(); } catch (e) {}
   if (!focus) return;
   const find = text => {
     const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -366,7 +391,7 @@ function previewFocus() {
   const el = find(focus) || find(focus.split('\n')[0].trim());   // 文全体で探し、無ければ1行目で
   el?.scrollIntoView({ block: 'center' });
   el?.classList.add('t-flash');
-  parent.postMessage({ type: 'baguru-preview', found: !!el }, location.origin);
+  toManage({ type: 'baguru-preview', kind: 'focus', found: !!el });
 }
 
 /* ---- バグるマネージの「画面で直す」（2026-11-03 ko-dai さんの指示：ホームページの管理画面のように、実際の画面を直しているような感じで文章を直す） ----
@@ -377,7 +402,7 @@ function previewFocus() {
 const TEXT_EDIT = PREVIEW && /[?&]edit\b/.test(location.search);
 const ED = { exact: null, part: null, frames: [], on: true, key: '', s: 0, tpl: null, news: null, run: '' };   // frames：枠ごとの形（マネージの APP_FRAMES）。news：直しているお知らせ { i, f }
 const ED_ATTRS = ['placeholder', 'data-en'];   // 画面に字が見える属性（押して直せる）
-const edTell = msg => parent.postMessage({ type: 'baguru-edit', ...msg }, location.origin);
+const edTell = msg => toManage({ type: 'baguru-edit', ...msg });   // マネージの場所だけに送る（上の toManage）
 const edOrig = n => String(TEXT_FROM.get(n) ?? n.nodeValue ?? '').trim();
 const edIs = t => !!t && !!ED.exact && (ED.exact.has(t) || !!ED.part?.test(t) || ED.frames.some(f => f.re.test(t)));
 const edHits = (t, key, s, tpl) => !!t && (tpl ? tpl.re.test(t) : t === key || (!!s && t.includes(key)));
@@ -493,9 +518,10 @@ if (TEXT_EDIT) {
   addEventListener('submit', e => { if (ED.on) e.preventDefault(); }, true);
   addEventListener('hashchange', () => edTell({ kind: 'route', route: edRoute() }));
   addEventListener('message', e => {
-    if (e.source !== parent || e.origin !== location.origin) return;
+    if (!fromManage(e)) return;   // マネージの場所から来た知らせだけ（2026-11-05 から名指しで確かめる。前は同じ場所かどうか）
     const d = e.data || {};
     if (d.type !== 'baguru-manage') return;
+    manageAt = e.origin;
     if (d.kind === 'keys') {
       const esc2 = k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const part = (Array.isArray(d.part) ? d.part : []).filter(k => typeof k === 'string' && k).sort((a, b) => b.length - a.length);

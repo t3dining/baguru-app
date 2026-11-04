@@ -2,23 +2,14 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="bg-version" content="476270d8">
+<meta name="bg-version" content="95141725">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<script>
-  /* バグる Owner の中から開いたとき（?from=owner）だけ、viewport-fit=cover を外す（2026-11-01。予約ボードと同じ）。
-     iPhone のホーム画面のアプリで別のページへ移ると、cover のままでは、使える高さが時計の帯のぶん短いのに上の端が時計の下にもぐり、
-     下にすき間ができて全体が上に寄る。ホーム画面から直接開くときは、今までのまま。くわしくは バグる Owner の README */
-  (function () {
-    var owner = /[?&]from=owner\b/.test(location.search);
-    try { owner = owner || sessionStorage.getItem('bg.fromOwner') === '1'; } catch (e) {}
-    if (!owner) return;
-    // テスト用アカウントの印（js/db.js が保存の箱を替える。マネージの「アプリで見る」の中では付けない）
-    window.OWNER_TEST = !(window.parent !== window && /[?&]preview\b/.test(location.search));
-    var v = document.querySelector('meta[name="viewport"]');
-    v.setAttribute('content', v.getAttribute('content').replace(/,\s*viewport-fit=cover/, ''));
-    addEventListener('pageshow', function (e) { if (!e.persisted) scrollTo(0, 0); });   // 切り替えたときのずれが残らないように
-  })();
-</script>
+<!-- 読んでよい場所を限る（CSP。2026-11-05 お店用アプリの引っ越しの段階1・案4。計画書 `お店用アプリの引っ越し.md`）。GitHub Pages は見出しを付けられないので meta。
+     script：自分の場所・予約ボードの config.js と api.js（同じ t3dining.github.io）・QR の部品（cdnjs・jsDelivr。SRI つき）だけ。中に書いたスクリプトは使わない（js/owner-head.js などに出した）
+     style：字の形（Google Fonts）と、画面の中の style の書き方（'unsafe-inline'）／img：写真（lh3）と、QR の絵（data:）／connect：受け口（script.google.com とその転送先）と T3Works の営業日
+     frame：お店の情報の地図（Google マップ）。★外の場所を足したら、ここも直す（直さないと、その部品は読まれない） -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://t3dining.github.io https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://lh3.googleusercontent.com; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://t3works-sync.t3dining.workers.dev; frame-src https://www.google.com https://maps.google.com; worker-src 'self'; manifest-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<script src="js/owner-head.js?v=a53475a6"></script>   <!-- バグる Owner から開いたときだけのこと（前はここに中身を書いていた） -->
 <meta name="robots" content="noindex, nofollow">   <!-- 試作のあいだは検索に出さない（2026-10-29 決定。本番で外す） -->
 <meta name="theme-color" content="#1f1916">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -65,17 +56,17 @@
 </div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-<script src="js/data.js?v=800fd5e1"></script>
+<script src="js/data.js?v=98a58f4c"></script>
 <script src="js/db.js?v=97e9d111"></script>
 <script src="js/common.js?v=02f899df"></script>
-<script src="js/content.js?v=2614ae48"></script>   <!-- バグるマネージで直した中身を重ねる -->
+<script src="js/content.js?v=36ec9b9c"></script>   <!-- バグるマネージで直した中身を重ねる -->
 <script src="js/install.js?v=885d992f"></script>
 <script src="js/stamp-qr.js?v=ec12613f"></script>
 <script src="js/fx.js?v=24d62bd3"></script>
 <script src="js/order-api.js?v=ca3999db"></script>
-<script src="js/stamp-api.js?v=79f6e867"></script>
+<script src="js/stamp-api.js?v=efa552d1"></script>
 <script src="js/privacy.js?v=8cd2a2af"></script>
 <script src="js/reserve.js?v=b0d084e9"></script>
-<script src="js/app.js?v=25d00d38"></script>
+<script src="js/app.js?v=099b7325"></script>
 </body>
 </html>
