@@ -18,7 +18,12 @@ const myOrders = () => getOrders().filter(o => o.member === ME.no);
 const statusMap = () => Object.fromEntries(myOrders().map(o => [o.id, o.status]));
 
 // 選ぶ項目が変わる前にカートへ入れたもの（いまの決まりでは選び終わっていないもの）は、取りのぞく
-let cart = DB.get('cart', []).filter(c => ITEM_BY_ID[c.itemId] && !priceOf(ITEM_BY_ID[c.itemId], c.sel || {}).missing);
+// 個数の欄（追加カラアゲなど）が上限（g.max）を超えていたら、上限にそろえる（2026-11-04 に追加カラアゲを10個まで→3個までにしたとき、前のカートの4個以上を残さないため）
+let cart = DB.get('cart', []).filter(c => ITEM_BY_ID[c.itemId] && !priceOf(ITEM_BY_ID[c.itemId], c.sel || {}).missing).map(clampCounts);
+function clampCounts(c) {
+  (ITEM_BY_ID[c.itemId].groups || []).forEach(g => { if (g.type === 'count' && typeof c.sel?.[g.id] === 'number' && c.sel[g.id] > g.max) c.sel = { ...c.sel, [g.id]: g.max }; });
+  return c;
+}
 let pick = { mode: 'asap', day: 0, slot: null };   // 受け取り方（asap＝できしだい／time＝時間を指定）と日・時間。cutlery はお箸・スプーンの有無（選ぶまで無い）
 let justOrdered = null;                  // 注文した直後の「ありがとうございます」を出すため
 let lastStatus = statusMap();            // 注文の様子が変わったら知らせるため

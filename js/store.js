@@ -712,6 +712,9 @@ $('#pAdd').addEventListener('click', () => {
   const item = ITEM_BY_ID[$('#pItem').value];
   if (!item) return phoneErr('品物を選んでください');
   if (item.soldOut || item.hidden) return phoneErr('この品物は、いま売り切れです');
+  // 個数の上限（追加カラアゲは3個まで。data.js の max）を超えて打ったら、黙って減らさずに知らせる（2026-11-04 ko-dai さんの指示）
+  const over = item.groups.find(g => g.type === 'count' && (parseInt($(`#pOpts input[data-g="${g.id}"]`)?.value, 10) || 0) > (g.max || 10));
+  if (over) return phoneErr(`「${over.name}」は${over.max || 10}個までです`);
   const p = priceOf(item, readSel(item));
   if (p.missing) return phoneErr(`「${p.missing.name}」を選んでください`);
   const qty = Math.max(1, Math.min(99, parseInt($('#pQty').value, 10) || 1));
@@ -734,12 +737,17 @@ $('#pSend').addEventListener('click', async () => {
   const route = $('input[name="pRoute"]:checked').value;
   const name = $('#pName').value.trim();
   const at = new Date(`${$('#pDay').value}T${$('#pHm').value}`);
+  const tel = $('#pTel').value.trim();
   if (route === '電話' && !name) return phoneErr('お名前を入れてください');
+  // 電話番号は、電話でも店頭でも必ず入れる（2026-11-04 ko-dai さんの指示）。けた数は公式アプリと同じ（10〜11けた）
+  if (!tel) return phoneErr('電話番号を入れてください');
+  const telDigits = tel.replace(/[^\d]/g, '').length;
+  if (telDigits < 10 || telDigits > 11) return phoneErr('電話番号を確かめてください（10〜11けた）');
   if ($('#pItem').value) return phoneErr('選んだ品物を「＋ 入れる」で入れてください（入れないなら、品物を「品物を選んでください」に戻す）');
   if (!phone.lines.length) return phoneErr('品物を1つ以上入れてください（品物を選んで「＋ 入れる」）');
   if (!$('#pDay').value || !$('#pHm').value || isNaN(at)) return phoneErr('受け取りの日と時刻を選んでください');
   if (at < Date.now() - 5 * 60000) return phoneErr('受け取りの時刻が、もう過ぎています');
-  const row = { kind: 'pickup', asap: false, pickupAt: at.toISOString(), name, tel: $('#pTel').value.trim(), route, note: $('#pNote').value.trim(),
+  const row = { kind: 'pickup', asap: false, pickupAt: at.toISOString(), name, tel, route, note: $('#pNote').value.trim(),
     lines: phone.lines, meals: phoneMeals() };
   $('#pSend').disabled = true;
   const ok = await addPhoneOrder(row);

@@ -265,7 +265,7 @@ const ITEMS = [
         { n: 'プレーン', p: 0 }, { n: 'ネギ塩ダレ', p: 0 }, { n: 'ヤンニョム', p: 0 }, { n: '南蛮ソース', p: 0 },
       ] },
       RICE,
-      { id: 'addkara', name: '追加カラアゲ', type: 'count', required: true, max: 10, choices: [{ n: '追加カラアゲ', p: 130 }] },
+      { id: 'addkara', name: '追加カラアゲ', type: 'count', required: true, max: 3, choices: [{ n: '追加カラアゲ', p: 130 }] },   // 3個まで（2026-11-04 ko-dai さんの指示。前は10個。Order受付も同じ max を読む）
       SET, SALAD,
     ],
   },
