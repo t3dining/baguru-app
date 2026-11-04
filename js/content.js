@@ -17,6 +17,8 @@
  *             s が 1 なら文の一部としても置きかえる（前後に数字などが入る文）。0 なら、字のかたまり全体が同じときだけ
              x が 1 なら、枠ごとの形（元の文の {1}・{2}… に、数字などその時の字が入る。マネージの APP_FRAMES）。
                字のかたまり全体がこの形に合えば、直した文の {1} などにその時の字を入れて出す（2026-11-04 から）
+             x が 2 なら、文の途中に飾りの字（<b>・<em> など）が入る文。元の文は、飾りの所を {1}・{2}… にした形（runSig）。
+               飾りはそのまま残し、そのあいだの字だけを入れかえる（runMark。2026-11-04 から）
  *             ★画面に出た字（テキストノード）を置きかえるだけなので、アプリの動きは変わらない。HTML としては読まない（字のまま出る）
  * ===================================================================== */
 
@@ -98,7 +100,7 @@ function applyContent(c) {
 }
 
 /* ---- 画面の文章：直した文に置きかえる（texts） ---- */
-let TEXT_MAP = new Map(), TEXT_PART = null, TEXT_LOOSE = null, TEXT_TPL = [], textsStarted = false;
+let TEXT_MAP = new Map(), TEXT_PART = null, TEXT_LOOSE = null, TEXT_TPL = [], TEXT_RUN = new Map(), RUN_TO = new WeakMap(), textsStarted = false;
 const TEXT_SEEN = new WeakMap();                                                 // 置きかえたあとの字を覚える（同じ字を二度置きかえない）
 const TEXT_FROM = new WeakMap();                                                 // 置きかえる前の字（アプリが書いた字。マネージの「画面で直す」が使う）
 const TEXT_ATTRS = ['placeholder', 'aria-label', 'title', 'data-en'];
@@ -122,8 +124,10 @@ function tplText(t, tpl, to) {
 function setTexts(c) {
   const all = Object.entries(c && typeof c === 'object' && !Array.isArray(c) ? c : {})
     .filter(([k, v]) => k.length <= 800 && v && typeof v.to === 'string' && v.to.trim() && v.to.length <= 800);
-  const list = all.filter(([, v]) => v.x !== 1);
+  const list = all.filter(([, v]) => v.x !== 1 && v.x !== 2);
   TEXT_TPL = all.filter(([, v]) => v.x === 1).map(([k, v]) => ({ ...tplRe(k), to: v.to }));
+  TEXT_RUN = new Map(all.filter(([, v]) => v.x === 2).map(([k, v]) => [k, v.to]));
+  RUN_TO = new WeakMap();
   TEXT_MAP = new Map(list.map(([k, v]) => [k, v.to]));
   const re = keys => (keys.length ? new RegExp(keys.sort((a, b) => b.length - a.length).map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g') : null);
   TEXT_PART = re(list.filter(([, v]) => v.s).map(([k]) => k));
@@ -144,8 +148,53 @@ function textNode(n) {
   const v = n.nodeValue;
   if (TEXT_SEEN.get(n) === v) return;
   TEXT_FROM.set(n, v);
-  putText(n, textOf(v));
+  putText(n, textFor(n));
   if (TEXT_EDIT) edMark(n);
+}
+/** その字のかたまりに入れる字（飾りの入る文を直したものが先。無ければ、ふつうの置きかえ） */
+const textFor = n => (RUN_TO.has(n) ? RUN_TO.get(n) : textOf(TEXT_FROM.get(n) ?? n.nodeValue));
+
+/* ---- 文の途中に飾りの字が入る文（x: 2） ----
+ *  箱の子を、続いた「字のかたまり」と「飾り（display: inline の要素で、字のあるもの）」に分けたまとまりが run。アイコン・改行・ブロックの字で区切る。
+ *  元の文の形は、字のかたまりは元の字、飾りは {1}・{2}…（runSig）。直した文の {1} などのあいだの字を、字のかたまりに順に入れる（runMark）。
+ *  ★マネージが、飾りを消さず順も変えない形だけ保存する。飾りの中の字は変えない（中の字は、それぞれ別に直せる） */
+const runText = x => x.nodeType === 3 || !!x.classList?.contains('t-br');
+const runEl = x => x.nodeType === 1 && !runText(x) && !/^(svg|img|br|button|input|select|textarea)$/i.test(x.nodeName) && !!x.textContent.trim() && getComputedStyle(x).display === 'inline';
+function runsOf(box) {
+  const runs = [];
+  let cur = [];
+  const end = () => { if (cur.length) runs.push(cur); cur = []; };
+  for (const x of box.childNodes) {
+    if (runText(x)) cur.push({ x, n: x.nodeType === 3 ? x : x.firstChild });
+    else if (runEl(x)) cur.push({ x, el: x });
+    else if (x.nodeType === 1) end();
+  }
+  end();
+  return runs.filter(r => r.some(s => s.el) && r.some(s => s.n && /[\u3041-\u30ff\u4e00-\u9fff]/.test(String(TEXT_FROM.get(s.n) ?? s.n.nodeValue))));
+}
+function runSig(run) {
+  let k = 0;
+  return run.map(s => (s.el ? `{${++k}}` : String((s.n && (TEXT_FROM.get(s.n) ?? s.n.nodeValue)) || '').replace(/\s+/g, ' '))).join('').trim();
+}
+/** 箱の中に、直した文と同じ形の run があれば、字のかたまりに入れる字を決める（入れるのは textNode・edRetext） */
+function runMark(box) {
+  if (!TEXT_RUN.size || box?.nodeType !== 1) return;
+  for (const run of runsOf(box)) {
+    const to = TEXT_RUN.get(runSig(run));
+    if (to === undefined) continue;
+    const segs = to.split(/\{\d+\}/);
+    let slot = 0, used = false;
+    run.forEach((s, i) => {
+      if (s.el) {
+        // 飾りの前に字のかたまりが無いのに、直した文ではそこに字があるときは、かたまりを足す
+        if (!used && segs[slot]) { const t = document.createTextNode(''); TEXT_FROM.set(t, ''); RUN_TO.set(t, segs[slot]); s.el.before(t); }
+        slot++; used = false;
+        if (i === run.length - 1 && segs[slot]) { const t = document.createTextNode(''); TEXT_FROM.set(t, ''); RUN_TO.set(t, segs[slot]); s.el.after(t); }
+        return;
+      }
+      if (s.n) { RUN_TO.set(s.n, used ? '' : segs[slot] ?? ''); used = true; }
+    });
+  }
 }
 /** 字を入れる。マネージで改行した文は、改行したとおりに出す（親にまとめて指定すると、タグの間の改行まで出てしまうので、この字だけを包む） */
 function putText(n, r) {
@@ -170,11 +219,12 @@ function textEl(el) {
   }
   TEXT_SEEN.set(el, seen);
   if (Object.keys(from).length) TEXT_FROM.set(el, from);
+  runMark(el);   // 子の字のかたまりより先に（TreeWalker は箱を先に見る）
   if (TEXT_EDIT) edMarkEl(el);
 }
 /** root の中の字を置きかえる。入力欄の中（お客様が書いた字）と、スクリプトには触らない */
 function applyTexts(root = document.body) {
-  if ((!TEXT_MAP.size && !TEXT_TPL.length && !TEXT_EDIT) || !root) return;   // マネージの「画面で直す」では、直した文が無くても見る（直せる文に印を付ける）
+  if ((!TEXT_MAP.size && !TEXT_TPL.length && !TEXT_RUN.size && !TEXT_EDIT) || !root) return;   // マネージの「画面で直す」では、直した文が無くても見る（直せる文に印を付ける）
   if (root.nodeType === 3) { if (!/^(SCRIPT|STYLE|TEXTAREA)$/.test(root.parentNode?.nodeName || '')) textNode(root); return; }
   if (root.nodeType !== 1) return;
   textEl(root);
@@ -191,7 +241,7 @@ function startTexts() {
   for (const f of ['confirm', 'alert']) { const o = window[f].bind(window); window[f] = m => o(textOf(String(m))); }
   applyTexts();
   new MutationObserver(list => {
-    if (!TEXT_MAP.size && !TEXT_TPL.length && !TEXT_EDIT) return;
+    if (!TEXT_MAP.size && !TEXT_TPL.length && !TEXT_RUN.size && !TEXT_EDIT) return;
     for (const m of list) {
       if (m.type === 'characterData') applyTexts(m.target);
       else m.addedNodes.forEach(n => applyTexts(n));
@@ -231,7 +281,7 @@ function previewFocus() {
  *  「アプリを動かす」のあいだは、ふつうに押せる（商品を選ぶ画面など、押して開く所の文を出すため。注文などは PREVIEW_STOP で止まる）
  *  ★やりとりは、同じ場所（/baguru-app/ と /baguru-manage/）の親の画面とだけ。マネージから来た文は字として入れる（HTML として読まない） */
 const TEXT_EDIT = PREVIEW && /[?&]edit\b/.test(location.search);
-const ED = { exact: null, part: null, frames: [], on: true, key: '', s: 0, tpl: null, news: null };   // frames：枠ごとの形（マネージの APP_FRAMES）。news：直しているお知らせ { i, f }
+const ED = { exact: null, part: null, frames: [], on: true, key: '', s: 0, tpl: null, news: null, run: '' };   // frames：枠ごとの形（マネージの APP_FRAMES）。news：直しているお知らせ { i, f }
 const ED_ATTRS = ['placeholder', 'data-en'];   // 画面に字が見える属性（押して直せる）
 const edTell = msg => parent.postMessage({ type: 'baguru-edit', ...msg }, location.origin);
 const edOrig = n => String(TEXT_FROM.get(n) ?? n.nodeValue ?? '').trim();
@@ -254,9 +304,10 @@ function edWalk(onText, onEl) {
 }
 /** マネージで打った文を、画面の字に入れ直す（元の字から作り直す） */
 function edRetext() {
-  edWalk(n => (TEXT_FROM.has(n) ? putText(n, textOf(TEXT_FROM.get(n))) : textNode(n)), el => {
+  edWalk(n => (TEXT_FROM.has(n) ? putText(n, textFor(n)) : textNode(n)), el => {
     const from = TEXT_FROM.get(el), seen = TEXT_SEEN.get(el) || {};
     if (!from) return textEl(el);
+    runMark(el);
     for (const a of Object.keys(from)) { const r = textOf(from[a]); if (el.getAttribute(a) !== r) el.setAttribute(a, r); seen[a] = r; }
     TEXT_SEEN.set(el, seen);
   });
@@ -265,6 +316,7 @@ function edRetext() {
 function edPick() {
   document.querySelectorAll('.t-on').forEach(el => el.classList.remove('t-on'));
   if (ED.news) return document.querySelector(`[data-news="${ED.news.i}"] [data-nf="${ED.news.f}"]`)?.classList.add('t-on');
+  if (ED.run) return edWalk(() => {}, el => { if (el.childNodes.length > 1 && runsOf(el).some(r => runSig(r) === ED.run)) el.classList.add('t-on'); });
   if (!ED.key) return;
   edWalk(n => { if (n.parentNode?.nodeType === 1 && edHits(edOrig(n), ED.key, ED.s, ED.tpl)) n.parentNode.classList.add('t-on'); },
     el => { const from = TEXT_FROM.get(el); if (!ED.tpl && from && ED_ATTRS.some(a => edHits(String(from[a] || '').trim(), ED.key, ED.s))) el.classList.add('t-on'); });
@@ -305,7 +357,32 @@ function edHit(e) {
   // お知らせのタイトル・本文（data-nf）を押したとき：お知らせの何番目のどれか
   const nf = t.closest?.('[data-nf]'), li = nf?.closest('[data-news]'), nn = nf && (n?.nodeType === 3 && nf.contains(n) ? n : document.createTreeWalker(nf, NodeFilter.SHOW_TEXT).nextNode());
   const news = li ? { i: Number(li.dataset.news), f: nf.dataset.nf, st: nn ? edStyle(nn) : null } : null;
-  return { main, more, attrs: uniq(attrs), news };
+  return { main, more, attrs: uniq(attrs), news, run: n?.nodeType === 3 ? edRunAt(n) : null };
+}
+/** 押した字が、文の途中に飾りの入る文（run）の一部なら、その形と飾りの字・形。地の字に数字があるもの（お客様ごとに変わる）は null */
+function edRunAt(n) {
+  let top = n;
+  while (top.parentElement && top.parentElement !== document.body && (top.parentElement.classList.contains('t-br') || getComputedStyle(top.parentElement).display === 'inline')) top = top.parentElement;
+  const box = top.parentElement, run = box && runsOf(box).find(r => r.some(s => s.x === top));
+  if (!run || run.some(s => s.n && /[0-9０-９]/.test(String(TEXT_FROM.get(s.n) ?? s.n.nodeValue)))) return null;
+  const vals = {}, cst = {};
+  let k = 0;
+  run.forEach(s => {
+    if (!s.el) return;
+    k++;
+    vals[k] = s.el.textContent.replace(/\s+/g, ' ').trim();
+    const c = getComputedStyle(s.el);
+    cst[k] = {};
+    for (const p of ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing', 'marginLeft', 'marginRight', 'paddingLeft', 'paddingRight', 'color']) cst[k][p] = c[p];
+  });
+  const firstText = run.find(s => s.n)?.n, st = firstText ? edStyle(firstText) : null;
+  if (st) {   // 1行目の始まりは、run の最初のもの（飾りのこともある）から
+    delete st.fit;
+    const f = run[0].x.nodeType === 3 ? (() => { const r = document.createRange(); r.selectNodeContents(run[0].x); return [...r.getClientRects()].find(x => x.width > 0); })() : run[0].x.getClientRects()[0];
+    const bs = getComputedStyle(box), bl = box.getBoundingClientRect().left + (parseFloat(bs.borderLeftWidth) || 0) + (parseFloat(bs.paddingLeft) || 0);
+    st.indent = f ? Math.max(0, f.left - bl) : 0;
+  }
+  return { key: runSig(run), vals, cst, st, inner: run.some(s => s.el === top) };   // inner：飾りの中の字を押した（その字だけも直せる）
 }
 const edRoute = () => location.hash.replace(/^#/, '').split('/')[0] || 'home';
 if (TEXT_EDIT) {
@@ -344,6 +421,8 @@ if (TEXT_EDIT) {
       ED.s = d.s ? 1 : 0;
       ED.tpl = d.x && ED.key ? tplRe(ED.key) : null;
       ED.news = d.news && Number.isInteger(d.news.i) ? { i: d.news.i, f: d.news.f === 'body' ? 'body' : 'title' } : null;
+      ED.run = d.x === 2 ? ED.key : '';
+      if (ED.run) ED.tpl = null;
     } else if (d.kind === 'content') {   // お知らせなど、文章のほかの直し：中身を入れ直して描き直す（開いている画面のまま）
       if (d.content && typeof d.content === 'object') { applyContent(d.content); if (typeof render === 'function' && !(typeof sheet === 'object' && !sheet.hidden)) render(true); }
     } else if (d.kind === 'go') {   // 上の画面のボタン。開いている下からの画面は閉じてから移る

@@ -218,7 +218,7 @@ function rsvDraw() {
   }
   if (!rsv.avail.accepting) { box.innerHTML = `<p class="notice warn">${esc(RSV_MSG.not_accepting)}</p>${tel}`; return; }
   const [sei, mei] = twoParts(ME.name), [seiKana, meiKana] = twoParts(ME.kana);
-  const v = rsv.v || { name: ME.name, sei, mei, seiKana, meiKana, tel: ME.tel, email: ME.email || '', kids: false, dessert: false, plateMsg: '', note: '' };
+  const v = rsv.v || { name: ME.name, sei, mei, seiKana, meiKana, tel: ME.tel, email: ME.email || '', dessert: false, plateMsg: '', note: '' };
   const max = rsv.avail.maxPeople;
   box.innerHTML = `
     <h2 class="sec">人数</h2>
@@ -231,7 +231,6 @@ function rsvDraw() {
     <div id="r-times">${rsvTimesHtml()}</div>
     <h2 class="sec">お客様のこと</h2>
     ${savedContact(rsvFields(v), rsvSaved(v))}
-    <label class="r-check"><input type="checkbox" id="r-kids" ${v.kids ? 'checked' : ''}>お子様連れ</label>
     <div class="field"><span>デザートプレート（要予約・税込1,100円）</span>
       <div class="r-row"><label class="r-chip"><input type="radio" name="r-dessert" value="no" ${v.dessert ? '' : 'checked'}><span>注文しない</span></label>
       <label class="r-chip"><input type="radio" name="r-dessert" value="yes" ${v.dessert ? 'checked' : ''}><span>注文する</span></label></div></div>
@@ -293,6 +292,7 @@ function rsvTimesHtml() {
   }).join('')}</div>`;
 }
 
+// お子様連れの欄は、2026-11-04 に消した（ko-dai さんの指示）。受け口には送らない（受け口は、送られなければ「なし」として受ける）
 function rsvValues() {
   const dessert = $('input[name="r-dessert"]:checked')?.value === 'yes';
   const part = id => $(id).value.replace(/\s/g, '');
@@ -301,7 +301,7 @@ function rsvValues() {
     people: rsv.people, date: rsv.date, time: rsv.time,
     ...(names ? { ...names, name: `${names.sei} ${names.mei}`, kana: `${names.seiKana} ${names.meiKana}` } : { name: $('#r-name').value.trim() }),
     tel: toHalf($('#r-tel').value.trim()), email: $('#r-email').value.trim(),
-    kids: $('#r-kids').checked, note: $('#r-note').value.trim(), website: $('#r-website').value,
+    note: $('#r-note').value.trim(), website: $('#r-website').value,
     dessert, plateMsg: dessert ? $('#r-plate').value.trim() : '',
   };
 }
@@ -326,7 +326,6 @@ function rsvSummary(v) {
       <dt>お名前</dt><dd>${esc(v.name)} 様${v.kana ? `<br><small>${esc(v.kana)}</small>` : ''}</dd>
       <dt>電話番号</dt><dd>${esc(v.tel)}</dd>
       ${v.email ? `<dt>メール</dt><dd>${esc(v.email)}</dd>` : ''}
-      ${v.kids ? '<dt>お子様連れ</dt><dd>あり</dd>' : ''}
       ${v.dessert !== undefined ? `<dt>デザートプレート</dt><dd>${v.dessert ? `注文する（税込1,100円）${v.plateMsg ? `<br>メッセージ：「${esc(v.plateMsg)}」` : '<br>メッセージ：なし'}` : '注文しない'}</dd>` : ''}
       ${v.note ? `<dt>ご要望</dt><dd>${esc(v.note)}</dd>` : ''}
     </dl>`;
