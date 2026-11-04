@@ -1502,7 +1502,7 @@ function openDeleteMember() {
         <li>スタンプ ${s.total}個${left ? `と、使える特典 ${left}枚` : ''}</li>
       </ul>
       <p class="hint">テイクアウトの注文と席のご予約の記録は、お店の記録として残ります。消したいときは、お店にお電話ください。</p>
-      <p class="hint">同じ電話番号で登録し直しても、初回の特典と LINE の引き継ぎは、もう一度は受けられません（そのために、電話番号から作った元に戻せない印と、受けた日付だけを残します）。</p>
+      <p class="hint">同じ電話番号で登録し直しても、初回の特典と LINE の引き継ぎは、もう一度は受けられません（そのために、電話番号そのものは残さず、電話番号から作った印と、受けた日付だけを残します）。</p>
       <label class="del-ok"><input type="checkbox" data-s="agree">スタンプと特典がなくなることを確かめました</label>
       <button class="btn btn-main btn-block del-go" data-s="go" disabled>削除する</button>
       <button class="btn btn-sub btn-block" data-s="close">やめる</button>
