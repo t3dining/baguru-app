@@ -341,35 +341,51 @@ function checkCook(all) {
 const OLD_OPT = { 'ご飯大盛り': 'ご飯大盛', 'ご飯特盛り': 'ご飯特盛' };
 const sameOpt = (name, text) => name === text || oneLine(name) === text || OLD_OPT[text] === name;
 
-/** 1行の正しい単価（common.js の priceOf の逆。opts の字から、選んだものを探す）。分からないものがあれば null */
-function lineUnit(l) {
-  const item = ITEM_BY_ID[l.id];
-  if (!item) return null;
-  let unit = item.price;
-  for (const text of l.opts || []) {
-    let p = null;
-    for (const g of item.groups || []) {
-      if (g.type === 'count') {
-        for (let m = 1; m <= (g.max || 10) && p === null; m++) if (sameOpt(`${g.choices[0].n}×${m}`, text)) p = g.choices[0].p * m;
-      } else {
-        const c = g.choices.find(x => sameOpt((g.type === 'one' ? g.label || '' : '') + x.n, text));
-        if (c) p = c.p || 0;
-      }
-      if (p !== null) break;
+/** 選択の字（opts の1つ）が、品物のどのグループのどれか。{ g, p: 足す金額 }。分からなければ null */
+function optOf(item, text) {
+  for (const g of item.groups || []) {
+    if (g.type === 'count') {
+      for (let m = 1; m <= (g.max || 10); m++) if (sameOpt(`${g.choices[0].n}×${m}`, text)) return { g, p: g.choices[0].p * m };
+    } else {
+      const c = g.choices.find(x => sameOpt((g.type === 'one' ? g.label || '' : '') + x.n, text));
+      if (c) return { g, p: c.p || 0 };
     }
-    if (p === null) return null;
-    unit += p;
   }
-  return unit;
+  return null;
 }
 
-/** 値段・食数が合わない注文の知らせ（合っていれば ''）。進めている注文だけ見る */
+/** 1行の正しい単価と、メニューと合わない所（common.js の priceOf の逆。opts の字から、選んだものを探す）。{ unit, issue }。合わなければ unit は null。
+ *  2026-11-05 の Codex のレビュー：品物の id と名前は別々に届くので、名前もメニューと照らす（安い品物の id に高い品物の名前を付けると、値段は合ってしまう）。
+ *  1つだけ選ぶグループの重なりと、必ず選ぶもの（ソース・味・サイズなど「普通」の無いもの）の抜けも見る */
+function lineCheck(l) {
+  const item = ITEM_BY_ID[l.id];
+  if (!item) return { unit: null, issue: `「${l.name}」はメニューに無い品物です` };
+  if (!sameOpt(item.full || item.name, l.name)) return { unit: null, issue: `「${l.name}」の名前がメニューと合いません（メニューでは「${item.full || item.name}」）` };
+  let unit = item.price;
+  const used = new Map();   // グループ → 選んだ数
+  for (const text of l.opts || []) {
+    const hit = optOf(item, text);
+    if (!hit) return { unit: null, issue: `「${l.name}」に、メニューに無い選択「${text}」があります` };
+    used.set(hit.g, (used.get(hit.g) || 0) + 1);
+    unit += hit.p;
+  }
+  if (new Set(l.opts || []).size !== (l.opts || []).length) return { unit: null, issue: `「${l.name}」に、同じ選択が2つ入っています` };
+  for (const g of item.groups || []) {
+    const n = used.get(g) || 0;
+    if (n > 1 && g.type !== 'many') return { unit: null, issue: `「${l.name}」の「${g.name}」が2つ入っています` };
+    if (!n && g.type === 'one' && g.required && !g.choices.some(c => c.plain)) return { unit: null, issue: `「${l.name}」の「${g.name}」が選ばれていません` };
+  }
+  return { unit, issue: '' };
+}
+
+/** 値段・食数・品物がメニューと合わない注文の知らせ（合っていれば ''）。進めている注文だけ見る */
 function priceCheck(o) {
   if (!ACTIVE.includes(o.status)) return '';
-  const units = o.lines.map(lineUnit);
+  const checks = o.lines.map(lineCheck);
   const meals = mealCount(o.lines);
-  if (units.includes(null)) return '<p class="c-check">⚠ 金額を確認：メニューに無い品物か選択があります</p>';
-  const total = units.reduce((s, u, i) => s + u * o.lines[i].qty, 0);
+  const bad = checks.find(c => c.issue);
+  if (bad) return `<p class="c-check">⚠ 品物を確認：${esc(bad.issue)}</p>`;
+  const total = checks.reduce((s, c, i) => s + c.unit * o.lines[i].qty, 0);
   if (total !== o.total) return `<p class="c-check">⚠ 金額を確認：メニューどおりなら ${yen(total)} です</p>`;
   if (meals !== (o.meals || 0)) return `<p class="c-check">⚠ 食数を確認：品物から数えると ${meals}食 です</p>`;
   if (o.kind === 'pickup' && meals >= TAKEOUT.bulkMin) return `<p class="c-check">⚠ 食数を確認：${TAKEOUT.bulkMin}食からは大量注文です</p>`;
@@ -386,10 +402,12 @@ const cutlery = o => o.cutlery === true ? '<p class="c-cut yes">🍴 カトラ�
 const SHOW_PLAIN = ['rice', 'meat'];
 function shownOpts(l) {
   const shown = [...l.opts];
-  const groups = ITEM_BY_ID[l.id]?.groups || [];
+  const item = ITEM_BY_ID[l.id];
+  const groups = item?.groups || [];
   groups.forEach((g, i) => {
     const plain = SHOW_PLAIN.includes(g.id) && g.choices.find(c => c.plain);
-    if (!plain || shown.some(x => x.startsWith(g.label))) return;
+    // そのグループの選択がもうあるか。字の頭ではなく、選ぶものと照らす（バグるマネージで「ご飯大盛」の字を変えても、2つ出ないように。2026-11-05 の Codex のレビュー）
+    if (!plain || l.opts.some(x => optOf(item, x)?.g === g)) return;
     // 注文の中と同じ並びに入れる
     const before = groups.slice(0, i);
     const at = shown.filter(x => before.some(b => b.choices.some(c => sameOpt((b.label || '') + c.n, x)))).length;
@@ -435,14 +453,14 @@ function card(o) {
       ${o.shopMsg && o.status !== 'declined' ? `<p class="c-msg">お客様への一言：${esc(o.shopMsg)}</p>` : ''}
       ${o.status === 'canceled' ? `<p class="c-cancel">取り消し（${esc(o.canceledBy || '')}）</p>` : ''}
       ${o.status === 'declined' ? `<p class="c-cancel">お断りしました${o.shopMsg || o.declineNote ? `（${esc(o.shopMsg || o.declineNote)}）` : ''}</p>` : ''}
-      ${canAdjust(o) ? `<button class="b-time" data-act="time" data-id="${o.id}">🕐 できあがり時間を調整</button>` : ''}
+      ${canAdjust(o) ? `<button class="b-time" data-act="time" data-id="${esc(o.id)}">🕐 できあがり時間を調整</button>` : ''}
       <div class="c-btns">
         ${o.status === 'request' ? `
-          <button class="b-sub danger" data-act="decline" data-id="${o.id}">お断りする</button>
-          <button class="b-main b-approve" data-act="approve" data-id="${o.id}">承認する</button>` : `
-        ${back ? `<button class="b-sub" data-act="back" data-id="${o.id}">戻す</button>` : ''}
-        ${NEXT[o.status] ? `<button class="b-sub danger" data-act="cancel" data-id="${o.id}">取り消す</button>` : ''}
-        ${next ? `<button class="b-main b-${next.to}" data-act="next" data-id="${o.id}">${nextLabel(o)}</button>` : ''}`}
+          <button class="b-sub danger" data-act="decline" data-id="${esc(o.id)}">お断りする</button>
+          <button class="b-main b-approve" data-act="approve" data-id="${esc(o.id)}">承認する</button>` : `
+        ${back ? `<button class="b-sub" data-act="back" data-id="${esc(o.id)}">戻す</button>` : ''}
+        ${NEXT[o.status] ? `<button class="b-sub danger" data-act="cancel" data-id="${esc(o.id)}">取り消す</button>` : ''}
+        ${next ? `<button class="b-main b-${next.to}" data-act="next" data-id="${esc(o.id)}">${nextLabel(o)}</button>` : ''}`}
       </div>
     </article>`;
 }
@@ -654,7 +672,7 @@ function paintItems() {
   const label = i => `${esc(i.full || i.name)}（${i.soldOut ? '売り切れ' : yen(i.price) + (i.groups.length ? '〜' : '')}）`;
   $('#pItem').innerHTML = '<option value="">品物を選んでください</option>' + CATEGORIES.map(c => {
     const shown = ITEMS.filter(i => i.cat === c.id && !i.hidden);
-    return shown.length ? `<optgroup label="${esc(c.name)}">${shown.map(i => `<option value="${i.id}" ${i.soldOut ? 'disabled' : ''}>${label(i)}</option>`).join('')}</optgroup>` : '';
+    return shown.length ? `<optgroup label="${esc(c.name)}">${shown.map(i => `<option value="${esc(i.id)}" ${i.soldOut ? 'disabled' : ''}>${label(i)}</option>`).join('')}</optgroup>` : '';
   }).join('');
 }
 
@@ -665,18 +683,18 @@ function paintOpts() {
   $('#pOpts').innerHTML = !item ? '' : item.groups.map(g => {
     if (g.type === 'one') {
       const def = g.choices.findIndex(c => c.plain && !c.soldOut);   // 「並盛」「なし」があれば、はじめからそれ。ソースなどは選んでもらう
-      return `<label class="f-opt"><span>${esc(g.name)}</span><select data-g="${g.id}">${def < 0 ? '<option value="">選んでください</option>' : ''}${
+      return `<label class="f-opt"><span>${esc(g.name)}</span><select data-g="${esc(g.id)}">${def < 0 ? '<option value="">選んでください</option>' : ''}${
         g.choices.map((c, i) => `<option value="${i}" ${i === def ? 'selected' : ''} ${c.soldOut ? 'disabled' : ''}>${esc(c.n)}${plus(c)}</option>`).join('')}</select></label>`;
     }
     if (g.type === 'many') {
       return `<div class="f-opt"><span>${esc(g.name)}（なければ選ばない）</span><div class="f-checks">${
-        g.choices.map((c, i) => c.none ? '' : `<label><input type="checkbox" data-g="${g.id}" value="${i}" ${c.soldOut ? 'disabled' : ''}>${esc(c.n)}${plus(c)}</label>`).join('')}</div></div>`;
+        g.choices.map((c, i) => c.none ? '' : `<label><input type="checkbox" data-g="${esc(g.id)}" value="${i}" ${c.soldOut ? 'disabled' : ''}>${esc(c.n)}${plus(c)}</label>`).join('')}</div></div>`;
     }
     if (g.type === 'count') {
       const c = g.choices[0];
       // 打ち込む欄でなく、「なし」〜上限（data.js の max。追加カラアゲは3個）から選ぶ。上限より多くは選べない（2026-11-04 ko-dai さんの指示）。品物1つにつきの数
       const counts = Array.from({ length: (g.max || 10) + 1 }, (_, n) => `<option value="${n}">${n ? `${n}個（+${yen(c.p * n)}）` : 'なし'}</option>`).join('');
-      return `<label class="f-opt"><span>${esc(g.name)}（${c.soldOut ? '売り切れ' : `1つにつき${g.max || 10}個まで`}）</span><select data-g="${g.id}" ${c.soldOut ? 'disabled' : ''}>${counts}</select></label>`;
+      return `<label class="f-opt"><span>${esc(g.name)}（${c.soldOut ? '売り切れ' : `1つにつき${g.max || 10}個まで`}）</span><select data-g="${esc(g.id)}" ${c.soldOut ? 'disabled' : ''}>${counts}</select></label>`;
     }
     return '';
   }).join('');
@@ -741,8 +759,8 @@ $('#pSend').addEventListener('click', async () => {
   if (!name) return phoneErr('お名前を入れてください');
   // 電話番号は必ず入れる（2026-11-04 ko-dai さんの指示）。けた数は公式アプリと同じ（10〜11けた）
   if (!tel) return phoneErr('電話番号を入れてください');
-  const telDigits = tel.replace(/[^\d]/g, '').length;
-  if (telDigits < 10 || telDigits > 11) return phoneErr('電話番号を確かめてください（10〜11けた）');
+  // 受け口の telOk_ と同じ形（0 で始まる10〜11けた）。違うと、送ってから受け口に断られる（2026-11-05 の Codex のレビュー）
+  if (!/^0\d{9,10}$/.test(tel.replace(/[^\d]/g, ''))) return phoneErr('電話番号を確かめてください（0 で始まる10〜11けた）');
   if ($('#pItem').value) return phoneErr('選んだ品物を「＋ 入れる」で入れてください（入れないなら、品物を「品物を選んでください」に戻す）');
   if (!phone.lines.length) return phoneErr('品物を1つ以上入れてください（品物を選んで「＋ 入れる」）');
   if (!$('#pDay').value || !$('#pHm').value || isNaN(at)) return phoneErr('受け取りの日と時刻を選んでください');
@@ -756,6 +774,14 @@ $('#pSend').addEventListener('click', async () => {
 });
 
 /** 予約注文を入れる。うまくいったら true */
+/** 受け口が返した注文が、いま送った中身と同じか（受け取りの時刻・お名前・電話・品物） */
+function sameSent(o, row) {
+  const lineKey = l => [l.id, l.qty, l.unit, ...(l.opts || [])].join('|');
+  return new Date(o.pickupAt).getTime() === new Date(row.pickupAt).getTime() && (o.name || '') === row.name.trim()
+    && (o.tel || '').replace(/[^\d]/g, '') === row.tel.replace(/[^\d]/g, '')
+    && o.lines.map(lineKey).join('\n') === row.lines.map(lineKey).join('\n');
+}
+
 async function addPhoneOrder(row) {
   if (!ORDERS_ONLINE) {
     const now = new Date();
@@ -772,6 +798,8 @@ async function addPhoneOrder(row) {
     const o = fromServer(r.row);
     known?.set(o.id, o.status);
     put(o);
+    // 前に送ったときに入っていて返事だけ届かなかったら、受け口は同じ rid の前の注文を返す（直した中身は入らない）。2026-11-05 の Codex のレビュー
+    if (!sameSent(o, row)) alert(`この予約注文は、前に送った内容で、もう入っていました（番号 ${o.no}）。\n直した所は入っていません。カードを確かめて、違っていたら取り消して入れ直してください。`);
     return true;
   } catch (e) {
     if (!quiet(e)) phoneErr(staffText(e));

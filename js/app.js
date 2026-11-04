@@ -17,9 +17,19 @@ const ME = ensureMember();
 const myOrders = () => getOrders().filter(o => o.member === ME.no);
 const statusMap = () => Object.fromEntries(myOrders().map(o => [o.id, o.status]));
 
-// 選ぶ項目が変わる前にカートへ入れたもの（いまの決まりでは選び終わっていないもの）は、取りのぞく
-// 個数の欄（追加カラアゲなど）が上限（g.max）を超えていたら、上限にそろえる（2026-11-04 に追加カラアゲを10個まで→3個までにしたとき、前のカートの4個以上を残さないため）
-let cart = DB.get('cart', []).filter(c => ITEM_BY_ID[c.itemId] && !priceOf(ITEM_BY_ID[c.itemId], c.sel || {}).missing).map(clampCounts);
+// カートは、マネージの中身を重ねたあと（下の applyContent のあと）で fixCart が確かめる。
+// ★先に確かめると、マネージで足した商品がまだ ITEM_BY_ID に無く、カートから消えてしまう（Codex の指摘 2026-11-05）
+let cart = DB.get('cart', []);
+/** カートの行を、いまのメニューに合わせる。選ぶ項目が変わる前に入れたもの（いまの決まりでは選び終わっていないもの）と、
+ *  無くなった商品（マネージで消したもの）は取りのぞく。個数の欄（追加カラアゲなど）が上限（g.max）を超えていたら、上限にそろえる
+ *  （2026-11-04 に追加カラアゲを10個まで→3個までにしたとき、前のカートの4個以上を残さないため）。変えたら保存して true */
+function fixCart() {
+  const next = cart.filter(c => ITEM_BY_ID[c.itemId] && !priceOf(ITEM_BY_ID[c.itemId], c.sel || {}).missing).map(clampCounts);
+  const changed = JSON.stringify(next) !== JSON.stringify(cart);
+  cart = next;
+  if (changed) saveCart();
+  return changed;
+}
 function clampCounts(c) {
   (ITEM_BY_ID[c.itemId].groups || []).forEach(g => { if (g.type === 'count' && typeof c.sel?.[g.id] === 'number' && c.sel[g.id] > g.max) c.sel = { ...c.sel, [g.id]: g.max }; });
   return c;
@@ -1835,9 +1845,13 @@ if (OWNER_MODE && $('#ownerHome')) {
 
 // バグるマネージで直した中身（js/content.js）。前に読んだ分をすぐ重ねてから描き、そのあと受け口から読み直す（変わっていたら描き直す）
 applyContent(PREVIEW ? previewContent() : contentNow()?.content);
+fixCart();   // 足した商品が ITEM_BY_ID に入ってから、カートを確かめる
 const syncContent = () => refreshContent().then(changed => {
   if (!changed) return;
-  if (!sheet.classList.contains('show')) render(true);
+  fixCart();   // マネージで消した商品がカートに残らないように
+  // ★入力の途中の画面（NO_LIVE：受け取りとお名前・申請・予約・登録・採用の応募など）は描き直さない。入れた字が消えないように（Codex の指摘 2026-11-05）。
+  //   字の置きかえ（applyTexts）だけ重ね、ほかは次に画面を移ったときに出る
+  if (!sheet.classList.contains('show') && !NO_LIVE.includes(routeName())) render(true);
   drawCart();
   applyTexts();
 });
@@ -1871,7 +1885,8 @@ if (stampParam && !needInstall() && !needTest() && !needJoin()) claimStamp(stamp
  * --------------------------------------------------------------------- */
 const PAGE_VER = document.querySelector('meta[name="bg-version"]')?.content || '';
 let verAt = 0;
-const typingNow = () => sheet.classList.contains('show') || $$('input, textarea, select').some(el =>
+// 入力の途中の画面（NO_LIVE）も開き直さない。受け取りの日時・カトラリーなどはボタンで選ぶので、入れた字だけでは分からない（Codex の指摘 2026-11-05）
+const typingNow = () => sheet.classList.contains('show') || NO_LIVE.includes(routeName()) || $$('input, textarea, select').some(el =>
   el.type === 'checkbox' || el.type === 'radio' ? el.checked !== el.defaultChecked
     : el.tagName === 'SELECT' ? el.selectedIndex !== Math.max(0, [...el.options].findIndex(o => o.defaultSelected))   // 何も決めていない選ぶ欄は、いちばん上が選ばれている
       : el.type !== 'hidden' && el.value !== el.defaultValue);
