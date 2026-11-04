@@ -372,7 +372,7 @@ function addStamp(via, now = new Date(), { bonus = false } = {}) {
 
 const stampedToday = (now = new Date()) => getStamps().log.filter(l => l.date === dateKey(now) && !l.bonus).length >= STAMP.perDay;
 
-/** 初回登録の特典（1ポイントと、バニラアイスの券）。1端末1回 */
+/** 初回登録の特典（1ポイントと、バニラアイス or ソフトドリンク1杯の券。data.js の STAMP.welcome）。1端末1回 */
 function giveWelcome(now = new Date()) {
   let r = { ok: true, on: stampOnCard(getStamps().total), got: [] };
   for (let i = 0; i < STAMP.welcome.points; i++) r = addStamp('初回登録', now, { bonus: true });

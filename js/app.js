@@ -1053,7 +1053,7 @@ function viewStamp() {
   };
 }
 
-/** 初めての方へ：会員登録（お名前と電話番号）で1ポイントとバニラアイス */
+/** 初めての方へ：会員登録（お名前と電話番号）で1ポイントと、初回登録の特典（data.js の STAMP.welcome） */
 function welcomeBox() {
   return `<div class="welcome">
       <div class="w-head">${ICON.gift}<div><b>初めての方へ</b><small>会員登録で <em>${STAMP.welcome.points}ポイント</em> ＋ <em>${esc(couponTitle(STAMP.welcome))}</em> をサービス</small></div></div>
