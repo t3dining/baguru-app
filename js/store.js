@@ -53,7 +53,7 @@ function goOwner() {
 
 const RING_EVERY = 3000;   // 受付待ちの注文があるあいだ、この間隔（ミリ秒）で鳴らし続ける
 const CHIME_URL = 'snd/order.wav';   // 注文が入ったときの音（1.8秒。道具/注文の音を作る.py で作る）
-const COOK_URL = 'snd/cook.wav';     // 調理を始める時間の音（2.6秒。「ピンポーン」を2回。同じ道具で作る）
+const COOK_URL = 'snd/cook.wav';     // 調理を始める時間の音（2.7秒。高めの「ピンポン」を3回。2026-11-04 ko-dai さんが候補から選んだ。同じ道具で作る）
 const COOK_RINGS = 3;                // 調理を始める時間の音を、RING_EVERY の間隔で何回鳴らすか
 const CANCEL_URL = 'snd/cancel.wav';   // お客様が注文を取り消したときの音（1.8秒。低いブザーの「ブッ・ブー」を2回。同じ道具で作る）
 const CANCEL_RINGS = 2;                // 取り消しの音を、RING_EVERY の間隔で何回鳴らすか
