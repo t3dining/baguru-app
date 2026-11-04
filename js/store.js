@@ -627,24 +627,17 @@ $('#dOk').addEventListener('click', async () => {
 
 let phone = null;   // 入れている注文 { lines: [{ id, name, opts, unit, qty }], rid }。rid は送り直しで2つにならない印
 const phoneMeals = () => mealCount(phone.lines);
-const phoneWhen = () => $('input[name="pWhen"]:checked').value;
-/** 「できしだい」の時刻（食数で変わる。営業時間の外なら、いまから） */
-function phoneAsap() {
-  const lead = leadFor(phoneMeals());
-  return asapTime(new Date(), lead) || new Date(Math.ceil((Date.now() + lead * 60000) / 300000) * 300000);
-}
 function phoneErr(text) { $('#pErr').textContent = text; $('#pErr').hidden = !text; }
 
 function openPhone() {
   phone = { lines: [], rid: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10) };
   $('#phoneDlg input[name="pRoute"][value="電話"]').checked = true;
-  $('#phoneDlg input[name="pWhen"][value="asap"]').checked = true;
-  ['#pName', '#pTel', '#pNote'].forEach(s => { $(s).value = ''; });
-  const t = phoneAsap();
-  const slot = new Date(Math.ceil(t.getTime() / (TAKEOUT.stepMinutes * 60000)) * TAKEOUT.stepMinutes * 60000);
-  $('#pDay').value = $('#pDay').min = dateKey(new Date());
-  $('#pDay').value = dateKey(slot);
-  $('#pHm').value = hhmm(slot);
+  // 受け取りの日と時刻は、はじめは空にして必ず選んでもらう（2026-11-04 ko-dai さんの指示。「できしだい」は外した）
+  ['#pName', '#pTel', '#pNote', '#pDay', '#pHm'].forEach(s => { $(s).value = ''; });
+  $('#pDay').min = dateKey(new Date());
+  $('#pTime').hidden = false;
+  $('input[name="pWhen"]')?.closest('.seg')?.remove();   // 前の画面（「できしだい」の切り替えがあった形）が、端末にまだ残っているとき
+  $('#pAsap')?.remove();
   paintItems();
   // 開いたときに、バグるマネージの値段・売り切れも読み直す（CONTENT_EVERY に1回まで）。まだ品物を選んでいなければ、並べ直す
   refreshContent().then(changed => { if (changed && $('#phoneDlg').open && !$('#pItem').value) paintItems(); });
@@ -711,15 +704,10 @@ function paintPhone() {
     <li><b>${esc(l.name)}</b><span class="q">×${l.qty}</span><span class="p-sum">${yen(l.unit * l.qty)}</span><button type="button" class="p-del" data-del="${i}" aria-label="消す">✕</button>${
       shownOpts(l).length ? `<small>${esc(shownOpts(l).join(' / '))}</small>` : ''}</li>`).join('') : '<li class="none">まだ品物がありません</li>';
   $('#pTotal').textContent = yen(phone.lines.reduce((s, l) => s + l.unit * l.qty, 0));
-  const asap = phoneWhen() === 'asap';
-  $('#pTime').hidden = asap;
-  $('#pAsap').hidden = !asap;
-  $('#pAsap').textContent = `${hhmm(phoneAsap())}頃（作るのに約${leadFor(phoneMeals())}分。食数で変わります。営業時間の外なら、次に開けてから）`;
 }
 
 $('#phoneBtn').addEventListener('click', openPhone);
 $('#pItem').addEventListener('change', () => { paintOpts(); phoneErr(''); });
-$$('#phoneDlg input[name="pWhen"]').forEach(r => r.addEventListener('change', paintPhone));
 $('#pAdd').addEventListener('click', () => {
   const item = ITEM_BY_ID[$('#pItem').value];
   if (!item) return phoneErr('品物を選んでください');
@@ -745,14 +733,13 @@ $$('dialog [data-close]').forEach(b => b.addEventListener('click', () => b.close
 $('#pSend').addEventListener('click', async () => {
   const route = $('input[name="pRoute"]:checked').value;
   const name = $('#pName').value.trim();
-  const asap = phoneWhen() === 'asap';
-  const at = asap ? phoneAsap() : new Date(`${$('#pDay').value}T${$('#pHm').value}`);
+  const at = new Date(`${$('#pDay').value}T${$('#pHm').value}`);
   if (route === '電話' && !name) return phoneErr('お名前を入れてください');
   if ($('#pItem').value) return phoneErr('選んだ品物を「＋ 入れる」で入れてください（入れないなら、品物を「品物を選んでください」に戻す）');
   if (!phone.lines.length) return phoneErr('品物を1つ以上入れてください（品物を選んで「＋ 入れる」）');
-  if (!asap && (!$('#pDay').value || !$('#pHm').value || isNaN(at))) return phoneErr('受け取りの日と時刻を入れてください');
-  if (!asap && at < Date.now() - 5 * 60000) return phoneErr('受け取りの時刻が、もう過ぎています');
-  const row = { kind: 'pickup', asap, pickupAt: at.toISOString(), name, tel: $('#pTel').value.trim(), route, note: $('#pNote').value.trim(),
+  if (!$('#pDay').value || !$('#pHm').value || isNaN(at)) return phoneErr('受け取りの日と時刻を選んでください');
+  if (at < Date.now() - 5 * 60000) return phoneErr('受け取りの時刻が、もう過ぎています');
+  const row = { kind: 'pickup', asap: false, pickupAt: at.toISOString(), name, tel: $('#pTel').value.trim(), route, note: $('#pNote').value.trim(),
     lines: phone.lines, meals: phoneMeals() };
   $('#pSend').disabled = true;
   const ok = await addPhoneOrder(row);

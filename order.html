@@ -131,12 +131,8 @@
     <label class="f-field"><span>お名前</span><input id="pName" maxlength="40" autocomplete="off"></label>
     <label class="f-field"><span>電話番号（なくても可）</span><input id="pTel" type="tel" maxlength="20" autocomplete="off"></label>
   </div>
-  <div class="seg">
-    <label><input type="radio" name="pWhen" value="asap" checked><span>できしだい</span></label>
-    <label><input type="radio" name="pWhen" value="time"><span>時間を指定</span></label>
-  </div>
-  <p id="pAsap" class="f-note"></p>
-  <div id="pTime" class="f-grid" hidden>
+  <!-- 受け取りの日と時刻は、必ず選んでもらう（2026-11-04 ko-dai さんの指示。「できしだい」は外した。はじめは空） -->
+  <div id="pTime" class="f-grid">
     <label class="f-field"><span>受け取りの日</span><input id="pDay" type="date"></label>
     <label class="f-field"><span>時刻</span><input id="pHm" type="time" step="300"></label>
   </div>
@@ -163,6 +159,6 @@
 <script src="js/content.js?v=2614ae48"></script>
 <!-- 受け口とのやりとり（公式アプリと同じもの。切り替え ORDERS_ONLINE・受け口の場所・送り方）。公式アプリのセッションの持ち物 -->
 <script src="js/order-api.js?v=ca3999db"></script>
-<script src="js/store.js?v=de13a88d"></script>
+<script src="js/store.js?v=6419faa1"></script>
 </body>
 </html>
