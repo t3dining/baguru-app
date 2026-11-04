@@ -231,7 +231,7 @@ function previewFocus() {
  *  「アプリを動かす」のあいだは、ふつうに押せる（商品を選ぶ画面など、押して開く所の文を出すため。注文などは PREVIEW_STOP で止まる）
  *  ★やりとりは、同じ場所（/baguru-app/ と /baguru-manage/）の親の画面とだけ。マネージから来た文は字として入れる（HTML として読まない） */
 const TEXT_EDIT = PREVIEW && /[?&]edit\b/.test(location.search);
-const ED = { exact: null, part: null, frames: [], on: true, key: '', s: 0, tpl: null };   // frames：枠ごとの形（マネージの APP_FRAMES）
+const ED = { exact: null, part: null, frames: [], on: true, key: '', s: 0, tpl: null, news: null };   // frames：枠ごとの形（マネージの APP_FRAMES）。news：直しているお知らせ { i, f }
 const ED_ATTRS = ['placeholder', 'data-en'];   // 画面に字が見える属性（押して直せる）
 const edTell = msg => parent.postMessage({ type: 'baguru-edit', ...msg }, location.origin);
 const edOrig = n => String(TEXT_FROM.get(n) ?? n.nodeValue ?? '').trim();
@@ -239,7 +239,7 @@ const edIs = t => !!t && !!ED.exact && (ED.exact.has(t) || !!ED.part?.test(t) ||
 const edHits = (t, key, s, tpl) => !!t && (tpl ? tpl.re.test(t) : t === key || (!!s && t.includes(key)));
 function edMark(n) {
   const p = n.parentNode;
-  if (ED.exact && p?.nodeType === 1 && edIs(edOrig(n))) p.classList.add('t-ed');
+  if (ED.exact && p?.nodeType === 1 && (edIs(edOrig(n)) || p.closest('[data-nf]'))) p.classList.add('t-ed');   // お知らせのタイトルと本文も（お知らせのタブと同じものを直す）
 }
 function edMarkEl(el) {
   const from = TEXT_FROM.get(el);
@@ -264,6 +264,7 @@ function edRetext() {
 /** 直している文を、実線の枠で示す */
 function edPick() {
   document.querySelectorAll('.t-on').forEach(el => el.classList.remove('t-on'));
+  if (ED.news) return document.querySelector(`[data-news="${ED.news.i}"] [data-nf="${ED.news.f}"]`)?.classList.add('t-on');
   if (!ED.key) return;
   edWalk(n => { if (n.parentNode?.nodeType === 1 && edHits(edOrig(n), ED.key, ED.s, ED.tpl)) n.parentNode.classList.add('t-on'); },
     el => { const from = TEXT_FROM.get(el); if (!ED.tpl && from && ED_ATTRS.some(a => edHits(String(from[a] || '').trim(), ED.key, ED.s))) el.classList.add('t-on'); });
@@ -292,7 +293,7 @@ function edHit(e) {
   const r = document.caretRangeFromPoint?.(e.clientX, e.clientY), p = !r && document.caretPositionFromPoint?.(e.clientX, e.clientY);
   const n = r ? r.startContainer : p ? p.offsetNode : null, t = e.target.nodeType === 1 ? e.target : e.target.parentNode;
   const uniq = list => [...new Set(list.filter(Boolean))];
-  const one = x => ({ t: edOrig(x), now: String(x.nodeValue || '').trim(), st: edStyle(x) });
+  const one = x => ({ t: edOrig(x), now: String(x.nodeValue || '').trim(), st: edStyle(x), mark: !!x.parentElement?.closest('.t-ed') });
   const main = n?.nodeType === 3 && t.contains(n) && edOrig(n) ? [one(n)] : [];
   const more = [], attrs = [], box = t.closest('button, a, label, li, p, h1, h2, h3, dt, dd, th, td') || t;
   const w = document.createTreeWalker(box, NodeFilter.SHOW_TEXT);
@@ -301,7 +302,10 @@ function edHit(e) {
     const from = TEXT_FROM.get(el);
     if (from) ED_ATTRS.forEach(a => from[a] && attrs.push(String(from[a]).trim()));
   }
-  return { main, more, attrs: uniq(attrs) };
+  // お知らせのタイトル・本文（data-nf）を押したとき：お知らせの何番目のどれか
+  const nf = t.closest?.('[data-nf]'), li = nf?.closest('[data-news]'), nn = nf && (n?.nodeType === 3 && nf.contains(n) ? n : document.createTreeWalker(nf, NodeFilter.SHOW_TEXT).nextNode());
+  const news = li ? { i: Number(li.dataset.news), f: nf.dataset.nf, st: nn ? edStyle(nn) : null } : null;
+  return { main, more, attrs: uniq(attrs), news };
 }
 const edRoute = () => location.hash.replace(/^#/, '').split('/')[0] || 'home';
 if (TEXT_EDIT) {
@@ -339,11 +343,14 @@ if (TEXT_EDIT) {
       ED.key = String(d.key || '');
       ED.s = d.s ? 1 : 0;
       ED.tpl = d.x && ED.key ? tplRe(ED.key) : null;
+      ED.news = d.news && Number.isInteger(d.news.i) ? { i: d.news.i, f: d.news.f === 'body' ? 'body' : 'title' } : null;
+    } else if (d.kind === 'content') {   // お知らせなど、文章のほかの直し：中身を入れ直して描き直す（開いている画面のまま）
+      if (d.content && typeof d.content === 'object') { applyContent(d.content); if (typeof render === 'function' && !(typeof sheet === 'object' && !sheet.hidden)) render(true); }
     } else if (d.kind === 'go') {   // 上の画面のボタン。開いている下からの画面は閉じてから移る
       if (typeof closeSheet === 'function' && typeof sheet === 'object' && !sheet.hidden) closeSheet();
       location.hash = '#' + String(d.route || 'home');
     }
-    if (d.kind === 'pick' || d.kind === 'texts') edPick();
+    if (d.kind === 'pick' || d.kind === 'texts' || d.kind === 'content') setTimeout(edPick);   // 描き直しで付いた印のあとに
   });
   addEventListener('load', () => edTell({ kind: 'ready', route: edRoute() }));
 }

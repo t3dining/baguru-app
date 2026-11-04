@@ -75,6 +75,7 @@ function render(keepScroll = false) {
   view.classList.remove('enter');
   if (!keepScroll) { void view.offsetWidth; view.classList.add('enter'); }
   v.after?.();   // 描いたあとに動かすもの（ネット予約の空き状況・演出）
+  fitAll(view);
   if (!keepScroll && view.querySelector('a[href="#reserve"]')) availAhead();   // ネット予約へのリンクがある画面では、空き状況を裏で先に読む（reserve.js）
   if (!keepScroll) FX.reveal(view);   // スクロールで順に出す（js/fx.js。1分ごとの描き直しでは動かさない）
   view.dataset.route = name || 'home';     // ヨコ画面のとき、メニューだけ横に広げる（app.css の最後）
@@ -82,6 +83,28 @@ function render(keepScroll = false) {
   drawCart();
   window.scrollTo(0, keepScroll ? y : 0);
 }
+
+/* 1行に収める字（.fit-1。お知らせのタイトル。2026-11-04 ko-dai さんの指示：「タイトルが日付の下に来るように、1行で収まるように」）
+ *  はみ出すときだけ、字を小さくして1行に収める（FIT_MIN まで。それより長いときは、終わりを … にする。app.css の .fit-1）。
+ *  字が後から変わるとき（バグるマネージで直した文に置きかえたとき・字の形を読み終えたとき・画面の幅が変わったとき）も、測り直す */
+const FIT_MIN = 12;
+function fitOne(el) {
+  el.style.fontSize = '';
+  const max = parseFloat(getComputedStyle(el).fontSize);
+  if (!el.clientWidth || el.scrollWidth <= el.clientWidth + 0.5) return;
+  let size = Math.max(FIT_MIN, Math.floor(max * el.clientWidth / el.scrollWidth * 4) / 4);
+  el.style.fontSize = size + 'px';
+  while (el.scrollWidth > el.clientWidth + 0.5 && size > FIT_MIN) { size = Math.max(FIT_MIN, size - 0.25); el.style.fontSize = size + 'px'; }
+}
+const fitAll = (root = document) => root.querySelectorAll('.fit-1').forEach(fitOne);
+let fitQueued = false;
+const fitSoon = () => { if (fitQueued) return; fitQueued = true; setTimeout(() => { fitQueued = false; fitAll(); }, 30); };
+addEventListener('resize', fitSoon);
+document.fonts?.ready.then(fitSoon);
+document.fonts?.addEventListener?.('loadingdone', fitSoon);
+// 字が置きかわったら（マネージの文章・画面で直す）。大きさを変えるのは style なので、ここには引っかからない
+new MutationObserver(list => { if (list.some(m => (m.target.nodeType === 1 ? m.target : m.target.parentElement)?.closest?.('.fit-1'))) fitSoon(); })
+  .observe(document.documentElement, { childList: true, subtree: true, characterData: true });
 
 let cartCount = null;
 let cartShown = 0;
@@ -170,8 +193,8 @@ function viewHome() {
       <a class="link-card" href="#request">${ICON.truck}<span><b>配達・大量注文の申請</b><small>配達は${TAKEOUT.deliveryFreeMin}食以上で無料（原則${TAKEOUT.deliveryKm}km圏内）・${TAKEOUT.deliveryFreeMin}食未満は要相談。大量注文は${TAKEOUT.bulkMin}食以上。お店が確認してから確定します</small></span></a>
       ${installCard()}
       <h2 class="sec" data-en="NEWS">お知らせ</h2>
-      <ul class="news">${NEWS.map(n => `
-        <li><time>${n.date.slice(5).replace('-', '/')}</time><b>${esc(n.title)}</b><p>${esc(n.body)}</p></li>`).join('')}
+      <ul class="news">${NEWS.map((n, i) => `
+        <li data-news="${i}"><time>${n.date.slice(5).replace('-', '/')}</time><b class="fit-1" data-nf="title">${esc(n.title)}</b><p data-nf="body">${esc(n.body)}</p></li>`).join('')}
       </ul>
       <a class="link-card" href="${SHOP.instagram}" target="_blank" rel="noopener">${ICON.insta}<span><b>最新情報は Instagram で</b><small>@baguru.hamburg</small></span></a>
       <footer class="home-foot">
