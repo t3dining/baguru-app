@@ -701,7 +701,7 @@ function orderRid(o) {
 /** 注文（申請）を作って保存し、注文の様子の画面へ。
  *  受け口につなぐとき（ORDERS_ONLINE。js/order-api.js）は、受け口に送ってから。番号と合計は受け口がつけ直す。btn は押したボタン（送っているあいだ止める） */
 async function placeOrder(fields, btn) {
-  if (STAMPS_ONLINE) await memberReady().catch(() => {});   // お渡し済みで受け口がスタンプを押せるように（つながらないときは会員なしで送る）
+  if (STAMPS_ONLINE) await memberReady().catch(() => {});   // 注文に会員番号を残す（つながらないときは会員なしで送る）。★お渡し済みでもスタンプは押さない（2026-11-04）
   const now = new Date();
   const lines = cart.map(cartLine).map(l => ({ id: l.item.id, name: l.name, opts: l.opts, unit: l.unit, qty: l.qty }));
   let order = {
@@ -976,6 +976,8 @@ const celebrated = new Set();   // 紙ふぶきを出した注文（同じ注文
  *  スタンプカード
  * --------------------------------------------------------------------- */
 
+// 2026-11-04 ko-dai さんの指示：スタンプは店頭（お店のQR）だけでためる。下の「QRを読むと…」の説明から、テイクアウトの受け取りでたまる一文を外した。
+// 残りは、ko-dai さんがマネージで直した形（改行・「お店の中にいるときだけ」）をそのまま入れた（前の文を直したものは、この文には当たらなくなるため）
 function viewStamp() {
   const s = getStamps();
   const on = stampOnCard(s.total);
@@ -1012,7 +1014,7 @@ function viewStamp() {
         <p class="sc-next">${next ? `あと <b>${next.at - on}</b> 個で「${esc(couponTitle(next))}」` : 'ゴール！ 次のスタンプから新しいカードになります。'}</p>
       </div>
       <button class="btn btn-main btn-block" data-act="stamp" ${doneToday ? 'disabled' : ''}>${doneToday ? '今日のスタンプはもらいました' : `${ICON.qr}QRを読んでスタンプをもらう`}</button>
-      <p class="hint">お店に置いてあるQRを読むと、1個たまります。お店の中（駐車場を含む）にいるときだけ読めます（位置情報を使います）。テイクアウトは、受け取りのときに自動で1個たまります。スタンプは1日${STAMP.perDay}個までです（初回登録の${STAMP.welcome.points}ポイントは別）。</p>
+      <p class="hint">お店に置いてあるQRを読むと、1個たまります。<br>お店の中にいるときだけ読めます（位置情報を使います）。スタンプは1日${STAMP.perDay}個までです（初回登録の${STAMP.welcome.points}ポイントは別）。</p>
       ${(s.lineMovedAt && !TEST_MEMBER) || !STAMPS_ONLINE || !MEMBER_PLUS ? '' : `<button class="link-card line-card" data-act="lineMove"><span><b>${ICON.card}LINEのポイントカードをお持ちの方</b>
         <span class="l-step"><i>1</i>お会計で、LINEのショップカードを見せる</span>
         <span class="l-step"><i>2</i>お店の人が見せるQRを、ここを押して読む</span>
@@ -1632,12 +1634,8 @@ function ordersChanged() {
       if (o.status === 'canceled') toast(`注文番号 ${o.no} は取り消しになりました`, 'warn');
     }
   }
-  const doneNow = myOrders().some(o => lastStatus[o.id] && lastStatus[o.id] !== 'done' && o.status === 'done');
   lastStatus = statusMap();
-  // 受け口から来た注文がお渡し済みになったら、この端末でスタンプを押す（前はお店の画面が、同じブラウザで押していた）
-  // 台帳につないだら受け口が押すので、お渡し済みになったときに読み直すだけ
-  if (STAMPS_ONLINE) { if (doneNow) pullStamps(true); }
-  else if (stampDoneOrders()) stampsChanged();
+  // ★お渡し済みになっても、スタンプは押さない（2026-11-04 ko-dai さんの指示：テイクアウトのネット注文ではポイントをためない。ためるのは店頭のQRだけ）
 }
 
 /** ネット予約の様子が変わったら知らせる（js/reserve.js の syncReserves が返した控え） */
@@ -1651,7 +1649,7 @@ function reservesChanged(list) {
 
 function stampsChanged() {
   const s = getStamps();
-  // お店がお渡し済みにして、スタンプがたまったとき（スタンプカードを開いていれば、新しいマスを押す動きも出る）
+  // ほかの端末・タブでスタンプがたまったとき（スタンプカードを開いていれば、新しいマスを押す動きも出る）
   if (s.total > lastStampTotal && !ORDER_ONLY) { toast(`スタンプが${s.total - lastStampTotal}個たまりました`, 'good'); FX.confetti({ kind: 'pop' }); }
   lastStampTotal = s.total;
 }

@@ -10,7 +10,7 @@
  *  ・この端末には、自分の注文の写し（DB 'orders'。画面はこれを見る）と、注文の鍵（DB 'orderKeys'：{id: token}）を持つ。
  *    ★鍵は、その注文をあとで見るためのもの。端末の中にだけ持ち、アドレスには入れない
  *  ・進めている注文があるあいだは、画面を見ているときだけ15秒ごとに、お店が進めた様子を取り寄せる（myOrders）
- *  ・お店がお渡し済みにしたら、この端末でスタンプを1個押す（受け口から来た注文だけ。1つの注文で1回）
+ *  ・★お渡し済みになっても、スタンプは押さない（2026-11-04 ko-dai さんの指示：テイクアウトのネット注文ではポイントをためない。ためるのは店頭のQRだけ）
  *  ・★Order受付（js/store.js）も、このファイルの ORDERS_ONLINE・orderPost・fromServer を使う（2026-10-30）。
  *    名前や形を変えるときは、先に Order受付のセッションに知らせる
  * ===================================================================== */
@@ -129,14 +129,4 @@ async function refreshAccepting(force = false) {
   return changed;
 }
 
-/** お店がお渡し済みにした注文（受け口から来たもの）に、スタンプを1個押す。1つの注文で1回だけ。押したら true */
-function stampDoneOrders() {
-  const keys = orderKeys();
-  const done = DB.get('stampedOrders', []);
-  const fresh = myOrders().filter(o => keys[o.id] && o.status === 'done' && !done.includes(o.id));
-  if (!fresh.length) return false;
-  let got = false;
-  fresh.forEach(o => { got = addStamp(KIND[o.kind || 'pickup']).ok || got; });   // 1日1個まで（その日もうもらっていれば押さない）
-  DB.set('stampedOrders', [...done, ...fresh.map(o => o.id)].slice(-100));
-  return got;
-}
+// お渡し済みの注文にスタンプを押す stampDoneOrders は、2026-11-04 に外した（ko-dai さんの指示：ネット注文ではポイントをためない）
