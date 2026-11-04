@@ -483,7 +483,11 @@ html.t-editing .t-ed:hover { background-color: rgba(199, 54, 29, .08); }
 .scan h2, .checking h2, .stamp-ng h2 { margin: 0 0 6px; font-size: 19px; }
 .scan > p, .checking p, .stamp-ng > p { margin: 0; font-size: 14px; color: var(--sub); }
 .scan-view { position: relative; width: min(100%, 300px); aspect-ratio: 1; margin: 16px auto 8px; border-radius: 18px; overflow: hidden; background: var(--coal); }
+.scan-view { transform: translateZ(0); }   /* 角を丸めた枠の中の映像を、iPhone でも自分の層で描かせる */
 .scan-view video { display: block; width: 100%; height: 100%; object-fit: cover; }
+/* 映像を自分で描く canvas（stamp-qr.js の drawPreview）。video が黒いままの iPhone でも映るように、上に重ねる。描けるまでは透明 */
+.scan-view canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
+.scan-view canvas.on { opacity: 1; }
 .scan-frame { position: absolute; inset: 16%; border: 3px solid rgba(255, 255, 255, .92); border-radius: 14px; box-shadow: 0 0 0 999px rgba(0, 0, 0, .28); }
 .scan .scan-msg { font-weight: 700; color: var(--coal); min-height: 1.6em; }
 .scan .hint { margin-top: 10px; }

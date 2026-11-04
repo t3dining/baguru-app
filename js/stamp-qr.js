@@ -13,12 +13,65 @@ let camera = null;        // 動いているカメラ（閉じるときに止め
 let scanTimer = 0;
 let scanId = 0;           // 止めるたびに変わる（閉じたあとに届いたカメラや読み取りを使わないため）
 let pendingToken = '';    // 読んだ印（「もう一度試す」で読み直さずに済むように）
+let geoWatch = null;      // QRを読んでいるあいだに、先に取っておく位置（watchPosition の番号）
+let geoFix = null;        // 先に取った位置 { lat, lng, accuracy, at }（いちばん確かなもの）
 
 function stopCamera() {
   scanId++;
   clearTimeout(scanTimer);
   camera?.getTracks().forEach(t => t.stop());
   camera = null;
+  if (geoWatch !== null) navigator.geolocation?.clearWatch(geoWatch);
+  geoWatch = null;
+}
+
+/* ---- 読み取ってからを速くする（2026-11-04 ko-dai さんの指示：「LINEの引き継ぎやポイントの反映が、読み取りからの時間が長い」） ----
+ *  ・スタンプのQRを読んでいるあいだに、位置を先に取っておく（watchPosition）。読めたら、その位置ですぐ受け口へ送る。
+ *    前は、読めてから位置を取り始めていた（屋内だと数秒〜20秒かかる）。先に取った位置で、お店の中と言えないときだけ、前のとおり取り直す
+ *  ・読めたらすぐ「押しています」「引き継いでいます」の画面にする（前は、止まったカメラの画面のまま待っていた） */
+const GEO_FRESH = 60000;   // 先に取った位置を使うのは、取ってから1分まで
+function watchGeo() {
+  if (!navigator.geolocation || geoWatch !== null) return;
+  geoWatch = navigator.geolocation.watchPosition(pos => {
+    const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+    const fresh = geoFix && Date.now() - geoFix.at < GEO_FRESH;
+    if (!fresh || accuracy <= geoFix.accuracy + 20) geoFix = { lat, lng, accuracy, at: Date.now() };   // 前より確かな位置（か、古くなったら新しい位置）を残す
+  }, () => { /* だめなときは、読めたあとに前のとおり取り直す（そこで許可の案内を出す） */ }, { enableHighAccuracy: true, maximumAge: 30000, timeout: 20000 });
+}
+/** 先に取った位置で、お店の中と言えるなら、その位置（受け口と同じ数え方）。言えなければ null */
+function geoReady() {
+  if (!geoFix || Date.now() - geoFix.at > GEO_FRESH) return null;
+  const far = distanceM(geoFix, STAMP.place);
+  return far <= STAMP.place.radius + Math.min(geoFix.accuracy || 0, STAMP.place.slack) ? geoFix : null;
+}
+/** 読めたあと、受け口の答えを待つあいだの画面 */
+function busySheet(title, body) {
+  openSheet(`<div class="checking"><span class="spin"></span><h2>${esc(title)}</h2><p>${esc(body)}</p></div>`);
+  sheetBody.onchange = null;
+  sheetBody.onclick = null;
+}
+
+/* ---- カメラの映像を、自分で描いて見せる（2026-11-04 ko-dai さんの報告：「カメラが起動していても画面が真っ暗だが、QRは読み取れている」） ----
+ *  iPhone では、下から出る画面（動きのある、角を丸めた枠）の中の video が、映像は届いているのに黒いまま描かれないことがある
+ *  （QRは video から読むので読める）。そこで video の上に canvas を重ね、届いた映像を毎回 canvas に描いて見せる。
+ *  映像がふつうに出る端末でも、同じものが重なるだけ。止めたら（scanId が変わったら）描くのもやめる */
+function drawPreview(video, canvas, stillOpen) {
+  const cx = canvas.getContext('2d');
+  const step = () => {
+    if (!stillOpen()) return;
+    const w = video.videoWidth, h = video.videoHeight;
+    if (w && h && video.readyState >= 2) {
+      const dpr = Math.min(2, window.devicePixelRatio || 1), cw = Math.round(canvas.clientWidth * dpr), ch = Math.round(canvas.clientHeight * dpr);
+      if (cw && ch) {
+        if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; }
+        const k = Math.max(cw / w, ch / h);   // 枠いっぱいに（video の object-fit: cover と同じ）
+        cx.drawImage(video, (cw - w * k) / 2, (ch - h * k) / 2, w * k, h * k);
+        canvas.classList.add('on');
+      }
+    }
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
 
 /** QR を読むしくみ。ブラウザにあればそれ（Android の Chrome など）、なければ jsQR を読みこむ */
@@ -60,7 +113,7 @@ async function openScanner({ ticket = false } = {}) {
     <button class="sheet-x" data-s="close" aria-label="閉じる">×</button>
     <div class="scan">
       ${ticket ? '<h2>引き継ぎのQRを読む</h2><p>お店の人が見せているQR（紙か画面）を、枠の中に入れてください。</p>' : '<h2>お店のQRを読む</h2><p>レジの横などに置いてある、スタンプのQRを枠の中に入れてください。</p>'}
-      <div class="scan-view"><video playsinline muted></video><i class="scan-frame"></i></div>
+      <div class="scan-view"><video playsinline muted autoplay></video><canvas aria-hidden="true"></canvas><i class="scan-frame"></i></div>
       <p class="scan-msg">カメラを準備しています…</p>
       ${DEV_HOST && !ticket ? `<p class="demo-hint">試作版：パソコンで試すときは <button data-s="demo">QRを読んだことにする</button></p>` : ''}
     </div>`);
@@ -82,8 +135,13 @@ async function openScanner({ ticket = false } = {}) {
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
     if (!stillOpen()) return stream.getTracks().forEach(t => t.stop());   // 待っているあいだに閉じられた
     camera = stream;
+    video.muted = true;
     video.srcObject = stream;
     await video.play();
+    drawPreview(video, $('.scan-view canvas', sheetBody), stillOpen);
+    // 映像が来ないまま（大きさが 0 のまま）なら、つなぎ直す
+    setTimeout(() => { if (stillOpen() && !video.videoWidth) { video.srcObject = null; video.srcObject = stream; video.play().catch(() => {}); } }, 1500);
+    if (!ticket && !TEST_MEMBER && STAMPS_ONLINE) watchGeo();   // スタンプのときは、読んでいるあいだに位置を先に取っておく
   } catch (e) {
     if (!stillOpen()) return;
     noCamera(CAMERA_NG[e.name] || 'カメラを使えませんでした。スマホの設定でカメラを許可してから、もう一度開いてください。');
@@ -123,6 +181,8 @@ function claimStamp(token) {
   pendingToken = token;
   if (stampDoneToday()) return stampProblem('今日のスタンプはもらいました', `スタンプは1日${STAMP.perDay}個までです。またのご来店をお待ちしています。`);
   if (TEST_MEMBER) return claimOnline(token, STAMP.place.lat, STAMP.place.lng, 0);   // テスト用アカウントは位置を聞かない（受け口も確かめない。15節）
+  const early = STAMPS_ONLINE && geoReady();
+  if (early) return claimOnline(token, early.lat, early.lng, early.accuracy);   // 読んでいるあいだに取った位置で、すぐ送る
   if (!navigator.geolocation) return stampProblem('お店にいるかを確かめられません', 'このスマホ・ブラウザでは位置情報を使えません。', { demo: true });
   openSheet(`
     <div class="checking">
@@ -148,12 +208,14 @@ function claimStamp(token) {
 
 /** 台帳につないだとき：印と位置を受け口へ送って、受け口が決める（位置は判定に使うだけで、保存しない） */
 function claimOnline(token, lat, lng, accuracy) {
+  busySheet('スタンプを押しています', 'そのままお待ちください。');
   stampPost('stampClaim', { token, lat, lng, accuracy }).then(r => {
     lastStampTotal = getStamps().total;
     pendingToken = '';
     showStamped(r);
     render(true);
   }).catch(e => {
+    if (e.code === 'far') geoFix = null;   // 「もう一度」では、位置を取り直す
     if (e.code === 'far') return stampProblem('お店の外にいるようです', `今の場所は、お店から約${farText(e.data.far)}離れています。お店の中（駐車場を含む）で、もう一度読んでください。`, { retry: true });
     if (e.code === 'today') return stampProblem('今日のスタンプはもらいました', `スタンプは1日${STAMP.perDay}個までです。またのご来店をお待ちしています。`);
     if (e.code === 'bad_qr') return stampProblem('このQRは使えません', '古いQRかもしれません。お店の人に声をかけてください。');
@@ -182,6 +244,7 @@ function openLineMove() {
 const ticketFrom = text => (String(text).match(/^BAGURULINE:([0-9A-Z]{16})$/) || [])[1] || '';
 function claimTicket(code) {
   const before = getStamps().total;
+  busySheet('LINEのポイントを引き継いでいます', 'そのままお待ちください。');
   stampPost('lineClaim', { code }).then(r => {
     lastStampTotal = getStamps().total;
     showStamped({ on: r.on, from: stampOnCard(before), got: [], moved: true }, `${r.n}ポイント引き継ぎました`);
