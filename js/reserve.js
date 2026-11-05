@@ -468,8 +468,17 @@ const qrArrive = () => { const d = new Date(Date.now() + (Number(qr.now?.minutes
 const qrPeople = () => (Array.isArray(qr.now?.people) ? qr.now.people.map(Number).filter(n => Number.isInteger(n) && n > 0 && n <= RSV_PEOPLE_MAX) : []);
 const qrMax = () => Math.max(0, ...qrPeople());
 
+/* テスト用アカウント（Owner の中の公式アプリ。stamp-api.js の TEST_MEMBER）は、いつでも即予約を試せる（2026-11-06 ko-dai さんの指示「テスト用アカウントからはいつでも即予約ができるようにしてください」）。
+ *  nowAvail・quickReserve に、テスト用の会員番号と鍵（member・key。stampClaim と同じ）を足して送る。受け口は、テスト用の会員と確かめられたら、
+ *  即予約のスイッチが止まっていても・受付時間の外でも受け、test: true を返す（受け口は予約ボードのセッション）。席の空きの数え方は本物と同じ（満席なら受けない）。
+ *  ★お客さまの会員では足さない。受け口が知らないあいだは、足したものは無視される（今までどおり、スイッチが入っているときだけ出る） */
+const qrAuth = () => {
+  if (typeof TEST_MEMBER === 'undefined' || !TEST_MEMBER) return {};
+  const a = memberAuth();
+  return a && a.no && a.key ? { member: a.no, key: a.key } : {};
+};
 function qrRead() {
-  return qrReq ??= baguruLib().then(() => BaguruApi.post({ action: 'nowAvail' })).finally(() => { qrReq = null; });
+  return qrReq ??= baguruLib().then(() => BaguruApi.post({ action: 'nowAvail', ...qrAuth() })).finally(() => { qrReq = null; });
 }
 function qrStart() {
   const box = $('#qr');
@@ -508,6 +517,7 @@ function qrDraw() {
     return;
   }
   box.innerHTML = `<div class="nowr">${head(`いま <em>${max}名</em>まで入れます。<br>いま予約すると <em>${esc(qrArrive())}</em> までにお越しいただく形で、すぐ確定します`)}
+      ${qr.now.test ? '<p class="hint nowr-test">テスト用アカウント：即予約を止めているとき・受付時間の外でも試せます（席の空きは本物と同じ。お店の予約ボードに届くので、試したら予約ボードで取り消してください）</p>' : ''}
       <button class="btn btn-main btn-block" data-q="open">いますぐ予約する</button></div>`;
 }
 
@@ -561,6 +571,7 @@ function qrDoneHtml() {
   return `<div class="nowr is-done">
       <div class="thanks">${ICON.check}<div><b>予約が確定しました</b><small><b>${esc(r.arriveBy)}</b> までにお越しください。遅れるとき・取り消すときは、お電話でお知らせください</small></div></div>
       <div class="ticket"><div><small>予約番号</small><b class="t-no">${esc(r.no)}</b></div><div><small>ご来店</small><b>今日 ${esc(r.arriveBy)} まで</b><small>${r.people}名</small></div></div>
+      ${r.test ? '<p class="hint nowr-test">テスト用アカウントの試しの予約です。お店の予約ボードに「試」の印で届いています。確かめたら、予約ボードで取り消してください。</p>' : ''}
       ${r.email ? `<p class="hint">${r.mailed ? '確定のメールを、今お送りしました。届かないときは、迷惑メールのフォルダも見てください。' : '★確定のメールを送れませんでした。ご予約は確定しています。'}</p>` : ''}
       <div class="row-btns">
         <a class="btn btn-sub" href="tel:${String(r.tel || SHOP.tel).replace(/-/g, '')}">${ICON.phone}お店に電話</a>
@@ -594,7 +605,7 @@ function qrSend() {
   qr.busy = true;
   qrDraw();
   const v = qr.v;
-  BaguruApi.post({ action: 'quickReserve', rid: qr.rid, via: 'アプリ', people: v.people, name: v.name, tel: v.tel, email: v.email, website: v.website })
+  BaguruApi.post({ action: 'quickReserve', rid: qr.rid, via: 'アプリ', people: v.people, name: v.name, tel: v.tel, email: v.email, website: v.website, ...qrAuth() })
     .then(r => {
       // この端末に控える（マイページ）。id と token は様子を読む鍵。お名前・電話（・メール）は、次に入れる手間を省くため会員の情報に
       DB.set('reserves', [...DB.get('reserves', []), { id: r.id, token: r.token, state: 'ok', quick: true, no: r.no, date: r.date, time: r.time, arriveBy: r.arriveBy, people: r.people, sentAt: new Date().toISOString() }]);
