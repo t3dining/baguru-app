@@ -64,12 +64,13 @@ function viewReserve() {
   return {
     tab: 'reserve', title: '予約',
     html: `
+      <div id="qr" hidden></div>   <!-- いますぐ行く（15分以内の即予約。下の qrStart。受けているときだけ出る） -->
       <h2 class="sec" data-en="CALENDAR">営業日カレンダー</h2>
       ${openCalHtml()}
       <h2 class="sec" data-en="RESERVATION">ネット予約</h2>
       <p class="notice">${ICON.cal}<span>席のご予約の<b>リクエスト</b>です<small>お店が確かめて承認すると、確定のメールが届き、このアプリでも分かります（それまでは確定ではありません）。お急ぎの方は、お電話でどうぞ。</small></span></p>
       <div id="rsv"><p class="hint">空き状況を読み込んでいます…</p></div>`,
-    after: rsvStart,
+    after: () => { qrStart(); rsvStart(); },
   };
 }
 
@@ -439,6 +440,189 @@ window.addEventListener('hashchange', () => {
   if (routeName() !== 'reserve' && rsv.step === 'done') rsv = { ...rsv, step: 'form', done: null };
 });
 
+/* =====================================================================
+ *  いますぐ行く（15分以内に来店する、すぐ確定する即予約。2026-11-05 ko-dai さんの「作り始める」。予約ボードのセッションと決めた：即予約の決めごと.md）
+ *  ・予約タブのいちばん上。受け口の nowAvail が accepting: true のときだけ出す。止めている・受付時間の外・休み・
+ *    古い受け口（nowAvail を知らず unknown_action が返る）・読めないときは、何も出さない
+ *  ・人数・お名前・電話（メールは任意）→ 確かめ（15分以内にお越しになれる方だけ・取り消しと遅れはお電話で）→ 確定（quickReserve。お店の承認は無く、すぐ確定）
+ *  ・人数は nowAvail の people（いま入れる人数の一覧。★続かないことがある）だけを選べる。maxPeople が 0 なら「いまは満席」
+ *  ・確定したら、この端末の控え（DB 'reserves'）に quick: true で入れる（マイページに出る。様子は今の myReserves で読む。state は ok）
+ *  ・来店時刻は、受け口が「受けた時刻＋15分」で決める（arriveBy）。画面の「いま送ると○時○分まで」は目安（この端末の時計で数える）
+ *  ・★今のネット予約（日時を選ぶリクエスト）は、そのまま下に残す。「他社のサービスの名前」は画面に使わない
+ * ===================================================================== */
+const QR_MSG = {
+  not_accepting: 'いまは、いますぐのご予約を受け付けていません。お電話でどうぞ。',
+  full: 'いま、満席になりました。お電話でお問い合わせください。',
+  busy: '同じ電話番号で、まだご来店前のご予約があるか、ただいま混み合っています。お電話でどうぞ。',
+  bad_people: '人数を選んでください。',
+  bad_email: 'メールアドレスの形が違います（入れなくても予約できます）。',
+};
+const QR_EVERY = 60000;   // 予約タブを開いているあいだ、いま入れる人数を読み直す間隔
+let qr = { now: null, step: 'card', people: 0, v: null, rid: '', done: null, busy: false };
+let qrReq = null, qrTimer = 0;
+const qrMsg = e => (e.code === 'too_many' ? `${Number(e.data?.maxPeople) || ''}名を超えるご予約は、お電話でお受けします。` : QR_MSG[e.code] || RSV_MSG[e.code] || RSV_MSG.no_answer);
+const qrTel = () => `<a class="btn btn-call btn-block" href="tel:${SHOP.tel.replace(/-/g, '')}">${ICON.phone}お電話でどうぞ<small>${esc(SHOP.tel)}</small></a>`;
+/** いま送ったときの来店時刻の目安（この端末の時計＋15分） */
+const qrArrive = () => { const d = new Date(Date.now() + (Number(qr.now?.minutes) || 15) * 60000); return `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`; };
+// 選べる人数は、ふだんのネット予約と同じ15名まで（RSV_PEOPLE_MAX。2026-11-04 ko-dai さんの指示。16名以上はお電話で）
+const qrPeople = () => (Array.isArray(qr.now?.people) ? qr.now.people.map(Number).filter(n => Number.isInteger(n) && n > 0 && n <= RSV_PEOPLE_MAX) : []);
+const qrMax = () => Math.max(0, ...qrPeople());
+
+function qrRead() {
+  return qrReq ??= baguruLib().then(() => BaguruApi.post({ action: 'nowAvail' })).finally(() => { qrReq = null; });
+}
+function qrStart() {
+  const box = $('#qr');
+  if (!box) return;
+  box.onclick = qrClick;
+  box.onchange = qrChange;
+  if (qr.step !== 'card') return qrDraw();
+  qrLoad();
+}
+/** いま入れるかを読み、カードを描き直す。予約タブを開いているあいだは、1分ごとに読み直す */
+function qrLoad() {
+  clearTimeout(qrTimer);
+  if (PREVIEW && !qr.now) return qrDraw();   // マネージの「アプリで見る」では読まない（出さない）
+  qrRead()
+    .then(a => { qr.now = a && a.accepting === true ? a : null; }, () => { qr.now = null; })
+    .then(() => {
+      if (!$('#qr') || qr.step !== 'card') return;
+      qrDraw();
+      qrTimer = setTimeout(() => { if ($('#qr') && qr.step === 'card' && !document.hidden) qrLoad(); }, QR_EVERY);
+    });
+}
+
+function qrDraw() {
+  const box = $('#qr');
+  if (!box) return;
+  const show = !!qr.now || qr.step !== 'card';
+  box.hidden = !show;
+  if (!show) return (box.innerHTML = '');
+  const head = sub => `<div class="nowr-head">${ICON.clock}<div><b>いますぐ行く（15分以内）</b><small>${sub}</small></div></div>`;
+  if (qr.step === 'done') return (box.innerHTML = qrDoneHtml());
+  if (qr.step === 'confirm') return (box.innerHTML = `<div class="nowr">${head('この内容で予約を確定します')}${qrConfirmHtml()}</div>`);
+  if (qr.step === 'form') return (box.innerHTML = `<div class="nowr">${head('15分以内にお越しになれる方だけの、すぐ確定するご予約です')}${qrFormHtml()}</div>`);
+  const max = qrMax();
+  if (!max) {
+    box.innerHTML = `<div class="nowr is-full">${head('いまは満席です。少し時間を置くと、空くことがあります')}${qrTel()}</div>`;
+    return;
+  }
+  box.innerHTML = `<div class="nowr">${head(`いま <em>${max}名</em>まで入れます。<br>いま予約すると <em>${esc(qrArrive())}</em> までにお越しいただく形で、すぐ確定します`)}
+      <button class="btn btn-main btn-block" data-q="open">いますぐ予約する</button></div>`;
+}
+
+function qrFormHtml() {
+  const v = qr.v || { name: ME.name || '', tel: ME.tel || '', email: ME.email || '' };
+  const people = qrPeople();
+  return `<p class="notice warn">${ICON.clock}<span><b>15分以内にお越しになれる方だけ</b><small>送ると、すぐ予約が確定します（お店の確認はありません）。取り消し・遅れるときは、お電話（${esc(SHOP.tel)}）でお知らせください。</small></span></p>
+    <h3 class="nowr-sub">人数</h3>
+    <div class="r-people">${people.map(n => `<label class="r-chip"><input type="radio" name="q-people" value="${n}" ${qr.people === n ? 'checked' : ''}><span>${n}名</span></label>`).join('')}</div>
+    ${people.length < qrMax() ? '<p class="hint">いまの席の空き方で、入れる人数だけを出しています。</p>' : ''}
+    ${(Number(qr.now?.maxPeople) || 0) > RSV_PEOPLE_MAX || qrMax() === RSV_PEOPLE_MAX ? `<p class="hint">${RSV_PEOPLE_MAX + 1}名以上は、<a class="link-inline" href="tel:${SHOP.tel.replace(/-/g, '')}">お電話（${esc(SHOP.tel)}）</a>でお問い合わせください。</p>` : ''}
+    <label class="field"><span>お名前</span><input id="q-name" autocomplete="name" maxlength="40" value="${esc(v.name)}" placeholder="例：豊田 太郎"></label>
+    <label class="field"><span>電話番号</span><input id="q-tel" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" value="${esc(v.tel)}" placeholder="例：090-1234-5678"></label>
+    <label class="field"><span>メールアドレス（なくても構いません。入れると確定のメールが届きます）</span><input id="q-email" type="email" inputmode="email" autocomplete="email" maxlength="120" value="${esc(v.email)}"></label>
+    <div class="r-hp" aria-hidden="true"><label>ここには何も入れないでください<input id="q-website" tabindex="-1" autocomplete="off"></label></div>
+    <p class="notice warn" id="q-msg" hidden></p>
+    ${privacyLink('お預かりする情報の扱いは ')}
+    <div class="foot foot-2">
+      <button class="btn btn-main btn-block" data-q="next">内容を確認する</button>
+      <button class="btn btn-sub btn-block" data-q="close">やめる</button>
+    </div>`;
+}
+function qrValues() {
+  return { people: qr.people, name: $('#q-name').value.trim(), tel: toHalf($('#q-tel').value.trim()), email: $('#q-email').value.trim(), website: $('#q-website').value };
+}
+function qrCheck(v) {
+  if (!v.people) return QR_MSG.bad_people;
+  if (!v.name) return RSV_MSG.need_name;
+  if (!/^0\d{9,10}$/.test(v.tel.replace(/[^\d]/g, ''))) return RSV_MSG.bad_tel;
+  if (v.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.email)) return QR_MSG.bad_email;
+  return '';
+}
+function qrConfirmHtml() {
+  const v = qr.v;
+  return `<dl class="info">
+      <dt>ご来店</dt><dd>今日 <b>${esc(qrArrive())}</b> までに（送った時刻から15分以内）</dd>
+      <dt>人数</dt><dd>${v.people}名</dd>
+      <dt>お名前</dt><dd>${esc(v.name)} 様</dd>
+      <dt>電話番号</dt><dd>${esc(v.tel)}</dd>
+      ${v.email ? `<dt>メール</dt><dd>${esc(v.email)}</dd>` : ''}
+    </dl>
+    <p class="notice warn">${ICON.phone}<span><b>取り消し・遅れるときは、お電話で</b><small>このアプリからは取り消せません。お電話（${esc(SHOP.tel)}）でお知らせください。15分を過ぎてもお越しにならないときは、お店で取り消すことがあります。</small></span></p>
+    <p class="notice warn" id="q-cmsg" hidden></p>
+    <div class="foot foot-2">
+      <button class="btn btn-main btn-block" data-q="send" ${qr.busy ? 'disabled' : ''}>${qr.busy ? '送っています…' : '予約を確定する'}</button>
+      <button class="btn btn-sub btn-block" data-q="back">戻って直す</button>
+    </div>`;
+}
+function qrDoneHtml() {
+  const r = qr.done;
+  return `<div class="nowr is-done">
+      <div class="thanks">${ICON.check}<div><b>予約が確定しました</b><small><b>${esc(r.arriveBy)}</b> までにお越しください。遅れるとき・取り消すときは、お電話でお知らせください</small></div></div>
+      <div class="ticket"><div><small>予約番号</small><b class="t-no">${esc(r.no)}</b></div><div><small>ご来店</small><b>今日 ${esc(r.arriveBy)} まで</b><small>${r.people}名</small></div></div>
+      ${r.email ? `<p class="hint">${r.mailed ? '確定のメールを、今お送りしました。届かないときは、迷惑メールのフォルダも見てください。' : '★確定のメールを送れませんでした。ご予約は確定しています。'}</p>` : ''}
+      <div class="row-btns">
+        <a class="btn btn-sub" href="tel:${String(r.tel || SHOP.tel).replace(/-/g, '')}">${ICON.phone}お店に電話</a>
+        <a class="btn btn-sub" href="#me">マイページへ</a>
+      </div></div>`;
+}
+
+function qrChange(e) {
+  if (e.target.name === 'q-people') qr.people = Number(e.target.value);
+  const m = $('#q-msg');
+  if (m) m.hidden = true;
+}
+function qrClick(e) {
+  const b = e.target.closest('[data-q]');
+  if (!b) return;
+  const act = b.dataset.q;
+  if (act === 'open') { clearTimeout(qrTimer); qr = { ...qr, step: 'form', people: qrPeople().includes(qr.people) ? qr.people : 0 }; qrDraw(); return $('#qr').scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+  if (act === 'close') { qr = { ...qr, step: 'card', v: null, people: 0 }; return qrLoad(); }
+  if (act === 'next') {
+    const v = qrValues(), err = qrCheck(v);
+    if (err) { const m = $('#q-msg'); m.textContent = err; m.hidden = false; return m.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+    qr = { ...qr, v, step: 'confirm', rid: randomRid('q') };   // 確認の画面を開くたびに新しい印。送り直しのときは同じ印を使う
+    qrDraw();
+    return $('#qr').scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
+  if (act === 'back') { qr.step = 'form'; return qrDraw(); }
+  if (act === 'send' && PREVIEW) return toast('見え方を確かめる画面なので、ここでは動きません', 'warn');
+  if (act === 'send' && !qr.busy) qrSend();
+}
+function qrSend() {
+  qr.busy = true;
+  qrDraw();
+  const v = qr.v;
+  BaguruApi.post({ action: 'quickReserve', rid: qr.rid, via: 'アプリ', people: v.people, name: v.name, tel: v.tel, email: v.email, website: v.website })
+    .then(r => {
+      // この端末に控える（マイページ）。id と token は様子を読む鍵。お名前・電話（・メール）は、次に入れる手間を省くため会員の情報に
+      DB.set('reserves', [...DB.get('reserves', []), { id: r.id, token: r.token, state: 'ok', quick: true, no: r.no, date: r.date, time: r.time, arriveBy: r.arriveBy, people: r.people, sentAt: new Date().toISOString() }]);
+      Object.assign(ME, { name: v.name, tel: v.tel, ...(v.email ? { email: v.email } : {}) });
+      DB.set('member', ME);
+      dropAvail();   // 席が埋まったので、ネット予約の空き状況の控えは使わない
+      qr = { ...qr, step: 'done', done: { ...r, email: v.email }, v: null, people: 0, busy: false, now: null };
+      qrDraw();
+      $('#qr')?.scrollIntoView({ block: 'start' });
+    })
+    .catch(e => {
+      qr.busy = false;
+      if (['full', 'not_accepting', 'too_many'].includes(e.code)) {   // いま入れなくなった：はじめのカードに戻して読み直す
+        qr = { ...qr, step: 'card', v: null, people: 0 };
+        toast(qrMsg(e), 'warn');
+        return qrLoad();
+      }
+      if (['need_name', 'bad_tel', 'bad_people', 'bad_kana', 'bad_email'].includes(e.code)) { qr.step = 'form'; qrDraw(); }
+      else qrDraw();
+      const m = $('#q-cmsg') || $('#q-msg');
+      if (m) { m.textContent = qrMsg(e); m.hidden = false; }
+    });
+}
+// 確定したあと、ほかの画面に移ってから戻ったときは、はじめのカードから
+window.addEventListener('hashchange', () => {
+  if (routeName() !== 'reserve') { clearTimeout(qrTimer); if (qr.step === 'done') qr = { ...qr, step: 'card', done: null }; }
+});
+
 /* ---------------------------------------------------------------------
  *  予約の様子（2026-11-01 ko-dai さんの指示：確定のお知らせをメールとアプリで。予約ボードのセッションから。受け口の版 2026-11-01h から）
  *  ・受け口の myReserves に、控えの id と token を渡して読む（鍵が合う予約だけ返る）。★token は端末の中だけ。アドレスに載せない
@@ -495,9 +679,11 @@ function reservesSeen() {
 function reservesHtml() {
   const list = DB.get('reserves', []).filter(rsvAhead).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
   if (!list.length) return '<p class="hint">まだありません。<a href="#reserve">ネット予約</a>から、席の予約のリクエストを送れます。</p>';
+  // 即予約（いますぐ行く）は、確定のまま「○時○分までにお越しください」
+  const note = r => (r.quick && r.state === 'ok' ? `いますぐのご予約です。${esc(r.arriveBy || r.time)} までにお越しください（遅れるとき・取り消すときはお電話で）` : rsvState(r).note);
   return `<ul class="orders">${list.map(r => `<li><a href="#reserve">
-      <span class="o-top"><b>受付番号 ${esc(r.no)}</b><em class="st st-${rsvState(r).css}">${rsvState(r).label}</em></span>
+      <span class="o-top"><b>${r.quick ? '予約番号' : '受付番号'} ${esc(r.no)}</b><em class="st st-${rsvState(r).css}">${rsvState(r).label}</em></span>
       <small>${rsvDay(r.date)} ${esc(r.time)}・${r.people}名</small>
-      <small>${rsvState(r).note}</small>
+      <small>${note(r)}</small>
     </a></li>`).join('')}</ul>`;
 }

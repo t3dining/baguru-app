@@ -163,6 +163,7 @@ main { padding: 0 16px; }
   background: var(--paper); border: 1px solid var(--line); border-radius: var(--r);
   padding: 12px 14px; margin: 12px 0; font-size: 14px;
 }
+.notice[hidden] { display: none; }   /* 知らせの箱を隠しているとき（display: flex より強く。ネット予約・即予約の「送れなかった」の箱など。2026-11-05） */
 .notice svg { color: var(--brass); margin-top: 1px; }
 .notice small { display: block; color: var(--sub); }
 .notice.warn { background: var(--red-soft); border-color: #f2c9c4; color: var(--red); font-weight: 600; }
@@ -402,6 +403,20 @@ html.t-editing .t-ed:hover { background-color: rgba(199, 54, 29, .08); }
 .field { display: block; margin-bottom: 12px; }
 /* 採用情報（2026-11-04。ホームページの採用情報と同じ中身） */
 .recruit-card b em { margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--ember); color: #fff; font-size: 11px; font-style: normal; font-weight: 700; vertical-align: 2px; }
+/* いますぐ行く（15分以内の即予約。js/reserve.js の qrDraw）。予約タブのいちばん上 */
+.nowr { margin: 14px 0 6px; padding: 14px; border-radius: var(--r); background: #fff; border: 2px solid var(--ember); box-shadow: 0 6px 18px rgba(199, 54, 29, .12); }
+.nowr.is-full { border-color: var(--line); box-shadow: none; }
+.nowr.is-done { border-color: var(--ember); }
+.nowr-head { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 12px; }
+.nowr-head > svg { flex: none; width: 26px; height: 26px; color: var(--ember); margin-top: 2px; }
+.nowr-head b { display: block; font-size: 16px; font-weight: 900; }
+.nowr-head small { display: block; margin-top: 3px; font-size: 13px; line-height: 1.6; color: var(--sub); }
+.nowr-head em { font-style: normal; font-weight: 900; color: var(--ember); }
+.nowr-sub { margin: 14px 0 8px; font-size: 14px; font-weight: 900; }
+.nowr .notice { margin-top: 0; }
+.nowr .foot { position: static; margin: 12px 0 0; padding: 0; background: none; box-shadow: none; }
+
+#qr { scroll-margin-top: 76px; }   /* 開いたとき、カードの頭が上の帯に隠れないように */
 .recruit-hero { position: relative; margin: 12px 0 0; border-radius: var(--r); overflow: hidden; background: var(--coal); }
 .recruit-hero img { display: block; width: 100%; height: 190px; object-fit: cover; opacity: .62; }
 .recruit-hero div { position: absolute; left: 16px; right: 16px; bottom: 14px; color: #fff; }
@@ -985,7 +1000,7 @@ button.link-card { width: 100%; text-align: left; }
 .r-names { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }   /* お名前の4欄：苗字・名前／セイ・メイ */
 .r-names input { min-width: 0; }
 .r-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
-#rsv .ticket .t-no { font-size: 26px; white-space: nowrap; }   /* 予約の受付番号（1103-01）は、注文番号より長い */
+#rsv .ticket .t-no, #qr .ticket .t-no { font-size: 26px; white-space: nowrap; }   /* 予約の受付番号（1103-01）・即予約の予約番号は、注文番号より長い */
 
 /* =====================================================================
  *  装飾と動き（2026-10-30 ko-dai さんの指示：「デザインがチープ。装飾やアニメーションを増やす。ポイントがたまるときも面白く」）
