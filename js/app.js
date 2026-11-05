@@ -217,7 +217,7 @@ function viewHome() {
       ${active.map(orderBanner).join('')}
       ${rsvBanners()}
       <div class="quick">
-        <a class="quick-btn q-order" href="#menu">${ICON.bag}<b>テイクアウト注文</b><small>できしだい・時間指定</small></a>
+        <a class="quick-btn q-order" href="#menu">${ICON.bag}<b>テイクアウト注文</b><small>今から注文・時間指定</small></a>
         <a class="quick-btn q-stamp" href="#stamp">${ICON.card}<b>スタンプカード</b><small>${ME.registeredAt ? `<em>${stampOnCard(s.total)}</em> / ${STAMP.goal}${coupons ? `・特典${coupons}枚` : ''}` : '登録で1ポイント＋アイス'}</small></a>
       </div>
       ${callBtn()}
@@ -580,7 +580,7 @@ function viewCart() {
 
 /* ---------------------------------------------------------------------
  *  受け取りとお名前 → 注文
- *  「できしだい」（今日いちばん早く）か「時間を指定」。いちばん早い時間は食数で変わる（TAKEOUT.leadByMeals）
+ *  「今から受け取る」（今日いちばん早く。2026-11-06 ko-dai さんの指示で「できしだい」から名前を替えた。注文の印は asap のまま）か「時間を指定」。いちばん早い時間は食数で変わる（TAKEOUT.leadByMeals）
  * --------------------------------------------------------------------- */
 
 const checkoutLead = () => leadFor(cartMeals());
@@ -604,7 +604,7 @@ function viewCheckout() {
       <h2 class="sec">受け取りの時間</h2>
       <div class="modes">
         <button class="mode ${pick.mode === 'asap' ? 'on' : ''}" data-act="mode" data-arg="asap" ${asap ? '' : 'disabled'}>
-          <b>できしだい</b><small>${asap ? `今日 ${hhmm(asap)}頃（約${lead}分後）` : '今日はもう受け取れません'}</small></button>
+          <b>今から受け取る</b><small>${asap ? `今日 ${hhmm(asap)}頃（約${lead}分後）` : '今日はもう受け取れません'}</small></button>
         <button class="mode ${pick.mode === 'time' ? 'on' : ''}" data-act="mode" data-arg="time">
           <b>時間を指定</b><small>${TAKEOUT.monthsAhead}か月先まで・${TAKEOUT.stepMinutes}分ごと</small></button>
       </div>
@@ -646,7 +646,7 @@ function slotsHtml(days) {
 function cancelRulesHtml(req) {
   return `<h2 class="sec">キャンセル規定</h2>
       ${cancelRulesList(req)}
-      <p class="hint">${req ? `ご希望の日時の${TAKEOUT.cookBefore}分前から調理を始めます。` : `「できしだい」の注文は受け付けるとすぐ、「時間を指定」の注文は受け取りの${TAKEOUT.cookBefore}分前から調理を始めます。`}</p>`;
+      <p class="hint">${req ? `ご希望の日時の${TAKEOUT.cookBefore}分前から調理を始めます。` : `「今から受け取る」の注文は受け付けるとすぐ、「時間を指定」の注文は受け取りの${TAKEOUT.cookBefore}分前から調理を始めます。`}</p>`;
 }
 const cancelRulesList = req => `<ul class="cancel-rules">${(req ? TAKEOUT.cancelRulesRequest : TAKEOUT.cancelRules).map(([k, v]) => `<li><b>${esc(k)}</b><span>${esc(v)}</span></li>`).join('')}</ul>`;
 
@@ -784,7 +784,7 @@ function submitOrder(btn) {
   let pickupAt;
   if (pick.mode === 'asap') {
     const t = asapTime(new Date(), lead);
-    if (!t) return toast('今日はもう「できしだい」で受け取れません。時間を指定してください', 'warn');
+    if (!t) return toast('今日はもう「今から受け取る」はできません。時間を指定してください', 'warn');
     pickupAt = t.toISOString();
   } else {
     if (!pick.slot) {
@@ -836,7 +836,7 @@ function viewRequest() {
       html: `
         <p class="lead">配達・大量注文は、メニューを選んでカートに入れてから申請します。</p>
         ${rules}
-        <p class="notice">${ICON.cart}<span>カートは空です。<small>お店で受け取るなら、${TAKEOUT.bulkMin - 1}食までは、普通のテイクアウト注文（できしだい・時間指定）からどうぞ。</small></span></p>
+        <p class="notice">${ICON.cart}<span>カートは空です。<small>お店で受け取るなら、${TAKEOUT.bulkMin - 1}食までは、普通のテイクアウト注文（今から受け取る・時間指定）からどうぞ。</small></span></p>
         <div class="foot foot-2">
           <a class="btn btn-main btn-block" href="#menu">メニューを選ぶ</a>
           ${cart.length ? '<a class="btn btn-sub btn-block" href="#cart">カートを見る</a>' : ''}
@@ -975,7 +975,7 @@ function viewOrder(id) {
       ${justOrdered === o.id ? `<div class="thanks">${ICON.check}<div>${thanks}</div></div>` : ''}
       <div class="ticket">
         <div><small>${req ? '申請番号' : '注文番号'}</small><b class="t-no">${o.no}</b></div>
-        <div><small>${whenWord(o)}${o.status === 'request' ? '（ご希望）' : ''}${o.asap ? '（できしだい）' : ''}</small><b>${dayLabel(t)} ${hhmm(t)}${o.asap ? '頃' : ''}</b>${ACTIVE.includes(o.status) && o.status !== 'request' ? `<small>${untilText(o.pickupAt)}</small>` : ''}</div>
+        <div><small>${whenWord(o)}${o.status === 'request' ? '（ご希望）' : ''}${o.asap ? '（今から受け取る）' : ''}</small><b>${dayLabel(t)} ${hhmm(t)}${o.asap ? '頃' : ''}</b>${ACTIVE.includes(o.status) && o.status !== 'request' ? `<small>${untilText(o.pickupAt)}</small>` : ''}</div>
       </div>
       ${o.status === 'canceled' ? `<p class="notice warn">この${req ? '申請' : '注文'}は取り消しになりました。</p>`
         : o.status === 'declined' ? `<p class="notice warn">${ICON.phone}<span>お店から、この申請はお受けできないとの連絡がありました。${o.shopMsg || o.declineNote ? `<small>お店から：${esc(o.shopMsg || o.declineNote)}</small>` : ''}<small>ご相談はお電話でどうぞ。</small></span></p>` : `
@@ -1241,6 +1241,7 @@ function viewShop() {
       ${openCalHtml()}
       <a class="link-card" href="#menu/dine">${ICON.menu}<span><b>店内のメニュー</b><small>お店でお召し上がりのメニューは、「メニュー」のタブで見られます</small></span></a>
       ${recruitCard()}
+      ${faqHtml()}
       <h2 class="sec" data-en="OUR SHOPS">系列店</h2>
       ${SHOP.sisters.map(s => `<div class="sister">
         <img class="sister-logo" src="img/sisters/${esc(s.logo)}" alt="" width="64" height="64" loading="lazy">
@@ -1249,6 +1250,14 @@ function viewShop() {
       </div>`).join('')}`,
   };
 }
+
+/* ---- よくあるご質問（お店の情報のタブ。中身は data.js の FAQ。ホームページと同じ。2026-11-06 ko-dai さんの指示） ----
+ *  押すと開く形（details）。{TEL} は店の電話のリンクにする。答えの下に link のボタン */
+const faqText = a => esc(a).replace(/\n/g, '<br>').replace(/\{TEL\}/g, `<a class="link-inline" href="tel:${SHOP.tel.replace(/-/g, '')}">${esc(SHOP.tel)}</a>`);
+const faqHtml = () => `<h2 class="sec" data-en="FAQ">よくあるご質問</h2>
+  ${FAQ.map(g => `<p class="faq-group">${esc(g.group)}</p>
+    <div class="faq">${g.items.map(it => `<details><summary><span>${esc(it.q)}</span></summary>
+      <div class="faq-a"><p>${faqText(it.a)}</p>${it.link ? `<a class="mini" href="${esc(it.link[0])}">${esc(it.link[1])}</a>` : ''}</div></details>`).join('')}</div>`).join('')}`;
 
 /* ---- 採用情報（2026-11-04 ko-dai さんの指示：「ホームページと同じように採用情報をアプリにも入れてください」） ----
  *  中身は data.js の RECRUIT（ホームページの採用情報と同じ）。ホームと、お店の情報のカードから開く（#recruit。下のタブは「お店」）。
