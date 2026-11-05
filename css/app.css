@@ -170,6 +170,10 @@ main { padding: 0 16px; }
 .t-br { white-space: pre-line; }   /* マネージの文章で改行した文（js/content.js の textNode） */
 .t-flash { outline: 2.5px solid var(--flame); outline-offset: 3px; border-radius: 4px; }   /* マネージの「アプリで見る」で、確かめている文 */
 /* マネージの「画面で直す」（js/content.js の TEXT_EDIT）。直せる文を点線で、直している文を実線で囲む。「アプリを動かす」のあいだは点線を消す */
+/* 文節で改行（js/content.js の phrased。まとまりのあいだに見えない区切りを入れた字の親）。1つのまとまりが1行に入らないときだけ、途中で折る。
+   入力欄は、お客様が打つ字なので、ふつうの改行のまま（word-break は子に引きつがれるため） */
+.t-ph { word-break: keep-all; overflow-wrap: anywhere; }
+.t-ph :is(textarea, input) { word-break: normal; overflow-wrap: break-word; }
 html.t-editing .t-ed { outline: 1.5px dashed rgba(199, 54, 29, .7); outline-offset: 2px; border-radius: 3px; cursor: pointer; }
 html.t-editing .t-ed:hover { background-color: rgba(199, 54, 29, .08); }
 .t-ed.t-on, html.t-editing .t-ed.t-on { outline: 2.5px solid var(--ember, #c7361d); outline-offset: 2px; border-radius: 3px; background-color: rgba(199, 54, 29, .14); }

@@ -193,6 +193,59 @@ function applyContent(c) {
   APP_NOTICE = text(n.text, 200) && !(/^\d{4}-\d{2}-\d{2}$/.test(n.until) && n.until < today) ? { text: text(n.text, 200), until: /^\d{4}-\d{2}-\d{2}$/.test(n.until) ? n.until : '' } : null;
 }
 
+/* ---- 文節で改行する（2026-11-05 ko-dai さんの指示：「スマホの画面によって自動で改行されるように」「一文字だけ改行されるなら、ある程度のまとまりごと次の行にして、なるべく読みやすく」） ----
+ *  日本語の文を、ことばのまとまり（文節）に分け、まとまりのあいだにだけ、見えない区切り（U+200B）を入れる。区切りを入れた字の親に .t-ph
+ *  （css/app.css。word-break: keep-all・overflow-wrap: anywhere）を付けるので、行はまとまりの切れ目で変わる（1つのまとまりが1行に入らないときだけ、途中で折る）。
+ *  ★iPhone（Safari）は CSS の word-break: auto-phrase をまだ使えないので、字に区切りを入れる形にした（どのスマホでも、マネージの中でも、同じ所で改行される）。
+ *  ★区切りは画面の字だけ。文の置きかえ（下の texts）・マネージの「画面で直す」が読む字は、区切りを外した字（nodeText）。
+ *  ★公式アプリの画面（index.html・takeout.html の <html data-phrase>）だけ。マネージ・Order受付もこのファイルを読むが、区切らない
+ *  分け方（phraseCuts。外の部品は使わない、簡単な決まり）：
+ *   ・ひらがなのあとに、漢字・カタカナ・英数字が来る所（「炭火で｜焼く｜ハンバーグと」）。ただし「お」「ご」は、あとの字と1つ（「の｜ご飯」「聞ける｜お店」）
+ *   ・句読点（、。！？・ など）のあと。閉じ括弧（」など）のあとに漢字などが来る所。開き括弧（「 など）の前
+ *   ・句読点・閉じ括弧の前、ことばの途中（漢字・カタカナ・英数字が続く所、ひらがなが続く所、漢字に挟まれた送りがな1字「問い合わせ」）では区切らない */
+const PHRASE = document.documentElement.hasAttribute('data-phrase');
+const ZW = '\u200B';
+const plainText = s => String(s ?? '').replace(/\u200B/g, '');
+const nodeText = n => plainText(n.nodeValue);
+const PH_JA = /[ぁ-ヿ㐀-鿿々〆ヶ]/;
+/** 字の種類：h ひらがな／w 漢字・カタカナ・英数字（ことばの頭）／o 開き括弧／e 閉じ括弧／p 句読点／s 空白／x そのほか */
+const phKind = c => (/[ぁ-ゟ]/.test(c) ? 'h'
+  : /[、。，．！？!?…‥：；・]/.test(c) ? 'p'
+  : /[「『（(【〈《〔［｛“‘]/.test(c) ? 'o'
+  : /[」』）)】〉》〕］｝”’]/.test(c) ? 'e'
+  : /\s/.test(c) ? 's'
+  : /[゠-ヿ㐀-鿿々〆ヶ０-９Ａ-Ｚａ-ｚ0-9A-Za-z]/.test(c) ? 'w' : 'x');
+/** 区切ってよい所（その字の前）の番号 */
+function phraseCuts(s) {
+  const a = [...s], k = a.map(phKind), cuts = new Set();
+  for (let i = 1; i < a.length; i++) {
+    const p = k[i - 1], c = k[i];
+    if (p === 's' || c === 's' || c === 'p' || c === 'e') continue;
+    if (p === 'p') { cuts.add(i); continue; }
+    if (c === 'o') { if (p !== 'o') cuts.add(i); continue; }
+    if (p === 'e') { if (c !== 'h') cuts.add(i); continue; }
+    if (p === 'h' && c === 'w') {
+      if (/[おご]/.test(a[i - 1])) { if (i >= 2 && k[i - 2] === 'h') cuts.add(i - 1); }   // 「の｜ご飯」「聞ける｜お店」（文の頭の「お」「ご」は区切らない）
+      else if (i >= 2 && k[i - 2] === 'w' && !/[はがをにでとのもへや]/.test(a[i - 1])) { /* 漢字に挟まれた送りがな1字（問い合わせ・受け取り・申し込み）は、ことばの途中 */ }
+      else cuts.add(i);
+    }
+  }
+  return { a, cuts };
+}
+const phraseMemo = new Map();
+/** 画面に出す字（まとまりのあいだに見えない区切りを入れる）。日本語が無い字・区切らないページでは、そのまま */
+function phrased(s) {
+  if (!PHRASE || !s || !PH_JA.test(s)) return s;
+  let r = phraseMemo.get(s);
+  if (r === undefined) {
+    const { a, cuts } = phraseCuts(s);
+    r = a.map((ch, i) => (cuts.has(i) ? ZW + ch : ch)).join('');
+    if (phraseMemo.size > 3000) phraseMemo.clear();
+    phraseMemo.set(s, r);
+  }
+  return r;
+}
+
 /* ---- 画面の文章：直した文に置きかえる（texts） ---- */
 let TEXT_MAP = new Map(), TEXT_PART = null, TEXT_LOOSE = null, TEXT_TPL = [], TEXT_RUN = new Map(), RUN_TO = new WeakMap(), textsStarted = false;
 const TEXT_SEEN = new WeakMap();                                                 // 置きかえたあとの字を覚える（同じ字を二度置きかえない）
@@ -239,14 +292,14 @@ function textOf(s, loose = false) {
 }
 
 function textNode(n) {
-  const v = n.nodeValue;
+  const v = nodeText(n);   // 文節の区切りを外した字
   if (TEXT_SEEN.get(n) === v) return;
   TEXT_FROM.set(n, v);
   putText(n, textFor(n));
   if (TEXT_EDIT) edMark(n);
 }
 /** その字のかたまりに入れる字（飾りの入る文を直したものが先。無ければ、ふつうの置きかえ） */
-const textFor = n => (RUN_TO.has(n) ? RUN_TO.get(n) : textOf(TEXT_FROM.get(n) ?? n.nodeValue));
+const textFor = n => (RUN_TO.has(n) ? RUN_TO.get(n) : textOf(TEXT_FROM.get(n) ?? nodeText(n)));
 
 /* ---- 文の途中に飾りの字が入る文（x: 2） ----
  *  箱の子を、続いた「字のかたまり」と「飾り（display: inline の要素で、字のあるもの）」に分けたまとまりが run。アイコン・改行・ブロックの字で区切る。
@@ -264,11 +317,11 @@ function runsOf(box) {
     else if (x.nodeType === 1) end();
   }
   end();
-  return runs.filter(r => r.some(s => s.el) && r.some(s => s.n && /[\u3041-\u30ff\u4e00-\u9fff]/.test(String(TEXT_FROM.get(s.n) ?? s.n.nodeValue))));
+  return runs.filter(r => r.some(s => s.el) && r.some(s => s.n && /[\u3041-\u30ff\u4e00-\u9fff]/.test(String(TEXT_FROM.get(s.n) ?? nodeText(s.n)))));
 }
 function runSig(run) {
   let k = 0;
-  return run.map(s => (s.el ? `{${++k}}` : String((s.n && (TEXT_FROM.get(s.n) ?? s.n.nodeValue)) || '').replace(/\s+/g, ' '))).join('').trim();
+  return run.map(s => (s.el ? `{${++k}}` : String((s.n && (TEXT_FROM.get(s.n) ?? nodeText(s.n))) || '').replace(/\s+/g, ' '))).join('').trim();
 }
 /** 箱の中に、直した文と同じ形の run があれば、字のかたまりに入れる字を決める（入れるのは textNode・edRetext） */
 function runMark(box) {
@@ -290,9 +343,13 @@ function runMark(box) {
     });
   }
 }
-/** 字を入れる。マネージで改行した文は、改行したとおりに出す（親にまとめて指定すると、タグの間の改行まで出てしまうので、この字だけを包む） */
+/** 字を入れる。マネージで改行した文は、改行したとおりに出す（親にまとめて指定すると、タグの間の改行まで出てしまうので、この字だけを包む）。
+ *  画面には、文節の区切りを入れた字を出す（上の phrased。覚えるのは区切りの無い字） */
 function putText(n, r) {
-  if (n.nodeValue !== r) n.nodeValue = r;
+  r = plainText(r);
+  const z = n.parentNode?.nodeName === 'OPTION' ? r : phrased(r);   // 選ぶ欄の字は区切らない（折り返さないうえ、字を読むことがあるため）
+  if (n.nodeValue !== z) n.nodeValue = z;
+  if (z !== r) n.parentElement?.classList.add('t-ph');
   TEXT_SEEN.set(n, r);
   if (r !== TEXT_FROM.get(n) && r.trim().includes('\n') && n.parentNode && !n.parentNode.classList?.contains('t-br')) {
     const box = document.createElement('span');
@@ -318,7 +375,7 @@ function textEl(el) {
 }
 /** root の中の字を置きかえる。入力欄の中（お客様が書いた字）と、スクリプトには触らない */
 function applyTexts(root = document.body) {
-  if ((!TEXT_MAP.size && !TEXT_TPL.length && !TEXT_RUN.size && !TEXT_EDIT) || !root) return;   // マネージの「画面で直す」では、直した文が無くても見る（直せる文に印を付ける）
+  if ((!TEXT_MAP.size && !TEXT_TPL.length && !TEXT_RUN.size && !TEXT_EDIT && !PHRASE) || !root) return;   // マネージの「画面で直す」では、直した文が無くても見る（直せる文に印を付ける）。文節で改行するページも、いつも見る
   if (root.nodeType === 3) { if (!/^(SCRIPT|STYLE|TEXTAREA)$/.test(root.parentNode?.nodeName || '')) textNode(root); return; }
   if (root.nodeType !== 1) return;
   textEl(root);
@@ -335,7 +392,7 @@ function startTexts() {
   for (const f of ['confirm', 'alert']) { const o = window[f].bind(window); window[f] = m => o(textOf(String(m))); }
   applyTexts();
   new MutationObserver(list => {
-    if (!TEXT_MAP.size && !TEXT_TPL.length && !TEXT_RUN.size && !TEXT_EDIT) return;
+    if (!TEXT_MAP.size && !TEXT_TPL.length && !TEXT_RUN.size && !TEXT_EDIT && !PHRASE) return;
     for (const m of list) {
       if (m.type === 'characterData') applyTexts(m.target);
       else m.addedNodes.forEach(n => applyTexts(n));
@@ -381,7 +438,7 @@ function previewFocus() {
   if (!focus) return;
   const find = text => {
     const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-    for (let n = w.nextNode(); n; n = w.nextNode()) if (n.nodeValue.includes(text) && !/SCRIPT|STYLE/.test(n.parentNode.nodeName)) return n.parentNode;
+    for (let n = w.nextNode(); n; n = w.nextNode()) if (nodeText(n).includes(text) && !/SCRIPT|STYLE/.test(n.parentNode.nodeName)) return n.parentNode;
     return null;
   };
   const el = find(focus) || find(focus.split('\n')[0].trim());   // 文全体で探し、無ければ1行目で
@@ -399,7 +456,7 @@ const TEXT_EDIT = PREVIEW && /[?&]edit\b/.test(location.search);
 const ED = { exact: null, part: null, frames: [], on: true, key: '', s: 0, tpl: null, news: null, run: '' };   // frames：枠ごとの形（マネージの APP_FRAMES）。news：直しているお知らせ { i, f }
 const ED_ATTRS = ['placeholder', 'data-en'];   // 画面に字が見える属性（押して直せる）
 const edTell = msg => toManage({ type: 'baguru-edit', ...msg });   // マネージの場所だけに送る（上の toManage）
-const edOrig = n => String(TEXT_FROM.get(n) ?? n.nodeValue ?? '').trim();
+const edOrig = n => String(TEXT_FROM.get(n) ?? nodeText(n)).trim();
 const edIs = t => !!t && !!ED.exact && (ED.exact.has(t) || !!ED.part?.test(t) || ED.frames.some(f => f.re.test(t)));
 const edHits = (t, key, s, tpl) => !!t && (tpl ? tpl.re.test(t) : t === key || (!!s && t.includes(key)));
 function edMark(n) {
@@ -460,7 +517,7 @@ function edHit(e) {
   const r = document.caretRangeFromPoint?.(e.clientX, e.clientY), p = !r && document.caretPositionFromPoint?.(e.clientX, e.clientY);
   const n = r ? r.startContainer : p ? p.offsetNode : null, t = e.target.nodeType === 1 ? e.target : e.target.parentNode;
   const uniq = list => [...new Set(list.filter(Boolean))];
-  const one = x => ({ t: edOrig(x), now: String(x.nodeValue || '').trim(), st: edStyle(x), mark: !!x.parentElement?.closest('.t-ed') });
+  const one = x => ({ t: edOrig(x), now: nodeText(x).trim(), st: edStyle(x), mark: !!x.parentElement?.closest('.t-ed') });
   const main = n?.nodeType === 3 && t.contains(n) && edOrig(n) ? [one(n)] : [];
   const more = [], attrs = [], box = t.closest('button, a, label, li, p, h1, h2, h3, dt, dd, th, td') || t;
   const w = document.createTreeWalker(box, NodeFilter.SHOW_TEXT);
@@ -479,13 +536,13 @@ function edRunAt(n) {
   let top = n;
   while (top.parentElement && top.parentElement !== document.body && (top.parentElement.classList.contains('t-br') || getComputedStyle(top.parentElement).display === 'inline')) top = top.parentElement;
   const box = top.parentElement, run = box && runsOf(box).find(r => r.some(s => s.x === top));
-  if (!run || run.some(s => s.n && /[0-9０-９]/.test(String(TEXT_FROM.get(s.n) ?? s.n.nodeValue)))) return null;
+  if (!run || run.some(s => s.n && /[0-9０-９]/.test(String(TEXT_FROM.get(s.n) ?? nodeText(s.n))))) return null;
   const vals = {}, cst = {};
   let k = 0;
   run.forEach(s => {
     if (!s.el) return;
     k++;
-    vals[k] = s.el.textContent.replace(/\s+/g, ' ').trim();
+    vals[k] = plainText(s.el.textContent).replace(/\s+/g, ' ').trim();
     const c = getComputedStyle(s.el);
     cst[k] = {};
     for (const p of ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing', 'marginLeft', 'marginRight', 'paddingLeft', 'paddingRight', 'color']) cst[k][p] = c[p];
