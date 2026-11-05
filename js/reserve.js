@@ -457,7 +457,9 @@ const QR_MSG = {
   bad_people: '人数を選んでください。',
   bad_email: 'メールアドレスの形が違います（入れなくても予約できます）。',
 };
-const QR_EVERY = 60000;   // 予約タブを開いているあいだ、いま入れる人数を読み直す間隔
+// 予約タブを開いているあいだ、受けているか・いま入れる人数を読み直す間隔。★2026-11-06 に 60秒 → 15秒（ko-dai さんの指示「即予約のONとOFFの切り替わりが遅いので早めることはできますか？」。
+//   予約ボードのセッションから頼まれた。nowAvail は軽い口で、受け口も同じ分のあいだは控えている）。予約タブを開いたとき・アプリに戻ったときは、すぐ読む（下の visibilitychange）
+const QR_EVERY = 15000;
 let qr = { now: null, step: 'card', people: 0, v: null, rid: '', done: null, busy: false };
 let qrReq = null, qrTimer = 0;
 const qrMsg = e => (e.code === 'too_many' ? `${Number(e.data?.maxPeople) || ''}名を超えるご予約は、お電話でお受けします。` : QR_MSG[e.code] || RSV_MSG[e.code] || RSV_MSG.no_answer);
@@ -494,13 +496,19 @@ function qrLoad() {
   clearTimeout(qrTimer);
   if (PREVIEW && !qr.now) return qrDraw();   // マネージの「アプリで見る」では読まない（出さない）
   qrRead()
-    .then(a => { qr.now = a && a.accepting === true ? a : null; }, () => { qr.now = null; })
+    // 受けている → カード。受けていない（accepting: false。止めている・受付時間の外・休み）→「今は受け付けていません」の表記（2026-11-06 ko-dai さんの指示）。
+    // 読めない・古い受け口（unknown_action）→ 何も出さない（受けているか分からないため）
+    .then(a => { qr.now = a && a.accepting === true ? a : a && a.accepting === false ? { stopped: true, test: !!a.test } : null; }, () => { qr.now = null; })
     .then(() => {
       if (!$('#qr') || qr.step !== 'card') return;
       qrDraw();
       qrTimer = setTimeout(() => { if ($('#qr') && qr.step === 'card' && !document.hidden) qrLoad(); }, QR_EVERY);
     });
 }
+// アプリに戻ったとき（ほかのアプリから・画面をつけ直したとき）は、予約タブのカードをすぐ読み直す（隠れているあいだは読み直しを止めているため）
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && $('#qr') && qr.step === 'card' && routeName() === 'reserve') qrLoad();
+});
 
 function qrDraw() {
   const box = $('#qr');
@@ -512,6 +520,13 @@ function qrDraw() {
   if (qr.step === 'done') return (box.innerHTML = qrDoneHtml());
   if (qr.step === 'confirm') return (box.innerHTML = `<div class="nowr">${head('この内容で、今すぐ席を押さえます')}${qrConfirmHtml()}</div>`);
   if (qr.step === 'form') return (box.innerHTML = `<div class="nowr">${head('今から席を押さえる、15分以内にお越しになれる方だけのご予約です')}${qrFormHtml()}</div>`);
+  if (qr.now.stopped) {   // 受けていない（止めている・受付時間の外・休み）：その旨を出す（2026-11-06 ko-dai さんの指示「即予約が止まっている時、即予約ができないという表記を入れる」）
+    box.innerHTML = `<div class="nowr is-full is-stopped">${head('今は、今すぐ席を押さえるご予約を受け付けていません')}
+        <p class="hint">受付時間の外・お休みの日・お店が止めているときは、受け付けていません。ご予約は、お電話か、下のネット予約（日時を選ぶリクエスト）でどうぞ。</p>
+        ${qr.now.test ? '<p class="hint nowr-test">テスト用アカウント：予約ボードで今すぐの予約を止めているので、テスト用でも試せません（止めていないのにこの表記が出るときは、予約ボードのスイッチを見てください）。</p>' : ''}
+        ${qrTel()}</div>`;
+    return;
+  }
   const max = qrMax();
   if (!max) {
     box.innerHTML = `<div class="nowr is-full">${head('今は満席で、席を押さえられません。少し時間を置くと、空くことがあります')}${qrTel()}</div>`;
