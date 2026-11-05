@@ -1546,6 +1546,8 @@ function openDeleteMember() {
 
 /** テスト用アカウントを作る画面。合言葉は、この端末に覚えてあれば入れなくてよい */
 function viewTestGate() {
+  // Owner の中にはめ込まれているとき、Owner に預けた鍵を待つあいだ（下の「テスト用アカウントの鍵を、Owner にも預ける」）
+  if (ownerKeepWait) return { title: 'テスト用アカウント', html: `<p class="hint">読み込んでいます…</p>` };
   return {
     title: 'テスト用アカウント',
     html: `
@@ -1895,6 +1897,54 @@ if (ENV.ownerFrame) {
       a.rel = 'noopener';
     } else if (u.protocol !== 'javascript:') a.target = '_top';   // tel: mailto: など
   }, true);
+}
+
+/* ---- テスト用アカウントの鍵を、Owner にも預ける（2026-11-06 ko-dai さんの報告「スマホのオーナーから公式アプリを開くと毎回合言葉を聞かれる。パソコンだと聞かれません」） ----
+ *  Owner の app.html（t3dining-store.github.io）にはめ込まれた公式アプリは、ブラウザから見ると「ほかの場所の中のページ」。
+ *  iPhone の Safari は、そういうページの保存（localStorage）を、閉じると消す（パソコンの Chrome は残す）。そのため、テスト用アカウントの鍵
+ *  （bgtest.memberAuth）が毎回消え、作る画面（お店の合言葉）が毎回出ていた。そこで、鍵を親の app.html にも預ける（親の保存は消えない）。
+ *  ・開いたら、親に { type: 'baguru-app', kind: 'testAuth-hello' } を送る。親は預かっている鍵を { type: 'baguru-owner', kind: 'testAuth', auth } で返す
+ *  ・この端末に鍵が無ければ、親の鍵を使い、台帳を読み直す（読み終わるまで「読み込んでいます…」。登録の画面が一瞬出ないように）。
+ *    この端末に鍵があって親と違えば、この端末の鍵を親に知らせる
+ *  ・鍵が変わったら（作った・使えなくなった）、{ kind: 'testAuth-set', auth } で親に知らせる（DB.set('memberAuth') のたびに）
+ *  ・受けるのは、親の画面（parent）からで、場所が Owner の場所（OWNER_URL。この Mac では同じ場所 localhost も）のときだけ。送る先も名指し
+ *  ・親の返事が OWNER_KEEP_WAIT ミリ秒のうちに来なければ（前の app.html など）、今までのとおり作る画面を出す
+ *  ★預けるのはテスト用アカウントの鍵だけ（TEST_MEMBER のときだけ動く）。お客さまの鍵（bg.memberAuth）とお店の合言葉は、渡さない・受け取らない
+ *  ★親の側は バグるOwner/app.html（バグるOwner のセッション）。知らせの形を変えるときは、両方を一緒に直す */
+const OWNER_KEEP = TEST_MEMBER && ENV.ownerFrame && window.parent !== window;
+const OWNER_KEEP_WAIT = 1500;
+let ownerKeepWait = OWNER_KEEP && !memberAuth();
+if (OWNER_KEEP) {
+  const origins = new Set([new URL(OWNER_URL).origin, ...(/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? [location.origin] : [])]);
+  const authOk = a => !!a && typeof a === 'object' && typeof a.no === 'string' && typeof a.key === 'string'
+    && a.no.length > 0 && a.no.length <= 60 && a.key.length > 0 && a.key.length <= 200;
+  const pick = a => (authOk(a) ? { no: a.no, key: a.key } : null);
+  const toOwner = msg => origins.forEach(o => { try { parent.postMessage({ type: 'baguru-app', ...msg }, o); } catch (e) { /* 届かないだけ */ } });
+  const setRaw = DB.set.bind(DB), clearRaw = DB.clearAll.bind(DB);
+  DB.set = (k, v) => { setRaw(k, v); if (k === 'memberAuth') toOwner({ kind: 'testAuth-set', auth: pick(v) }); };
+  DB.clearAll = () => { clearRaw(); toOwner({ kind: 'testAuth-set', auth: null }); };
+  const done = () => { if (!ownerKeepWait) return; ownerKeepWait = false; render(); };
+  let answered = false;
+  addEventListener('message', e => {
+    if (answered || e.source !== parent || !origins.has(e.origin)) return;
+    const d = e.data || {};
+    if (d.type !== 'baguru-owner' || d.kind !== 'testAuth') return;
+    answered = true;
+    const mine = pick(memberAuth()), kept = pick(d.auth);
+    if (mine) {
+      if (!kept || kept.no !== mine.no || kept.key !== mine.key) toOwner({ kind: 'testAuth-set', auth: mine });
+      return done();
+    }
+    if (!kept) return done();
+    setRaw('memberAuth', kept);
+    syncStamps().then(() => { lastStampTotal = getStamps().total; stampSeen = stampOnCard(lastStampTotal); }).catch(() => {}).finally(() => {
+      stampsAt = Date.now();
+      ownerKeepWait = false;
+      render();
+    });
+  });
+  if (ownerKeepWait) setTimeout(done, OWNER_KEEP_WAIT);
+  toOwner({ kind: 'testAuth-hello' });
 }
 
 // バグるマネージで直した中身（js/content.js）。前に読んだ分をすぐ重ねてから描き、そのあと受け口から読み直す（変わっていたら描き直す）
