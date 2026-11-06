@@ -1951,11 +1951,22 @@ if (OWNER_KEEP) {
     }
     if (!kept) return done();
     setRaw('memberAuth', kept);
-    syncStamps().then(() => { lastStampTotal = getStamps().total; stampSeen = stampOnCard(lastStampTotal); }).catch(() => {}).finally(() => {
-      stampsAt = Date.now();
-      ownerKeepWait = false;
-      render();
-    });
+    // ★台帳の答えを待たずに、すぐ描く（2026-11-07 ko-dai さんの指示「テイクアウトの注文ページを開くと最初に読み込む動作があり、長く感じる」。バグる HP のセッションから）。
+    //   テスト用の会員は、いつも登録済み（受け口の memberTest が、お名前「テスト」・登録済みで作る）。そこで、この端末の控えにも登録済みの印を先に立てる
+    //   （立てないと、台帳の答えが来るまで会員登録の画面になる。2026-11-06）。お名前・スタンプなどは、後ろで台帳を読んで入れ直す（keepState）。
+    //   鍵が使えなかった（bad_member）ときは、stamp-api.js が鍵を消すので、作る画面（needTest）に戻る
+    if (!ME.registeredAt) {
+      Object.assign(ME, { no: kept.no, name: ME.name || 'テスト', registeredAt: new Date().toISOString() });
+      setRaw('member', ME);
+    }
+    ownerKeepWait = false;
+    render();
+    syncStamps().then(changed => {
+      lastStampTotal = getStamps().total;
+      stampSeen = stampOnCard(lastStampTotal);
+      // 変わっていたら描き直す（入力の途中の画面と、開いている下からの画面のときは描き直さない。syncContent と同じ）
+      if (changed && !sheet.classList.contains('show') && !NO_LIVE.includes(routeName())) render(true);
+    }).catch(() => { if (needTest()) render(); }).finally(() => { stampsAt = Date.now(); });
   });
   // ★待つのをやめるのは、親の返事が来なかったときだけ。返事が来て台帳を読み直している途中で止めると、会員登録の画面が数秒出た（2026-11-06）
   if (ownerKeepWait) setTimeout(() => { if (!answered) done(); }, OWNER_KEEP_WAIT);
