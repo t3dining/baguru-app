@@ -2,7 +2,7 @@
 <html lang="ja" data-phrase>   <!-- data-phrase：文節で改行する（js/content.js の phrased）-->
 <head>
 <meta charset="utf-8">
-<meta name="bg-version" content="83d35b1d">
+<meta name="bg-version" content="61c7f86b">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <!-- 読んでよい場所を限る（CSP。2026-11-05 お店用アプリの引っ越しの段階1・案4。計画書 `お店用アプリの引っ越し.md`）。GitHub Pages は見出しを付けられないので meta。
      script：自分の場所・予約ボードの config.js と api.js（同じ t3dining.github.io）・QR の部品（cdnjs・jsDelivr。SRI つき）だけ。中に書いたスクリプトは使わない（js/owner-head.js などに出した）
@@ -29,6 +29,7 @@
   <header class="top">
     <button id="back" class="top-btn" hidden aria-label="戻る" data-icon="back"></button>
     <h1 id="title"></h1>
+    <button id="hpBack" class="owner-home hp-back" hidden>‹ ホームページ</button>   <!-- ホームページに戻る（app.js の HP_BACK。2026-11-07） -->
     <button id="ownerHome" class="owner-home" hidden>🏠 ホーム</button>   <!-- バグる Owner から開いたときだけ出す（app.js の OWNER_MODE） -->
     <a id="cartBtn" class="top-btn cart-btn" href="#cart" aria-label="カート" data-icon="cart"><span class="badge" hidden></span></a>
     <a id="meBtn" class="me-btn" href="#me" aria-label="マイページ" data-icon="user"><span>マイページ</span></a>   <!-- 2026-11-04 ko-dai さんの指示：マイページは右上に -->
@@ -67,6 +68,6 @@
 <script src="js/stamp-api.js?v=efa552d1"></script>
 <script src="js/privacy.js?v=8cd2a2af"></script>
 <script src="js/reserve.js?v=869badf9"></script>
-<script src="js/app.js?v=a08f5bfd"></script>
+<script src="js/app.js?v=36f3fa90"></script>
 </body>
 </html>

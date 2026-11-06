@@ -1884,7 +1884,47 @@ function ownerHome() {
   return u.href;
 }
 if (TEST_MEMBER) { $('#testBand').hidden = false; document.body.classList.add('test-account'); }   // テスト用アカウントの帯（15節）
-if (OWNER_MODE && $('#ownerHome')) {
+/* ---- ホームページに戻る（2026-11-07 ko-dai さんの指示「ホームページに戻るボタンも付けてください。左からスワイプするしかホームページに戻る方法がない」
+ *       「オーナーの中ではなくても注文ページからホームページに戻れるようにする」。バグる HP のセッションから頼まれた） ----
+ *  ・注文だけの画面（takeout.html。ホームページの「モバイルオーダーで注文」から開く）では、いつも「‹ ホームページ」を出す。
+ *    戻り先は、来たホームページのページ（document.referrer がホームページのとき。このタブの sessionStorage の bg.hpFrom に控える）、無ければホームページのはじめ
+ *  ・Owner の中（ENV.ownerFrame）で、ホームページから移ってきたとき（アドレスに back=… がある。Owner の app.html が、ホームページの枠から受けた back を渡す）は、
+ *    窓ごと Owner の hp.html?page=…（Owner の中のホームページの、そのページ）に戻す。🏠 は出さない（ホームページの中に 🏠 がある。上の帯がせまいため）。
+ *    back が無いとき（Owner の「公式アプリ」のカードから開いたとき）は、今までどおり 🏠 だけ
+ *  ・back は「英小文字・数字・-・_ の名前.html」と「#…」だけを受ける（ほかの場所へは行かない） */
+const HP_URL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? new URL('../../ホームページ/公開用/', location.href).href : 'https://t3dining.github.io/baguru/';
+const HP_BACK = (() => {
+  const ok = v => (typeof v === 'string' && /^[a-z0-9_-]+\.html(#[A-Za-z0-9_-]*)?$/.test(v) ? v : '');
+  let back = ok(new URLSearchParams(location.search).get('back'));
+  try {
+    if (back) sessionStorage.setItem('bg.hpBack', back);
+    else if (/[?&]from=owner\b/.test(location.search)) sessionStorage.removeItem('bg.hpBack');   // Owner から開き直した（back なし）
+    else back = ok(sessionStorage.getItem('bg.hpBack'));
+  } catch (e) { /* このまま */ }
+  if (ENV.ownerFrame) {
+    if (!back) return null;
+    const [page, hash = ''] = back.split('#');
+    const owner = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? new URL('バグるOwner/', location.href).href : OWNER_URL;
+    return { url: `${owner}hp.html?page=${encodeURIComponent(page)}${hash ? '#' + hash : ''}`, top: true };
+  }
+  if (!ORDER_ONLY) return null;
+  let from = '';
+  try {
+    if (document.referrer.startsWith(HP_URL)) sessionStorage.setItem('bg.hpFrom', document.referrer);
+    from = sessionStorage.getItem('bg.hpFrom') || '';
+  } catch (e) { /* このまま */ }
+  return { url: back ? HP_URL + back : from.startsWith(HP_URL) ? from : HP_URL, top: false };
+})();
+if (HP_BACK && $('#hpBack')) {
+  $('#hpBack').hidden = false;
+  $('.top').classList.add('has-owner');   // 名前の字を少し小さくして、ボタンと並べても名前が切れないように
+  $('#hpBack').onclick = () => {
+    // Owner の中では、枠の外の窓（Owner の画面そのもの）を移す（🏠 と同じ。押したときだけ動く）
+    if (HP_BACK.top) { try { if (window.open(HP_BACK.url, '_top')) return; } catch (e) { /* 下で */ } }
+    location.href = HP_BACK.url;
+  };
+}
+if (OWNER_MODE && $('#ownerHome') && !(HP_BACK && HP_BACK.top)) {
   $('#ownerHome').hidden = false;
   $('.top').classList.add('has-owner');   // 名前の字を少し小さくして、ボタンと並べても名前が切れないように
   $('#ownerHome').onclick = () => {
