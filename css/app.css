@@ -251,6 +251,11 @@ html.t-editing .t-ed:hover { background-color: rgba(199, 54, 29, .08); }
 .link-card svg { width: 28px; height: 28px; color: var(--ember); }
 .link-card span { display: flex; flex-direction: column; }
 .link-card small { color: var(--sub); }
+/* 配達・大量注文の入口（ホームと、テイクアウト注文の画面の一番早い受け取りの下。2026-11-06 ko-dai さんの指示「もう少し目立たせて」） */
+.link-card.req-card { border: 2px solid var(--ember); background: linear-gradient(160deg, var(--ember-soft), var(--paper) 70%); box-shadow: 0 6px 16px rgba(199, 54, 29, .12); }
+.req-card span { flex: 1; min-width: 0; }
+.req-card b { font-size: 16px; color: var(--ember); }
+.req-go { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--ember); color: #fff; font-style: normal; font-size: 20px; font-weight: 700; line-height: 1; }
 
 /* 系列店（ロゴ・店名・住所と、ホットペッパー・地図のボタン） */
 .sister { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 12px 14px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); }

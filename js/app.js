@@ -84,7 +84,10 @@ const NO_LIVE = ['checkout', 'request', 'me', 'reserve', 'join', 'test', 'recrui
 // マネージの「アプリで見る」では止めない。受け口では止めていない（ホームページのネット予約が同じ口を使うため）
 const needJoin = () => MEMBER_PLUS && !PREVIEW && !ME.registeredAt;
 // バグる Owner から開いたとき、テスト用アカウントがまだ無ければ、作る画面だけを出す（スタンプ台帳の決めごと.md の15節）
-const needTest = () => TEST_MEMBER && !memberAuth();
+// ★Owner に預けた鍵を待つあいだ・その鍵で台帳を読み直すあいだ（ownerKeepWait。下の「テスト用アカウントの鍵を、Owner にも預ける」）も、この画面（「読み込んでいます…」）にする。
+//   鍵が入ってから台帳の答えが来るまでのあいだに描き直すと、まだ登録の印が無いので、会員登録の画面が出てしまうため（2026-11-06 ko-dai さんの報告「数秒会員登録画面になる」）
+let ownerKeepWait = false;
+const needTest = () => TEST_MEMBER && (!memberAuth() || ownerKeepWait);
 const routeName = () => (needInstall() ? 'install' : needTest() ? 'test' : needJoin() ? 'join' : location.hash.replace(/^#/, '').split('/')[0] || (ORDER_ONLY ? 'menu' : 'home'));
 
 function render(keepScroll = false) {
@@ -224,7 +227,7 @@ function viewHome() {
       <a class="link-card" href="#reserve">${ICON.cal}<span><b>ネット予約（席のご予約）</b><small>空いている日と時間を選んで、リクエストを送れます。お店が確かめて、確定をメールとアプリでお知らせします</small></span></a>
       <a class="link-card" href="#shop">${ICON.pin}<span><b>お店の情報</b><small>住所・アクセス・営業時間・営業日カレンダー・駐車場・お支払い</small></span></a>
       ${recruitCard()}
-      <a class="link-card" href="#request">${ICON.truck}<span><b>配達・大量注文の申請</b><small>配達は${TAKEOUT.deliveryFreeMin}食以上で無料（原則${TAKEOUT.deliveryKm}km圏内）・${TAKEOUT.deliveryFreeMin}食未満は要相談。大量注文は${TAKEOUT.bulkMin}食以上。お店が確認してから確定します</small></span></a>
+      <a class="link-card req-card" href="#request">${ICON.truck}<span><b>配達・大量注文の申請</b><small>配達は${TAKEOUT.deliveryFreeMin}食以上で無料（原則${TAKEOUT.deliveryKm}km圏内）・${TAKEOUT.deliveryFreeMin}食未満は要相談。大量注文は${TAKEOUT.bulkMin}食以上。お店が確認してから確定します</small></span><i class="req-go" aria-hidden="true">›</i></a>   <!-- 目立つ形（.req-card。2026-11-06 ko-dai さんの指示「もう少し目立たせて」） -->
       ${installCard()}
       <h2 class="sec" data-en="NEWS">お知らせ</h2>
       <ul class="news">${NEWS.map((n, i) => `
@@ -318,6 +321,8 @@ function viewMenu(arg) {
       ${accepting ? '' : '<p class="notice warn">ただいま、アプリからの注文の受付を止めています。お急ぎの方はお電話でどうぞ。</p>'}
       ${noticeHtml()}
       <p class="notice">${ICON.clock}<span>一番早い受け取り：<b>${first}</b><small>最短の受け取りは、${leadRuleText()}（ハンバーグBOX・定食の数）。${esc(TAKEOUT.payNote)}</small></span></p>
+      <!-- 配達・大量注文の入口は、一番早い受け取りのすぐ下に、目立つ形で（2026-11-06 ko-dai さんの指示。前はメニューのいちばん下） -->
+      <a class="link-card req-card" href="#request">${ICON.truck}<span><b>配達・大量注文はこちら</b><small>配達は${TAKEOUT.deliveryFreeMin}食以上で無料（原則${TAKEOUT.deliveryKm}km圏内）・${TAKEOUT.deliveryFreeMin}食未満は要相談。大量注文は${TAKEOUT.bulkMin}食以上。申請して、お店が承認したら確定です</small></span><i class="req-go" aria-hidden="true">›</i></a>
       <button class="link-line" data-act="allergy">アレルギーについて ›</button>
       ${cats.map(c => `
         <section class="cat-sec" id="cat-${c.id}">
@@ -326,7 +331,7 @@ function viewMenu(arg) {
           ${c.id === 'side' ? `<p class="cat-note">${esc(SIDE_CAT_NOTE)}</p>` : ''}
           <div class="items">${shown(c).map(itemRow).join('')}</div>
         </section>`).join('')}
-      <a class="link-card" href="#request">${ICON.truck}<span><b>配達・大量注文はこちら</b><small>配達は${TAKEOUT.deliveryFreeMin}食以上で無料（原則${TAKEOUT.deliveryKm}km圏内）・${TAKEOUT.deliveryFreeMin}食未満は要相談。大量注文は${TAKEOUT.bulkMin}食以上。申請して、お店が承認したら確定です</small></span></a>`,
+`,
     after: () => {
       FX.spy($('.cats'));
       if (ORDERS_ONLINE) refreshAccepting().then(changed => changed && render(true)).catch(() => {});
@@ -1922,7 +1927,7 @@ if (ENV.ownerFrame) {
  *  ★親の側は バグるOwner/app.html（バグるOwner のセッション）。知らせの形を変えるときは、両方を一緒に直す */
 const OWNER_KEEP = TEST_MEMBER && ENV.ownerFrame && window.parent !== window;
 const OWNER_KEEP_WAIT = 1500;
-let ownerKeepWait = OWNER_KEEP && !memberAuth();
+ownerKeepWait = OWNER_KEEP && !memberAuth();   // 名前は上の needTest のところで作ってある
 if (OWNER_KEEP) {
   const origins = new Set([new URL(OWNER_URL).origin, ...(/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? [location.origin] : [])]);
   const authOk = a => !!a && typeof a === 'object' && typeof a.no === 'string' && typeof a.key === 'string'
@@ -1952,7 +1957,8 @@ if (OWNER_KEEP) {
       render();
     });
   });
-  if (ownerKeepWait) setTimeout(done, OWNER_KEEP_WAIT);
+  // ★待つのをやめるのは、親の返事が来なかったときだけ。返事が来て台帳を読み直している途中で止めると、会員登録の画面が数秒出た（2026-11-06）
+  if (ownerKeepWait) setTimeout(() => { if (!answered) done(); }, OWNER_KEEP_WAIT);
   toOwner({ kind: 'testAuth-hello' });
 }
 
