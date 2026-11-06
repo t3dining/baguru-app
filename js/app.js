@@ -223,11 +223,11 @@ function viewHome() {
         <a class="quick-btn q-order" href="#menu">${ICON.bag}<b>テイクアウト注文</b><small>今から注文・時間指定</small></a>
         <a class="quick-btn q-stamp" href="#stamp">${ICON.card}<b>スタンプカード</b><small>${ME.registeredAt ? `<em>${stampOnCard(s.total)}</em> / ${STAMP.goal}${coupons ? `・特典${coupons}枚` : ''}` : '登録で1ポイント＋アイス'}</small></a>
       </div>
+      <a class="link-card req-card" href="#request">${ICON.truck}<span><b>配達・大量注文の申請</b><small>配達は${TAKEOUT.deliveryFreeMin}食以上で無料（原則${TAKEOUT.deliveryKm}km圏内）・${TAKEOUT.deliveryFreeMin}食未満は要相談。大量注文は${TAKEOUT.bulkMin}食以上。お店が確認してから確定します</small></span><i class="req-go" aria-hidden="true">›</i></a>   <!-- 目立つ形（.req-card。2026-11-06 ko-dai さんの指示「もう少し目立たせて」→ 2026-11-07「お店に電話するの上に」） -->
       ${callBtn()}
       <a class="link-card" href="#reserve">${ICON.cal}<span><b>ネット予約（席のご予約）</b><small>空いている日と時間を選んで、リクエストを送れます。お店が確かめて、確定をメールとアプリでお知らせします</small></span></a>
       <a class="link-card" href="#shop">${ICON.pin}<span><b>お店の情報</b><small>住所・アクセス・営業時間・営業日カレンダー・駐車場・お支払い</small></span></a>
       ${recruitCard()}
-      <a class="link-card req-card" href="#request">${ICON.truck}<span><b>配達・大量注文の申請</b><small>配達は${TAKEOUT.deliveryFreeMin}食以上で無料（原則${TAKEOUT.deliveryKm}km圏内）・${TAKEOUT.deliveryFreeMin}食未満は要相談。大量注文は${TAKEOUT.bulkMin}食以上。お店が確認してから確定します</small></span><i class="req-go" aria-hidden="true">›</i></a>   <!-- 目立つ形（.req-card。2026-11-06 ko-dai さんの指示「もう少し目立たせて」） -->
       ${installCard()}
       <h2 class="sec" data-en="NEWS">お知らせ</h2>
       <ul class="news">${NEWS.map((n, i) => `
