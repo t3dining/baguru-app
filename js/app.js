@@ -1456,7 +1456,7 @@ function viewMe() {
           </a></li>`;
       }).join('')}</ul>` : '<p class="hint">まだありません。</p>'}
       ${TEST_MEMBER ? `<h2 class="sec">テスト用アカウント</h2>
-      <p class="hint">バグる Owner から開いたときだけの、テスト用のアカウントです。スタンプ・特典・LINEの引き継ぎを0に戻して、最初から試せます（お名前は「テスト」のまま）。</p>
+      <p class="hint">バグる Owner・Staff から開いたときだけの、テスト用のアカウントです。スタンプ・特典・LINEの引き継ぎを0に戻して、最初から試せます（お名前は「テスト」のまま）。</p>
       <button class="btn btn-sub btn-block danger" data-act="testReset">テストのアカウントを0に戻す</button>` : ''}
       ${STAMPS_ONLINE && !TEST_MEMBER ? `<h2 class="sec">スマホを替えるとき</h2>
       <p class="hint">前のスマホで引き継ぎコードを出して、新しいスマホで入れると、スタンプと特典を続けて使えます。コードは24時間使えます。</p>
@@ -1565,7 +1565,7 @@ function viewTestGate() {
   return {
     title: 'テスト用アカウント',
     html: `
-      <div class="join-head"><img src="img/logo.png" alt=""><h2>テスト用アカウントで開きます</h2><p>バグる Owner から開いた公式アプリは、お客さまとは別の、テスト用のアカウントで動きます。</p></div>
+      <div class="join-head"><img src="img/logo.png" alt=""><h2>テスト用アカウントで開きます</h2><p>バグる Owner・Staff から開いた公式アプリは、お客さまとは別の、テスト用のアカウントで動きます。</p></div>
       <ul class="test-points">
         <li>お店のQRのスタンプを、何度でも読めます（1日1個・お店にいるかの確かめをしません）</li>
         <li>LINEの引き継ぎのQRも、何度でも読めます</li>
@@ -1905,7 +1905,10 @@ const HP_BACK = (() => {
     if (!back) return null;
     const [page, hash = ''] = back.split('#');
     const owner = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? new URL('バグるOwner/', location.href).href : OWNER_URL;
-    return { url: `${owner}hp.html?page=${encodeURIComponent(page)}${hash ? '#' + hash : ''}`, top: true };
+    // Staff から開いたとき（FROM_STAFF）は hub=staff も付ける。hp.html がホームページに渡し、ホームページの 🏠 も Staff に戻る
+    // （2026-11-08 ko-dai さんの指示「バグるStaffにもテスト用アカウントの公式アプリとホームページを入れれますか？ 管理画面とマネージは絶対に入れないでください」。
+    //   ★Staff から来た人を、Owner の画面（マネージ・管理画面のカードがある）に戻さないため）
+    return { url: `${owner}hp.html?page=${encodeURIComponent(page)}${FROM_STAFF ? '&hub=staff' : ''}${hash ? '#' + hash : ''}`, top: true };
   }
   if (!ORDER_ONLY) return null;
   let from = '';
