@@ -204,7 +204,8 @@ function rsvFields(v) {
       <label class="field"><span>メイ（カタカナ）</span><input id="r-mei-kana" autocomplete="off" maxlength="19" value="${esc(v.meiKana)}" placeholder="例：タロウ"></label>
     </div>` : `<label class="field"><span>お名前</span><input id="r-name" autocomplete="name" maxlength="40" value="${esc(v.name)}" placeholder="例：豊田 太郎"></label>`}
     <label class="field"><span>電話番号</span><input id="r-tel" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" value="${esc(v.tel)}" placeholder="例：090-1234-5678"></label>
-    <label class="field"><span>メールアドレス（確定のお知らせをお送りします）</span><input id="r-email" type="email" inputmode="email" autocomplete="email" maxlength="120" value="${esc(v.email)}"></label>`;
+    <label class="field"><span>メールアドレス（確定のお知らせをお送りします）</span><input id="r-email" type="email" inputmode="email" autocomplete="email" maxlength="120" value="${esc(v.email)}"></label>
+    ${contactNote()}`;
 }
 /** 登録した内容が揃っていれば、たたんで見せる内容（席の予約の入力を省く）。足りないものがあれば [] で、入力欄を出す */
 function rsvSaved(v) {
@@ -411,8 +412,7 @@ function rsvSend() {
     .then(r => {
       // この端末にも控える（マイページの「ご予約のリクエスト」）。id と token は、様子を読むときの鍵。お名前・電話・メールは、次に入れる手間を省くため会員の情報に
       DB.set('reserves', [...DB.get('reserves', []), { id: r.id, token: r.token, state: 'request', no: r.no, date: r.date, time: r.time, people: r.people, sentAt: new Date().toISOString() }]);
-      Object.assign(ME, { name: rsv.v.name, tel: rsv.v.tel, email: rsv.v.email, ...(rsv.v.kana ? { kana: rsv.v.kana } : {}) });
-      DB.set('member', ME);
+      keepContact(rsv.v);   // 会員でない人は控える。会員は会員情報を書きかえない（メールが無かった会員だけ残す。js/app.js の keepContact。2026-11-08）
       rsv = { ...rsv, step: 'done', done: r, v: null, people: 0, date: '', time: '', month: '', busy: false, avail: null };
       dropAvail();   // 自分の予約で空きが変わったので、控えは使わない
       rsvDraw();
@@ -455,7 +455,7 @@ const QR_MSG = {
   full: '今、満席になって、席を押さえられませんでした。お電話でお問い合わせください。',
   busy: '同じ電話番号で、まだご来店前のご予約があるか、ただいま混み合っています。お電話でどうぞ。',
   bad_people: '人数を選んでください。',
-  bad_email: 'メールアドレスの形が違います（入れなくても予約できます）。',
+  bad_email: 'メールアドレスの形が違います。',
 };
 // 予約タブを開いているあいだ、受けているか・いま入れる人数を読み直す間隔。★2026-11-06 に 60秒 → 15秒（ko-dai さんの指示「即予約のONとOFFの切り替わりが遅いので早めることはできますか？」。
 //   予約ボードのセッションから頼まれた。nowAvail は軽い口で、受け口も同じ分のあいだは控えている）。予約タブを開いたとき・アプリに戻ったときは、すぐ読む（下の visibilitychange）
@@ -545,9 +545,11 @@ function qrFormHtml() {
     <div class="r-people">${people.map(n => `<label class="r-chip"><input type="radio" name="q-people" value="${n}" ${qr.people === n ? 'checked' : ''}><span>${n}名</span></label>`).join('')}</div>
     ${people.length < qrMax() ? '<p class="hint">今の席の空き方で、入れる人数だけを出しています。</p>' : ''}
     ${(Number(qr.now?.maxPeople) || 0) > RSV_PEOPLE_MAX || qrMax() === RSV_PEOPLE_MAX ? `<p class="hint">${RSV_PEOPLE_MAX + 1}名以上は、<a class="link-inline" href="tel:${SHOP.tel.replace(/-/g, '')}">お電話（${esc(SHOP.tel)}）</a>でお問い合わせください。</p>` : ''}
-    <label class="field"><span>お名前</span><input id="q-name" autocomplete="name" maxlength="40" value="${esc(v.name)}" placeholder="例：豊田 太郎"></label>
+    <h3 class="nowr-sub">お名前と連絡先</h3>
+    ${savedContact(`<label class="field"><span>お名前</span><input id="q-name" autocomplete="name" maxlength="40" value="${esc(v.name)}" placeholder="例：豊田 太郎"></label>
     <label class="field"><span>電話番号</span><input id="q-tel" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" value="${esc(v.tel)}" placeholder="例：090-1234-5678"></label>
-    <label class="field"><span>メールアドレス（なくても構いません。入れると確定のメールが届きます）</span><input id="q-email" type="email" inputmode="email" autocomplete="email" maxlength="120" value="${esc(v.email)}"></label>
+    <label class="field"><span>メールアドレス（確定のお知らせをお送りします）</span><input id="q-email" type="email" inputmode="email" autocomplete="email" maxlength="120" value="${esc(v.email)}"></label>
+    ${contactNote()}`, qr.v ? [] : savedRows(), 'q')}
     <div class="r-hp" aria-hidden="true"><label>ここには何も入れないでください<input id="q-website" tabindex="-1" autocomplete="off"></label></div>
     <p class="notice warn" id="q-msg" hidden></p>
     ${privacyLink('お預かりする情報の扱いは ')}
@@ -563,7 +565,8 @@ function qrCheck(v) {
   if (!v.people) return QR_MSG.bad_people;
   if (!v.name) return RSV_MSG.need_name;
   if (!/^0\d{9,10}$/.test(v.tel.replace(/[^\d]/g, ''))) return RSV_MSG.bad_tel;
-  if (v.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.email)) return QR_MSG.bad_email;
+  if (!v.email) return RSV_MSG.need_email;   // 2026-11-08 から必須（受け口 2026-11-08a の quickReserve も必須）
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.email)) return QR_MSG.bad_email;
   return '';
 }
 function qrConfirmHtml() {
@@ -608,7 +611,7 @@ function qrClick(e) {
   if (act === 'close') { qr = { ...qr, step: 'card', v: null, people: 0 }; return qrLoad(); }
   if (act === 'next') {
     const v = qrValues(), err = qrCheck(v);
-    if (err) { const m = $('#q-msg'); m.textContent = err; m.hidden = false; return m.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+    if (err) { if (err !== QR_MSG.bad_people) openContact('q'); const m = $('#q-msg'); m.textContent = err; m.hidden = false; return m.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
     qr = { ...qr, v, step: 'confirm', rid: randomRid('q') };   // 確認の画面を開くたびに新しい印。送り直しのときは同じ印を使う
     qrDraw();
     return $('#qr').scrollIntoView({ block: 'start', behavior: 'smooth' });
@@ -625,8 +628,7 @@ function qrSend() {
     .then(r => {
       // この端末に控える（マイページ）。id と token は様子を読む鍵。お名前・電話（・メール）は、次に入れる手間を省くため会員の情報に
       DB.set('reserves', [...DB.get('reserves', []), { id: r.id, token: r.token, state: 'ok', quick: true, no: r.no, date: r.date, time: r.time, arriveBy: r.arriveBy, people: r.people, sentAt: new Date().toISOString() }]);
-      Object.assign(ME, { name: v.name, tel: v.tel, ...(v.email ? { email: v.email } : {}) });
-      DB.set('member', ME);
+      keepContact(v);   // 会員でない人は控える。会員は会員情報を書きかえない（js/app.js の keepContact。2026-11-08）
       dropAvail();   // 席が埋まったので、ネット予約の空き状況の控えは使わない
       qr = { ...qr, step: 'done', done: { ...r, email: v.email }, v: null, people: 0, busy: false, now: null };
       qrDraw();

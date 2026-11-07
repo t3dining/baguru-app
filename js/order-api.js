@@ -24,6 +24,8 @@ const ORDER_MSG = {
   bad_input: '注文の内容を読めませんでした。カートを確かめて、もう一度お試しください。',
   need_name: 'お名前を入れてください',
   bad_tel: '電話番号を確かめてください',
+  need_email: 'メールアドレスを入れてください（受付のお知らせをお送りします）',   // 受け口 2026-11-08a から、注文にもメールが要る
+  bad_email: 'メールアドレスの形を確かめてください',
   bad_date: '受け取りの日時を、もう一度選んでください',
   need_address: 'お届け先のご住所を入れてください',
   busy: 'ただいま混み合っています。少し時間を置いて、もう一度お試しください',
@@ -84,7 +86,7 @@ const oneLine = s => textOf(s, true).replace(/\s*\n\s*/g, ' ');
  *  rid（送り直しで2つにならない印）は、この端末で作った注文の id */
 async function sendOrder(o) {
   const r = await orderPost({
-    action: 'order', kind: o.kind, asap: !!o.asap, pickupAt: o.pickupAt, name: o.name, tel: o.tel,
+    action: 'order', kind: o.kind, asap: !!o.asap, pickupAt: o.pickupAt, name: o.name, tel: o.tel, email: o.email || '',   // email：2026-11-08 から（受け口が受付・承認・お断りのメールを送る）
     address: o.address || '', address2: o.address2 || '', meals: o.meals, note: noteOf(o), member: o.member, memberKey: DB.get('memberAuth', null)?.key || '',
     // バグるマネージで名前を直していたら、お店にも直した名前で届くように（js/content.js の textOf）
     lines: o.lines.map(({ id, name, opts, unit, qty }) => ({ id, name: oneLine(name), opts: opts.map(oneLine), unit, qty })),
@@ -92,7 +94,7 @@ async function sendOrder(o) {
   });
   DB.set('orderKeys', { ...orderKeys(), [r.order.id]: r.token });
   mergeOrders([{ ...r.order, member: o.member }]);
-  return fromServer(r.order);
+  return { ...fromServer(r.order), mailed: r.mailed };   // mailed：受付のメールを送れたか（受け口 2026-11-08a から。前の受け口は返さない）
 }
 
 /** 進めている注文（受け口から来たもの）の様子を取り寄せる。変わっていたら true */

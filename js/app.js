@@ -50,6 +50,7 @@ function clampCounts(c) {
 }
 let pick = { mode: 'asap', day: 0, slot: null };   // 受け取り方（asap＝できしだい／time＝時間を指定）と日・時間。cutlery はお箸・スプーンの有無（選ぶまで無い）
 let justOrdered = null;                  // 注文した直後の「ありがとうございます」を出すため
+let justMailed = null;                   // その注文の受付のメールを送れたか（{ mailed, email }。受け口 2026-11-08a から mailed が返る）
 let lastStatus = statusMap();            // 注文の様子が変わったら知らせるため
 let lastStampTotal = getStamps().total;
 // スタンプカードで最後に見せたマスの数。新しく押されたマスだけ、押す動きを出す（下から出る画面を閉じてから）
@@ -622,9 +623,8 @@ function viewCheckout() {
         <div class="slots" id="slots">${slotsHtml(days)}</div>
       </div>
       ${cutleryHtml()}
-      <h2 class="sec">お名前と電話番号</h2>
-      ${savedContact(`<label class="field"><span>お名前（受け取りのときにお呼びします）</span><input id="f-name" autocomplete="name" value="${esc(ME.name)}" placeholder="例：豊田 太郎"></label>
-      <label class="field"><span>電話番号</span><input id="f-tel" type="tel" inputmode="tel" autocomplete="tel" value="${esc(ME.tel)}" placeholder="例：090-1234-5678"></label>`, ME.registeredAt && ME.name && ME.tel ? [`${ME.name} 様`, ME.tel] : [])}
+      <h2 class="sec">お名前と連絡先</h2>
+      ${contactHtml('f', 'お名前（受け取りのときにお呼びします）', '電話番号')}
       <label class="field"><span>ご要望（なくても構いません）</span><textarea id="f-memo" rows="2" placeholder="例：お箸を2膳ください"></textarea></label>
       <h2 class="sec">ご注文の内容</h2>
       ${linesHtml(cart.map(cartLine), cartTotal())}
@@ -680,23 +680,57 @@ function readContact(p) {
   const tel = toHalf($(`#${p}-tel`).value.trim());
   const memo = $(`#${p}-memo`)?.value.trim() || '';
   const digits = tel.replace(/[^0-9]/g, '');
+  // メールアドレス：欄がある画面（注文・申請・会員情報）では必須（2026-11-08 ko-dai さんの指示「予約も注文も必ずメールが送られるように」）
+  const mailEl = $(`#${p}-email`), email = mailEl ? mailEl.value.trim() : '';
   if (!name) { openContact(); $(`#${p}-name`).focus(); toast('お名前を入れてください', 'warn'); return null; }
   if (digits.length < 10 || digits.length > 11) { openContact(); $(`#${p}-tel`).focus(); toast('電話番号を確かめてください', 'warn'); return null; }
-  return { name, tel, memo };
+  if (mailEl && !email) { openContact(); mailEl.focus(); toast('メールアドレスを入れてください（受付のお知らせをお送りします）', 'warn'); return null; }
+  if (mailEl && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { openContact(); mailEl.focus(); toast('メールアドレスの形を確かめてください', 'warn'); return null; }
+  return { name, tel, memo, ...(mailEl ? { email } : {}) };
 }
 
 /** 登録した内容が揃っていれば、入力欄をたたんで内容だけ見せる（席の予約・テイクアウトの注文の入力を省く）。fields … 入力欄、rows … 見せる内容 */
-function savedContact(fields, rows) {
+function savedContact(fields, rows, key = '') {   // key：1つの画面に2つ出すとき（予約のタブの「今すぐ行く」は 'q'）
   if (!MEMBER_PLUS || !rows.length) return fields;
-  return `<div class="saved-contact" id="savedContact"><b>ご登録の内容で承ります</b>${rows.map(r => `<span>${esc(r)}</span>`).join('')}<button class="mini" data-act="contactEdit">変更する</button></div>
-    <div id="contactFields" hidden>${fields}</div>`;
+  return `<div class="saved-contact" id="savedContact${key}"><b>ご登録の内容で承ります</b>${rows.map(r => `<span>${esc(r)}</span>`).join('')}<button class="mini" data-act="contactEdit" data-arg="${key}">変更する</button></div>
+    <div id="contactFields${key}" hidden>${fields}</div>`;
 }
-function openContact() {
-  $('#savedContact')?.remove();
-  if ($('#contactFields')) $('#contactFields').hidden = false;
+function openContact(key = '') {
+  $(`#savedContact${key}`)?.remove();
+  if ($(`#contactFields${key}`)) $(`#contactFields${key}`).hidden = false;
+}
+/* ---- 注文・予約のお名前と連絡先（2026-11-08 ko-dai さんの指示「会員情報をもとに、注文や予約時の電話番号とメールアドレスの入力を省略できるように。
+ *       ただし、その場で電話番号とメールアドレスを、注文や予約時に一時的に変えられるように」。予約ボード（受け口）のセッションと決めた） ----
+ *  ・会員情報にお名前・電話番号・メールアドレスがそろっていれば、たたんで「ご登録の内容で承ります」。「変更する」で欄が開く
+ *  ・会員が「変更する」で変えた電話番号・メールアドレスは、その注文・予約だけに使う（会員情報は書きかえない。keepContact）
+ *  ・会員でメールアドレスが無い人は、メールの欄を出して入れてもらい、送れたら会員情報にも残す（keepContact） */
+const contactNote = () => (ME.registeredAt
+  ? `<p class="hint">${ME.email ? 'ここで変えた電話番号・メールアドレスは、今回だけに使います（会員情報は、マイページで変えられます）。' : '入れたメールアドレスは、会員情報にも残します（次からは入れなくて済みます）。'}</p>` : '');
+const savedRows = () => (ME.registeredAt && ME.name && ME.tel && ME.email ? [`${ME.name} 様`, ME.tel, ME.email] : []);
+function contactHtml(p, nameLabel, telLabel) {
+  return savedContact(`<label class="field"><span>${nameLabel}</span><input id="${p}-name" autocomplete="name" value="${esc(ME.name)}" placeholder="例：豊田 太郎"></label>
+      <label class="field"><span>${telLabel}</span><input id="${p}-tel" type="tel" inputmode="tel" autocomplete="tel" value="${esc(ME.tel)}" placeholder="例：090-1234-5678"></label>
+      <label class="field"><span>メールアドレス（受付のお知らせをお送りします）</span><input id="${p}-email" type="email" inputmode="email" autocomplete="email" maxlength="120" value="${esc(ME.email || '')}"></label>
+      ${contactNote()}`, savedRows());
+}
+/** 注文・予約を送れたあと。会員でない人は、次に入れる手間を省くため、入れた内容を端末に控える（今までどおり）。
+ *  会員は、会員情報を書きかえない（変えた電話番号・メールアドレスは、その注文・予約だけ）。ただし会員情報にメールが無ければ、入れたメールを残す
+ *  （受け口の memberSave。お名前・電話番号などは会員情報のまま。送れなくても、この端末には残す） */
+function keepContact(c) {
+  if (!ME.registeredAt) {
+    Object.assign(ME, { name: c.name, tel: c.tel, ...(c.email ? { email: c.email } : {}), ...(c.kana ? { kana: c.kana } : {}) });
+    DB.set('member', ME);
+    return;
+  }
+  if (ME.email || !c.email) return;
+  ME.email = c.email;
+  DB.set('member', ME);
+  if (STAMPS_ONLINE && memberAuth()) {
+    stampPost('memberSave', { name: ME.name, tel: ME.tel, email: c.email, ...(MEMBER_PLUS ? { kana: ME.kana || '', gender: ME.gender || '', age: ME.age || '' } : {}) }).catch(() => {});
+  }
 }
 
-/* 会員情報の項目（スタンプ台帳の決めごと.md の12節）。フリガナ・性別・年代は必須、メールアドレスだけ任意。★性別と年代は、一人ずつではなく集計して使う（バグるマネージの「客層」） */
+/* 会員情報の項目（スタンプ台帳の決めごと.md の12節）。フリガナ・性別・年代・メールアドレスは必須（メールアドレスは 2026-11-08 から必須。ko-dai さんの指示「会員情報登録にメールアドレスを必須に」）。★性別と年代は、一人ずつではなく集計して使う（バグるマネージの「客層」） */
 const GENDERS = ['男性', '女性', 'その他'], AGES = ['10代', '20代', '30代', '40代', '50代', '60代', '70代以上'];
 const pickHtml = (id, label, list, now) => `<label class="field"><span>${label}</span><select id="${id}"><option value="">選んでください</option>${list.map(x => `<option ${x === now ? 'selected' : ''}>${x}</option>`).join('')}</select></label>`;
 function extraFields(p) {
@@ -707,8 +741,8 @@ function extraFields(p) {
         <label class="field"><span>メイ（カタカナ）</span><input id="${p}-mei-kana" autocomplete="off" maxlength="19" value="${esc(meiKana)}" placeholder="例：タロウ"></label>
       </div>
       <div class="r-names">${pickHtml(`${p}-gender`, '性別', GENDERS, ME.gender)}${pickHtml(`${p}-age`, '年代', AGES, ME.age)}</div>
-      <label class="field"><span>メールアドレス（なくても構いません）</span><input id="${p}-email" type="email" inputmode="email" autocomplete="email" maxlength="120" value="${esc(ME.email || '')}"></label>
-      <p class="hint">メールアドレスを入れておくと、席のご予約の入力も省けます。性別と年代は、一人ずつではなく集計して、お店のサービスを考える参考にします。</p>
+      <label class="field"><span>メールアドレス（ご予約・ご注文のお知らせをお送りします）</span><input id="${p}-email" type="email" inputmode="email" autocomplete="email" maxlength="120" value="${esc(ME.email || '')}"></label>
+      <p class="hint">登録した電話番号とメールアドレスで、席のご予約とテイクアウトの注文の入力を省けます。性別と年代は、一人ずつではなく集計して、お店のサービスを考える参考にします。</p>
       ${privacyLink('登録すると、次の内容に同意したことになります：')}`;
 }
 /** 会員情報の残りの項目を読む（足りない・形が違えば知らせて null）。name … お名前（席の予約で苗字と名前に分けるので、スペースが要る） */
@@ -723,14 +757,15 @@ function readExtra(p, name) {
   const gender = $(`#${p}-gender`).value, age = $(`#${p}-age`).value, email = $(`#${p}-email`).value.trim();
   if (!gender) return ng('gender', '性別を選んでください');
   if (!age) return ng('age', '年代を選んでください');
-  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return ng('email', 'メールアドレスの形を確かめてください');
+  if (!email) return ng('email', 'メールアドレスを入れてください');
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return ng('email', 'メールアドレスの形を確かめてください');
   return { email, kana: `${sei} ${mei}`, gender, age };
 }
 
 /** 再送の印は、推測されないよう乱数で作る（時刻から作ると、当てられたときに他人の注文が読める。2026-11-01 の Codex のレビュー）。
  *  返事が切れて押し直しても、10分の間に同じ内容なら同じ印で送る（お店に届いていたら、受け口が前の注文を返すので2件にならない） */
 function orderRid(o) {
-  const key = hashOf(JSON.stringify([o.kind, o.asap || o.pickupAt, o.name, o.tel, o.memo, o.cutlery, o.lines]));
+  const key = hashOf(JSON.stringify([o.kind, o.asap || o.pickupAt, o.name, o.tel, o.email || '', o.memo, o.cutlery, o.lines]));
   const p = DB.get('orderSending');
   if (p?.key === key && Date.now() - p.at < 600000) return p.rid;
   const rid = randomRid('o');
@@ -758,6 +793,7 @@ async function placeOrder(fields, btn) {
     } catch (e) {
       if (btn) { btn.disabled = false; btn.textContent = label; }
       if (e.code === 'not_accepting') DB.set('accepting', false);
+      if (e.code === 'need_email' || e.code === 'bad_email') openContact();
       return toast(orderMessage(e), 'warn');
     }
     DB.set('orderSending', null);
@@ -766,8 +802,8 @@ async function placeOrder(fields, btn) {
   } else {
     saveOrders([...getOrders(), order]);
   }
-  Object.assign(ME, { name: order.name, tel: order.tel });
-  DB.set('member', ME);
+  keepContact(fields);   // 会員でない人は入れた内容を控える。会員は会員情報を書きかえない（メールが無かった会員だけ、メールを残す）
+  justMailed = { mailed: order.mailed, email: fields.email || '' };
   cart = [];
   saveCart();
   pick = { mode: 'asap', day: 0, slot: null };
@@ -875,9 +911,8 @@ function viewRequest() {
         <label class="field"><span>建物名・会社名・部署（なくても構いません）</span><input id="r-addr2" placeholder="例：◯◯ビル 2階 ◯◯株式会社"></label>
       </div>
       ${cutleryHtml()}
-      <h2 class="sec">お名前と電話番号</h2>
-      <label class="field"><span>お名前（ご担当の方）</span><input id="r-name" autocomplete="name" value="${esc(ME.name)}" placeholder="例：豊田 太郎"></label>
-      <label class="field"><span>電話番号（お店から確認のお電話をします）</span><input id="r-tel" type="tel" inputmode="tel" autocomplete="tel" value="${esc(ME.tel)}" placeholder="例：090-1234-5678"></label>
+      <h2 class="sec">お名前と連絡先</h2>
+      ${contactHtml('r', 'お名前（ご担当の方）', '電話番号（お店から確認のお電話をします）')}
       <label class="field"><span>ご要望（なくても構いません）</span><textarea id="r-memo" rows="3" placeholder="例：お箸を20膳、領収書の宛名は◯◯株式会社"></textarea></label>
       <h2 class="sec">ご注文の内容（${meals}食）</h2>
       ${linesHtml(cart.map(cartLine), cartTotal())}
@@ -978,6 +1013,9 @@ function viewOrder(id) {
     tab: 'me', title: req ? `${KIND[o.kind]}の申請` : 'ご注文', back: ORDER_ONLY ? '#menu' : justOrdered === o.id ? '#home' : '#me',
     html: `
       ${justOrdered === o.id ? `<div class="thanks">${ICON.check}<div>${thanks}</div></div>` : ''}
+      ${justOrdered === o.id && typeof justMailed?.mailed === 'boolean' ? `<p class="hint">${justMailed.mailed
+        ? `受付のメールを${justMailed.email ? `、${esc(justMailed.email)} 宛に` : ''}今お送りしました。届かないときは、迷惑メールのフォルダも見てください。`
+        : '★受付のメールを送れませんでした（ご注文はお店に届いています）。メールアドレスが合っているか、お確かめください。'}</p>` : ''}
       <div class="ticket">
         <div><small>${req ? '申請番号' : '注文番号'}</small><b class="t-no">${o.no}</b></div>
         <div><small>${whenWord(o)}${o.status === 'request' ? '（ご希望）' : ''}${o.asap ? '（今から受け取る）' : ''}</small><b>${dayLabel(t)} ${hhmm(t)}${o.asap ? '頃' : ''}</b>${ACTIVE.includes(o.status) && o.status !== 'request' ? `<small>${untilText(o.pickupAt)}</small>` : ''}</div>
@@ -1715,7 +1753,7 @@ const ACTIONS = {
       toast('前のスマホの続きを使えるようになりました', 'good');
     }).catch(e => toast(stampMessage(e), 'warn'));
   },
-  contactEdit: () => openContact(),
+  contactEdit: k => openContact(k || ''),
   privacy: () => openPrivacy(),
   recruitEntry: () => $('#r-entry')?.scrollIntoView({ block: 'start', behavior: 'smooth' }),   // 採用情報の「応募する」（下のフォームへ）
   recruitSend: (a, el) => sendRecruit(el),
