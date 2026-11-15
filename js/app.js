@@ -1171,7 +1171,11 @@ function register(p) {
 
 /** スタンプがたまったとき。上からスタンプがどんと落ちて、紙ふぶき・数字が増える・特典の箱がはねる（js/fx.js・app.css の「装飾と動き」） */
 function showStamped(r, title = 'スタンプがたまりました') {
-  const goal = r.on === STAMP.goal && !r.moved;   // LINE からの引き継ぎ（moved）は、ゴールのマスに着いてもゴールの特典を出さないので、言葉も出さない
+  // LINE からの引き継ぎ（moved）は、LINE の数だけでゴールのマスに着いたときはゴールの特典を出さないので、言葉も出さない（合わせて届いてゴールの券が出たときは出す）
+  const goal = r.on === STAMP.goal && (!r.moved || r.got.some(g => g.at === STAMP.goal));
+  // 引き継いで合計が15個を越えたときは、カードが変わったことを出す（2026-11-15 ko-dai さんの指示。前は「1 / 15」とだけ出て、増えていないように見えた）
+  const cardOf = t => Math.floor(Math.max(t - 1, 0) / STAMP.goal) + 1;
+  const newCard = r.moved && r.total > 0 && cardOf(r.total) > cardOf(r.before || 0) ? cardOf(r.total) : 0;
   const next = STAMP.rewards.find(x => x.at > r.on);
   const prevAt = Math.max(0, ...STAMP.rewards.filter(x => x.at <= r.on).map(x => x.at));
   const from = r.moved ? (r.from < r.on ? r.from : 0) : Math.max(0, r.on - 1);
@@ -1179,6 +1183,7 @@ function showStamped(r, title = 'スタンプがたまりました') {
     <div class="stamped ${goal ? 'goal' : ''}">
       <div class="st-stage"><span class="st-ring"></span><span class="big-stamp"><img src="img/logo.png" alt=""></span></div>
       <h2>${esc(goal ? 'ゴール！ おめでとうございます' : title)}</h2>
+      ${newCard ? `<p class="st-next">カードが<b>${newCard}枚目</b>になりました（スタンプは合計 <b>${r.total}</b> 個）</p>` : ''}
       <p class="sc-count"><em>${FX.calm ? r.on : from}</em> / ${STAMP.goal}</p>
       ${next ? `<p class="st-next">次の特典まで あと <b>${next.at - r.on}</b> 個</p>
         <div class="sc-bar" aria-hidden="true"><i style="--p:${Math.round((r.on - prevAt) / (next.at - prevAt) * 100)}%"></i></div>` : ''}

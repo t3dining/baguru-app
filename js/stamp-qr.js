@@ -247,7 +247,8 @@ function claimTicket(code) {
   busySheet('LINEのポイントを引き継いでいます', 'そのままお待ちください。');
   stampPost('lineClaim', { code }).then(r => {
     lastStampTotal = getStamps().total;
-    showStamped({ on: r.on, from: stampOnCard(before), got: [], moved: true }, `${r.n}ポイント引き継ぎました`);
+    // 登録・ご来店の分と合わせて特典のマスに届いたら、受け口が特典券を出す（got。受け口の版 2026-11-15a から）。合計が15個を越えたら、2枚目に移ったことも出す
+    showStamped({ on: r.on, from: stampOnCard(before), got: r.got, moved: true, before, total: lastStampTotal }, `${r.n}ポイント引き継ぎました`);
     render(true);
   }).catch(e => {
     if (e.code === 'line_done') return stampProblem('LINEのポイントは引き継ぎ済みです', '引き継ぎは1回だけです。QRはお店の人に返してください。');
