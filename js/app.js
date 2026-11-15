@@ -1054,6 +1054,7 @@ const celebrated = new Set();   // 紙ふぶきを出した注文（同じ注文
  *  スタンプカード
  * --------------------------------------------------------------------- */
 
+// 2026-11-15 ko-dai さんの指示：スタンプのQRは、各席に置いてあるPOPから読んでもらう（お会計のときではない）。下の「QRを読むと…」の説明と、stamp-qr.js の読む窓の説明を「お席のPOP」にした
 // 2026-11-04 ko-dai さんの指示：スタンプは店頭（お店のQR）だけでためる。下の「QRを読むと…」の説明から、テイクアウトの受け取りでたまる一文を外した。
 // 残りは、ko-dai さんがマネージで直した形（改行・「お店の中にいるときだけ」）をそのまま入れた（前の文を直したものは、この文には当たらなくなるため）
 function viewStamp() {
@@ -1092,7 +1093,7 @@ function viewStamp() {
         <p class="sc-next">${next ? `あと <b>${next.at - on}</b> 個で「${esc(couponTitle(next))}」` : 'ゴール！ 次のスタンプから新しいカードになります。'}</p>
       </div>
       <button class="btn btn-main btn-block" data-act="stamp" ${doneToday ? 'disabled' : ''}>${doneToday ? '今日のスタンプはもらいました' : `${ICON.qr}QRを読んでスタンプをもらう`}</button>
-      <p class="hint">お店に置いてあるQRを読むと、1個たまります。<br>お店の中にいるときだけ読めます（位置情報を使います）。スタンプは1日${STAMP.perDay}個までです（初回登録の${STAMP.welcome.points}ポイントは別）。</p>
+      <p class="hint">お席に置いてあるPOPのQRを読むと、1個たまります。<br>お店の中にいるときだけ読めます（位置情報を使います）。スタンプは1日${STAMP.perDay}個までです（初回登録の${STAMP.welcome.points}ポイントは別）。</p>
       ${(s.lineMovedAt && !TEST_MEMBER) || !STAMPS_ONLINE || !MEMBER_PLUS ? '' : `<button class="link-card line-card" data-act="lineMove"><span><b>${ICON.card}LINEのポイントカードをお持ちの方</b>
         <span class="l-step"><i>1</i>お会計で、LINEのショップカードを見せる</span>
         <span class="l-step"><i>2</i>お店の人が見せるQRを、ここを押して読む</span>
