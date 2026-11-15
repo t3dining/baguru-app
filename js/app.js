@@ -1098,7 +1098,7 @@ function viewStamp() {
         <span class="l-step"><i>1</i>お会計で、LINEのショップカードを見せる</span>
         <span class="l-step"><i>2</i>お店の人が見せるQRを、ここを押して読む</span>
         <em class="l-get">同じ数のポイントを引き継げます（1回だけ）</em>
-        <small>引き継いだ分のマスの特典は出ません。既に獲得済みのLINEの特典は、ご利用いただけます</small>
+        <small>LINEのポイントだけで届くマスの特典は出ません（LINEでもらった特典と重ならないように）。今のスタンプと合わせて届いたマスの特典は出ます。既に獲得済みのLINEの特典は、ご利用いただけます</small>
         <span class="l-go">QRを読む ›</span></span></button>`}
       ${coupons.length ? `
         <h2 class="sec">使える特典</h2>
@@ -1188,7 +1188,7 @@ function showStamped(r, title = 'スタンプがたまりました') {
       ${next ? `<p class="st-next">次の特典まで あと <b>${next.at - r.on}</b> 個</p>
         <div class="sc-bar" aria-hidden="true"><i style="--p:${Math.round((r.on - prevAt) / (next.at - prevAt) * 100)}%"></i></div>` : ''}
       ${r.got.map(g => `<p class="got-gift">${ICON.gift}特典「${esc(couponName(g))}」をもらいました</p>`).join('')}
-      ${r.moved ? '<p class="hint">引き継いだ分のマスの特典は出ません（LINEでもらった特典と重ならないように）。既に獲得済みのLINEの特典は、ご利用いただけます。次の特典からは、ふつうにたまります。</p>' : ''}
+      ${r.moved ? '<p class="hint">LINEのポイントだけで届くマスの特典は出ません（LINEでもらった特典と重ならないように）。今のスタンプと合わせて届いたマスの特典は出ます。既に獲得済みのLINEの特典は、ご利用いただけます。次の特典からは、ふつうにたまります。</p>' : ''}
       ${title !== 'スタンプがたまりました' && !stampDoneToday() ? '<p class="hint">今日お店のQRを読むと、もう1ポイントたまります。</p>' : ''}
       <button class="btn btn-main btn-block" data-s="close">閉じる</button>
     </div>`);
