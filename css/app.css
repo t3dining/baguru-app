@@ -96,6 +96,28 @@ small { font-size: 12px; }
 .test-band small { font-size: 10.5px; font-weight: 700; opacity: .7; letter-spacing: 0; }
 .test-band[hidden] { display: none; }
 body.test-account main { padding-top: 22px; }
+/* ---- 肉の日の帯（毎月28日・29日、2月は8日・9日。js/app.js の renderNiku。2026-11-15 ko-dai さんの指示「ホームページと同じように」「目立つように上の方に」） ----
+   見た目はホームページ（ホームページ/公開用/css/style.css の .niku）に合わせる：大きな字・縞模様・光が流れる・「肉の日」がゆっくり脈打つ。下の説明は白い札。
+   上の帯のすぐ下に、スクロールしても残す。下へスクロールしたら細くする（is-mini）。帯の高さは --niku-h（app.js が入れる） */
+.niku { position: sticky; top: calc(54px + var(--safe-t)); z-index: 19; overflow: hidden; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 16px;
+  padding: 11px 12px 12px; text-align: center; color: #fff; border-bottom: 3px solid var(--brass);
+  background: repeating-linear-gradient(-45deg, rgba(255, 255, 255, .08) 0 14px, transparent 14px 28px), linear-gradient(90deg, #8f220f, var(--ember) 35%, var(--flame)); }
+.niku[hidden], .niku [hidden] { display: none; }
+.niku::after { content: ""; position: absolute; top: 0; bottom: 0; left: -40%; width: 28%; pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .38), transparent); transform: skewX(-20deg); animation: niku-shine 3.2s ease-in-out infinite; }
+@keyframes niku-shine { 0% { left: -40%; } 55%, 100% { left: 125%; } }
+.niku-ttl { display: inline-block; font-size: 25px; font-weight: 900; letter-spacing: .12em; line-height: 1.25; text-shadow: 0 3px 0 rgba(0, 0, 0, .28); animation: niku-pop 1.6s ease-in-out infinite; }
+.niku-ttl::before { content: "🍖"; margin-right: 6px; }
+.niku-ttl > span { white-space: nowrap; }   /* 「肉の日」の途中で折り返さない（いちばん長い「2月は2/9が肉の日！」は、幅375の画面で290px） */
+@media (max-width: 359px) { .niku-ttl { font-size: 21px; letter-spacing: .08em; } }   /* 幅320の小さいスマホでも1行に */
+@keyframes niku-pop { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
+.niku-sub { position: relative; z-index: 1; font-size: 13px; font-weight: 900; line-height: 1.5; background: #fff; color: var(--ember-2); padding: 5px 12px; border-radius: 12px; box-shadow: 0 2px 0 rgba(0, 0, 0, .18); }
+.niku.is-mini { padding: 5px 12px; border-bottom-width: 2px; }
+.niku.is-mini .niku-sub { display: none; }
+.niku.is-mini .niku-ttl { font-size: 17px; animation: none; text-shadow: none; }
+/* テスト用アカウントの黄色の帯（上の .test-band）があるときは、その下に出す */
+body.test-account .niku { top: calc(54px + var(--safe-t) + 22px); margin-top: 22px; }
+body.test-account.has-niku main { padding-top: 0; }
 .test-points { margin: 14px 0 12px; padding-left: 1.2em; font-size: 14px; line-height: 1.7; }
 .test-reset { background: var(--red); margin-bottom: 8px; }
 .owner-home:active { background: rgba(255, 255, 255, .2); }
@@ -272,14 +294,14 @@ html.t-editing .t-ed:hover { background-color: rgba(199, 54, 29, .08); }
 
 /* ---- メニュー ---- */
 .cats {
-  position: sticky; top: calc(54px + var(--safe-t)); z-index: 10;
+  position: sticky; top: calc(54px + var(--safe-t) + var(--niku-h, 0px)); z-index: 10;   /* 肉の日の帯があるときは、その下（--niku-h） */
   display: flex; gap: 8px; overflow-x: auto; margin: 0 -16px; padding: 10px 16px;
   background: var(--cream); border-bottom: 1px solid var(--line); scrollbar-width: none;
 }
 .cats::-webkit-scrollbar { display: none; }
 .cats button { flex: none; height: 34px; padding: 0 14px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); font-size: 13px; font-weight: 700; color: var(--coal); }
 .cats button:active { background: var(--brass-soft); }
-.cat-sec { scroll-margin-top: calc(112px + var(--safe-t)); }
+.cat-sec { scroll-margin-top: calc(112px + var(--safe-t) + var(--niku-h, 0px)); }
 .cat-note { margin: -4px 0 10px; padding: 8px 12px; border-radius: 10px; background: var(--brass-soft); color: var(--brass-dark); font-size: 12.5px; font-weight: 600; }
 
 .items { display: flex; flex-direction: column; gap: 8px; }
@@ -426,7 +448,7 @@ html.t-editing .t-ed:hover { background-color: rgba(199, 54, 29, .08); }
 .nowr .notice { margin-top: 0; }
 .nowr .foot { position: static; margin: 12px 0 0; padding: 0; background: none; box-shadow: none; }
 
-#qr { scroll-margin-top: 76px; }   /* 開いたとき、カードの頭が上の帯に隠れないように */
+#qr { scroll-margin-top: calc(76px + var(--niku-h, 0px)); }   /* 開いたとき、カードの頭が上の帯に隠れないように */
 /* よくあるご質問（お店の情報のタブ。js/app.js の faqHtml）。押すと答えが開く */
 .faq-group { margin: 14px 2px 6px; font-size: 13px; font-weight: 900; color: var(--sub); }
 .faq { border-radius: var(--r); background: #fff; border: 1px solid var(--line); overflow: hidden; }
@@ -820,6 +842,11 @@ button.link-card { width: 100%; text-align: left; }
   }
   .sheet.show .sheet-body { transform: translate(-50%, -50%); opacity: 1; }
   .item-photo { height: 280px; }
+  .niku { padding: 14px 16px 15px; gap: 8px 20px; }   /* 肉の日の帯は、ホームページのパソコンの大きさ */
+  .niku-ttl { font-size: 30px; letter-spacing: .14em; }
+  .niku-sub { font-size: 15px; padding: 6px 16px; }
+  .niku.is-mini { padding: 6px 12px; }
+  .niku.is-mini .niku-ttl { font-size: 18px; }
 }
 @media (orientation: landscape) and (min-width: 1200px) {
   .items { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -1354,7 +1381,7 @@ button.link-card { width: 100%; text-align: left; }
 /* 「動きを減らす」の設定の人には、動きを出さない（光・火の粉・紙ふぶきも出さない） */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
-  .ember, .btn-main::after, .q-order::after, .cartbar::after, .coupon::after, .stampcard::before, .hero::before, .sc-bar::after { display: none; }
+  .ember, .btn-main::after, .q-order::after, .cartbar::after, .coupon::after, .stampcard::before, .hero::before, .sc-bar::after, .niku::after { display: none; }
 }
 
 /* プライバシーポリシー */

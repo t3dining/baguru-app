@@ -2068,6 +2068,47 @@ const syncContent = () => refreshContent().then(changed => {
   applyTexts();
 });
 
+/* ---- 肉の日の帯（2026-11-15 ko-dai さんの指示「ホームページと同じようにアプリでも毎月28日と29日、2月は8日と9日に
+ *       明日は肉の日、本日は肉の日と目立つように上の方に出るように」） ----
+ *  決まりはホームページ（ホームページ/公開用/js/main.js の renderNiku）と同じ：
+ *  ・肉の日は毎月29日。前の日（28日）は「明日は肉の日！」、当日は「本日は肉の日！」
+ *  ・★2月だけは9日（2/8 に「明日は」、2/9 に「本日は」。2月の28日・29日は出さない）。1/30〜2/7 は「2月は2/9が肉の日！」
+ *  ・お休みの日（火曜の29日など）も出す
+ *  ・日付は日本の日付で決める（端末の時計の時間帯によらない）。日付が変わったとき・画面に戻ったときも見直す（下の1分ごと・visibilitychange）
+ *  ・帯は上の帯のすぐ下。スクロールしても残し、下へスクロールしたら細くする（字が飛ばないよう、細くするのは 120px より下、太く戻すのは 20px より上）
+ *  ・帯の高さは --niku-h に入れる（メニューの分類の帯と、飛び先の位置をその分ずらす。app.css）
+ *  ★試すとき：renderNiku(new Date(2027, 1, 8)) のように日付を渡すと、その日の帯になる（1分たつと今日に戻る） */
+const NIKU = { el: $('[data-niku]'), watch: false };
+const nikuDay = d => (d.getMonth() === 1 ? 9 : 29);
+function jstToday() { const t = new Date(Date.now() + 9 * 3600e3); return new Date(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()); }
+function setNikuH() {
+  const el = NIKU.el;
+  const h = el && !el.hidden ? el.getBoundingClientRect().height + (parseFloat(getComputedStyle(el).marginTop) || 0) : 0;   // テスト用アカウントの黄色の帯の分も
+  document.documentElement.style.setProperty('--niku-h', Math.round(h) + 'px');
+}
+function renderNiku(now = jstToday()) {
+  const el = NIKU.el;
+  if (!el) return;
+  const tmr = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const m = now.getMonth(), dd = now.getDate();
+  const which = dd === nikuDay(now) ? '29' : tmr.getDate() === nikuDay(tmr) ? '28'
+    : ((m === 0 && dd >= 30) || (m === 1 && dd <= 7)) ? 'feb' : '';
+  el.querySelectorAll('[data-niku-day]').forEach(s => { s.hidden = s.dataset.nikuDay !== which; });
+  el.hidden = !which;
+  document.body.classList.toggle('has-niku', !!which);
+  setNikuH();
+  if (which && !NIKU.watch) {
+    NIKU.watch = true;
+    if (window.ResizeObserver) new ResizeObserver(setNikuH).observe(el); else window.addEventListener('resize', setNikuH);
+    const mini = () => { const y = window.scrollY; if (y > 120) el.classList.add('is-mini'); else if (y < 20) el.classList.remove('is-mini'); };
+    window.addEventListener('scroll', mini, { passive: true });
+    mini();
+  }
+}
+renderNiku();
+setInterval(() => renderNiku(), 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) renderNiku(); });
+
 $$('[data-icon]').forEach(el => el.insertAdjacentHTML('afterbegin', ICON[el.dataset.icon]));
 FX.parallax();
 FX.ripples();
