@@ -1783,6 +1783,7 @@ const ACTIONS = {
     location.reload();
   },
   close: () => closeSheet(),
+  niku: () => openNikuNews(),   // 上の肉の日の帯（2026-11-18）
 };
 
 // バグるマネージの「アプリで見る」の中では、注文・スタンプ・特典・登録など、動かすと本物に残るものは止める（js/content.js の PREVIEW）
@@ -2112,6 +2113,22 @@ function renderNiku(now = jstToday()) {
 }
 renderNiku();
 setInterval(() => renderNiku(), 60000);
+/** 肉の日の帯を押したとき：肉の日のお知らせを、下から出す画面で開く（2026-11-18 ko-dai さんの指示「アプリのお知らせにも肉の日を足して、帯を押すと開くように」）。
+ *  注文だけの画面（takeout.html）にはホームが無いので、どちらの画面でも、移らずにその場で開く。
+ *  文は、いまのお知らせの一覧（マネージで直した分）の、タイトルに「肉の日」の入ったもの。無ければ data.js の NIKU_NEWS */
+function openNikuNews() {
+  const n = NEWS.find(x => /肉の日/.test(x.title)) || NIKU_NEWS;
+  openSheet(`
+    <button class="sheet-x" data-s="close" aria-label="閉じる">×</button>
+    <div class="niku-news">
+      <p class="niku-news-tag">お知らせ</p>
+      <h2>${esc(n.title)}</h2>
+      <p class="niku-news-body">${esc(n.body)}</p>
+      <button class="btn btn-sub btn-block" data-s="close">閉じる</button>
+    </div>`);
+  sheetBody.onchange = null;
+  sheetBody.onclick = e => { if (e.target.closest('[data-s="close"]')) closeSheet(); };
+}
 document.addEventListener('visibilitychange', () => { if (!document.hidden) renderNiku(); });
 
 $$('[data-icon]').forEach(el => el.insertAdjacentHTML('afterbegin', ICON[el.dataset.icon]));
