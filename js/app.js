@@ -885,6 +885,13 @@ async function placeOrder(fields, btn) {
       if (btn) { btn.disabled = false; btn.textContent = label; }
       if (e.code === 'not_accepting') DB.set('accepting', false);
       if (e.code === 'need_email' || e.code === 'bad_email') openContact();
+      // 受け口が「休みの日」として断ったとき（臨時休業を決めた直後など）：休みの日を待たずに読み直し、選べる日と時間を出し直す（2026-11-19 予約ボードのセッションから）
+      if (e.code === 'bad_date' && e.data?.why === 'closed_day') {
+        await refreshDays(true).catch(() => {});
+        pick = { ...pick, day: 0, slot: null };
+        req = { ...req, day: 0, slot: '' };
+        render(true);
+      }
       return toast(orderMessage(e), 'warn');
     }
     DB.set('orderSending', null);

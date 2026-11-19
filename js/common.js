@@ -86,10 +86,10 @@ function readDays(j) {
   return { closedDows: dows, exceptions };
 }
 
-/** 読み直す。前に読んでから DAYS_EVERY たっていなければ何もしない。中身が変わったら true */
-async function refreshDays() {
+/** 読み直す。前に読んでから DAYS_EVERY たっていなければ何もしない（now のときは待たずに読む）。中身が変わったら true */
+async function refreshDays(now = false) {
   const last = remoteDays();
-  if (!SHOP.daysUrl || Date.now() - Math.max(daysTried, last ? last.at : 0) < DAYS_EVERY) return false;
+  if (!SHOP.daysUrl || (!now && Date.now() - Math.max(daysTried, last ? last.at : 0) < DAYS_EVERY)) return false;
   daysTried = Date.now();
   try {
     const res = await fetch(SHOP.daysUrl, { cache: 'no-store', signal: AbortSignal.timeout?.(8000) });

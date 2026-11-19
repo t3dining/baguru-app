@@ -27,6 +27,8 @@ const ORDER_MSG = {
   need_email: 'メールアドレスを入れてください（受付のお知らせをお送りします）',   // 受け口 2026-11-08a から、注文にもメールが要る
   bad_email: 'メールアドレスの形を確かめてください',
   bad_date: '受け取りの日時を、もう一度選んでください',
+  closed_day: 'この日はお休みになりました。ほかの日を選んでください',   // 受け口が休みの日として断ったとき（bad_date の why。下の orderMessage）
+  out_of_hours: 'その時間は受け取りの時間の外です。もう一度選んでください',
   need_address: 'お届け先のご住所を入れてください',
   busy: 'ただいま混み合っています。少し時間を置いて、もう一度お試しください',
   offline: 'つながりませんでした。電波の良い所で、もう一度お試しください',
@@ -34,7 +36,8 @@ const ORDER_MSG = {
   already: 'お店が受け付けた後は、お電話でご連絡ください',
   not_found: 'この注文が見つかりませんでした。お電話でお問い合わせください',
 };
-const orderMessage = e => ORDER_MSG[e.code] || ORDER_MSG.no_answer;
+// 受け口（版 2026-11-19b から）は、休みの日・受け取りの時間の外を bad_date で断り、わけを why（closed_day・out_of_hours）に付ける
+const orderMessage = e => (e.code === 'bad_date' && ORDER_MSG[e.data?.why]) || ORDER_MSG[e.code] || ORDER_MSG.no_answer;
 
 /** 予約ボードの公開先から、受け口の場所（config.js）と、やりとりの道具（api.js）を読む（ネット予約と同じもの）。
  *  2つは同時に読む（api.js は送るときに BAGURU を見るので、読む順は関係ない。2026-11-03 に、順に読むのをやめた） */
