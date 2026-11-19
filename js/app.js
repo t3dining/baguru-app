@@ -351,7 +351,7 @@ function itemRow(i) {
         <b>${esc(i.name)}</b>
         ${i.sub ? `<small>${esc(i.sub)}</small>` : ''}
         ${i.desc ? `<small class="desc">${esc(i.desc)}</small>` : ''}
-        <em>${yen(i.price)}${from ? '〜' : ''}${i.soldOut ? '<span class="out-tag">売り切れ</span>' : ''}</em>
+        <em>${yen(i.price)}${from ? '〜' : ''}${i.soldOut ? '<span class="out-tag">売り切れ</span>' : ''}${i.testOnly ? '<span class="out-tag test-tag">テスト用だけ</span>' : ''}</em>
       </span>
       <span class="plus">＋</span>
     </button>`;
@@ -538,7 +538,7 @@ function openAllergyList() {
     <button class="sheet-x" data-s="close" aria-label="閉じる">×</button>
     <h2 class="sheet-title">アレルギーの一覧</h2>
     ${ALLERGY.checked ? `<p class="hint">${ALLERGY_ALL.length}品目のうち、入っているもの（${ALLERGY.checked.replace(/-/g, '/')} 時点）。太字は表示が義務の${ALLERGY.major.length}品目です。${esc(ALLERGY.note)}</p>
-      <ul class="al-table">${ITEMS.map(i => `<li><b>${esc(i.full || i.name)}</b><div class="al-list">${allergyKnown(i) ? allergyTags(allergensOf(i).list) : '<span class="al al-none">お問い合わせください</span>'}</div></li>`).join('')}</ul>
+      <ul class="al-table">${ITEMS.filter(i => !i.hidden).map(i => `<li><b>${esc(i.full || i.name)}</b><div class="al-list">${allergyKnown(i) ? allergyTags(allergensOf(i).list) : '<span class="al al-none">お問い合わせください</span>'}</div></li>`).join('')}</ul>
       ${choices.length ? `<h3 class="sec">選んだときに足されるもの</h3>
         <ul class="al-table">${choices.map(([n, list]) => `<li><b>${esc(n)}</b><div class="al-list">${allergyTags(ALLERGY_ALL.filter(a => list.includes(a)))}</div></li>`).join('')}</ul>` : ''}`
       : allergyAsk()}`);

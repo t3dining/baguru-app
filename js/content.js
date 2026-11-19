@@ -27,6 +27,11 @@
 
 const CONTENT_EVERY = 3 * 60000;   // 受け口に読みに行くのは、この間隔に1回まで
 
+/* テスト用アカウント（バグる Owner・Staff から開いた公式アプリ。js/db.js が保存の箱を bgtest. に替える）か（2026-11-19）。
+ *  data.js で testOnly: true にした商品（まだお客さまに出さない新しい商品）は、テスト用アカウントにだけ出す。
+ *  それ以外（お客さま・マネージの「アプリで見る」・Order受付）では、「出さない」と同じ扱い（下の applyContent） */
+const CONTENT_TEST = typeof DB !== 'undefined' && DB.prefix === 'bgtest.';
+
 /** 選ぶもののグループ（同じものは1つ。アサイーのサイズは商品ごとの値段なので items の regular で直す） */
 const contentGroups = () => [...new Set(ITEMS.flatMap(i => i.groups || []))].filter(g => g.id !== 'size');
 
@@ -133,7 +138,7 @@ function applyContent(c) {
     const k = ITEM_BASE.get(i), b = k === undefined ? { price: i.price0, regular: i.regular0 ?? null } : CONTENT_BASE.items[k], o = obj(items[i.id]);
     i.price = num(o.price) ?? b.price;
     i.soldOut = o.soldOut === true;
-    i.hidden = o.hidden === true;
+    i.hidden = o.hidden === true || (i.testOnly === true && !CONTENT_TEST);   // testOnly はテスト用アカウントにだけ出す（上の CONTENT_TEST）
     if (b.regular != null) {   // アサイー：ミニ（= price）とレギュラーの値段を、サイズの選ぶものに入れ直す
       const [mini, regular] = i.groups.find(g => g.id === 'size').choices, reg = Math.max(i.price, num(o.regular) ?? b.regular);
       regular.p = reg - i.price;

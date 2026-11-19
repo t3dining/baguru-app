@@ -233,6 +233,7 @@ const NEWS = [
 // meal: true … 1つを「1食」と数える（受け取りの最短時間・大量注文・配達の食数）
 const CATEGORIES = [
   // en：見出しの右に小さく出す英字（ホームページに寄せた見た目。2026-10-30）
+  { id: 'limited', name: '期間限定', en: 'LIMITED' },   // 2026-11-19 ko-dai さんの指示（中身が出せる商品だけのときは、見出しごと出ない。app.js の viewMenu）
   { id: 'hamburg', name: 'ハンバーグBOX', en: 'HAMBURG BOX', meal: true },
   { id: 'teishoku', name: 'バグる定食', en: 'SET MEAL', meal: true },
   { id: 'acai', name: 'アサイーボウル', en: 'ACAI BOWL' },
@@ -280,8 +281,20 @@ const SIDE_CAT_NOTE = '唐揚げ・メンチカツ・ポテト・ソーセージ
 function side(id, name, price, img = '', note = SIDE_PHOTO_NOTE) { return { id, cat: 'side', name, price, groups: [], ...(img ? { img, ...(note ? { photoNote: note } : {}) } : {}) }; }
 // ドリンクの写真は、商品の写真の背景を切り抜いたもの（2026-10-30。cut：画面では、あたたかい色の下地に全体を見せる）
 const drink = (id, name, price, img) => ({ ...side(id, name, price, img, ''), cut: true });
+/* 期間限定（2026-11-19 ko-dai さんの指示「期間限定カテゴリーで炭焼ローストチキン 1本880円、2本セット1600円、5本セット3800円を追加」
+ *  「まだ非表示設定にしてテスト用アカウント以外では見れないように」）
+ *  ・1本・2本セット・5本セットは、別々の商品にした（メニューにそれぞれの値段が出る。マネージで値段・売り切れを別々に直せる）。
+ *    ★サイズの選ぶもの（id 'size'）はアサイーのミニ・レギュラーの2つ専用なので使わない（content.js がレギュラーの値段として読む）
+ *  ・1食には数えない（カテゴリーに meal を付けない。受け取りの最短時間・大量注文の食数に入らない）
+ *  ・★testOnly：まだお客さまには出さない。テスト用アカウント（バグる Owner・Staff から開いた公式アプリ）にだけ出す（content.js の applyContent）。
+ *    Order受付の電話の注文・マネージの「アプリで見る」でも出ない。お客さまに出すときは、この testOnly を消す */
+const limited = (id, name, price) => ({ id, cat: 'limited', name, price, groups: [], testOnly: true });
 
 const ITEMS = [
+  // ★カテゴリーの順（CATEGORIES）と同じ順に並べる（期間限定がいちばん上）。マネージが ITEMS の番号で data.js の値段を引くため
+  limited('l_chicken1', '炭焼ローストチキン（1本）', 880),
+  limited('l_chicken2', '炭焼ローストチキン（2本セット）', 1600),
+  limited('l_chicken5', '炭焼ローストチキン（5本セット）', 3800),
   {
     id: 'hbox', cat: 'hamburg', name: 'ハンバーグBOX', sub: 'ごはん付き', desc: 'ソースは4種類から選べます', price: 1170, img: 'tk_box.jpg',
     groups: [
