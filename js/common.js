@@ -181,12 +181,18 @@ const mealCount = list => list.reduce((n, l) => n + (isMeal(l.itemId || l.id) ? 
 /** その食数のとき、注文してから何分後から受け取れるか */
 const leadFor = meals => TAKEOUT.leadByMeals.find(([under]) => meals < under)[1];
 
+/** 前もっての注文か（TAKEOUT.earlyBy。その日の k 番めの営業を、開ける時刻ちょうどから受け取れるか） */
+function earlyOk(day, k, now = new Date()) {
+  const list = TAKEOUT.earlyBy || [], by = list[Math.min(k, list.length - 1)];
+  return !!by && now.getTime() <= atTime(addDays(day, -by[0]), by[1]).getTime();
+}
 function pickupSlots(day, now = new Date(), leadMin = leadFor(0)) {
   const step = TAKEOUT.stepMinutes * 60000;
   const lead = leadMin * 60000;
   const out = [];
-  for (const [open, close] of hoursOf(day)) {
-    const first = Math.max(atTime(day, open).getTime(), now.getTime()) + lead;
+  for (const [k, [open, close]] of hoursOf(day).entries()) {
+    // 前もっての注文（earlyOk）は、開ける時刻ちょうどから（11:00・11:15…／17:00・17:15…）。ほかは、いまか開ける時刻のおそいほうから lead 分あと
+    const first = earlyOk(day, k, now) ? atTime(day, open).getTime() : Math.max(atTime(day, open).getTime(), now.getTime()) + lead;
     const last = atTime(day, close).getTime() - TAKEOUT.lastBeforeClose * 60000;
     for (let t = Math.ceil(first / step) * step; t <= last; t += step) out.push(new Date(t));
   }

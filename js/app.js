@@ -670,6 +670,12 @@ function limitNote() {
     : `<p class="notice warn">${ICON.cal}<span>受け取りできる日がちがう期間限定の商品は、一緒に注文できません。分けて注文してください。</span></p>`;
 }
 
+/** 前もっての注文の案内（data.js の TAKEOUT.earlyBy・common.js の earlyOk。2026-11-19） */
+function earlyNote() {
+  const [a, b] = TAKEOUT.earlyBy || [], [lunch, dinner] = SHOP.hours.normal.times;
+  if (!a) return '';
+  return `前の日の${a[1]}までのご注文は、開店の${lunch[0]}から選べます。${b && dinner ? `平日の夜の部は、その日の${b[1]}までのご注文で${dinner[0]}から選べます。` : ''}`;
+}
 const checkoutLead = () => leadFor(cartMeals());
 const checkoutDays = () => { const lim = cartDayLimit(); return lim ? limitedDays(lim, new Date(), checkoutLead()) : takeoutDays(new Date(), checkoutLead()); };
 /** 「今から受け取る」の時刻。今日が受け取れない日（期間限定の日でない）・もう時間が無いときは null */
@@ -699,7 +705,7 @@ function viewCheckout() {
         <button class="mode ${pick.mode === 'time' ? 'on' : ''}" data-act="mode" data-arg="time">
           <b>時間を指定</b><small>${lim ? '受け取りできる日だけ' : `${TAKEOUT.monthsAhead}か月先まで`}・${TAKEOUT.stepMinutes}分ごと</small></button>
       </div>
-      <p class="hint">${meals ? `${meals}食の` : ''}ご注文は、一番早くて${lead}分後に受け取れます（${leadRuleText()}）。</p>
+      <p class="hint">${meals ? `${meals}食の` : ''}ご注文は、一番早くて${lead}分後に受け取れます（${leadRuleText()}）。${earlyNote()}</p>
       <div id="timePick" ${pick.mode === 'time' ? '' : 'hidden'}>
         <div class="days">${days.map((d, i) => `
           <button class="chip ${i === pick.day ? 'on' : ''}" data-act="day" data-arg="${i}">${['今日', '明日'].includes(dayLabel(d.date)) ? dayLabel(d.date) : WEEK[d.date.getDay()] + '曜'}<small>${d.date.getMonth() + 1}/${d.date.getDate()}</small></button>`).join('')}
