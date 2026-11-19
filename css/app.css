@@ -325,6 +325,9 @@ html.t-editing .t-ed:hover { background-color: rgba(199, 54, 29, .08); }
   box-shadow: 0 3px 0 rgba(143, 34, 15, .35); }
 .limited-ribbon::before { content: "★"; font-size: 13px; letter-spacing: 0; }
 .limited-en { font: 600 11px/1 var(--en); letter-spacing: .16em; color: var(--ember); }
+/* 期間限定の説明（ローストチキン。改行のとおりに、真ん中にそろえて出す。2026-11-19） */
+.limited-desc { margin: 2px 4px 12px; font-size: 14px; font-weight: 700; line-height: 1.85; color: var(--ink); text-align: center; white-space: pre-line; }
+.item-txt .desc, .item-head .item-desc, .dine-lim li small { white-space: pre-line; }   /* 改行のある説明（ローストチキン）は、改行のとおりに */
 .limited-days { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; padding: 9px 12px; border-radius: 12px; background: #fff; border: 1.5px dashed rgba(199, 54, 29, .45);
   font-size: 14px; font-weight: 700; color: var(--ink); }
 .limited-days svg { color: var(--ember); flex: none; }

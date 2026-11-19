@@ -293,13 +293,16 @@ const drink = (id, name, price, img) => ({ ...side(id, name, price, img, ''), cu
  *    マネージの「テイクアウト」の、商品ごとの「受け取りできる日」で直せる（content の items[id].days。空の並びは「いつでも」）。
  *    カートにあると、その日だけ受け取れる（app.js の cartDayLimit）。全部の日が過ぎると、メニューに出なくなる（app.js の itemEnded） */
 const CHICKEN_DAYS = ['2026-12-24', '2026-12-25'];
-const limited = (id, name, price, days) => ({ id, cat: 'limited', name, price, groups: [], testOnly: true, days: days.slice() });
+// 説明（2026-11-19 ko-dai さんの指示「ローストチキンの全ての箇所に以下説明文を加えて」）。改行のとおりに出す（app.css の white-space: pre-line）。
+// テイクアウトの3つと店内のメニューで同じ文。期間限定の枠では、3つが同じ文なら枠の上に1回だけ出す（app.js の limitedSec）
+const CHICKEN_DESC = '自家製のタレに48時間しっかりつけ込み\n中まで味が染み渡った至高のチキン\n炭火でじっくり焼き上げ、旨みを閉じ込めました\nふっくらジューシーなチキンを\nクリスマスの食卓にお届けいたします';
+const limited = (id, name, price, days, desc) => ({ id, cat: 'limited', name, price, groups: [], testOnly: true, days: days.slice(), ...(desc ? { desc } : {}) });
 
 const ITEMS = [
   // ★カテゴリーの順（CATEGORIES）と同じ順に並べる（期間限定がいちばん上）。マネージが ITEMS の番号で data.js の値段を引くため
-  limited('l_chicken1', '炭焼ローストチキン（1本）', 880, CHICKEN_DAYS),
-  limited('l_chicken2', '炭焼ローストチキン（2本セット）', 1600, CHICKEN_DAYS),
-  limited('l_chicken5', '炭焼ローストチキン（5本セット）', 3800, CHICKEN_DAYS),
+  limited('l_chicken1', '炭焼ローストチキン（1本）', 880, CHICKEN_DAYS, CHICKEN_DESC),
+  limited('l_chicken2', '炭焼ローストチキン（2本セット）', 1600, CHICKEN_DAYS, CHICKEN_DESC),
+  limited('l_chicken5', '炭焼ローストチキン（5本セット）', 3800, CHICKEN_DAYS, CHICKEN_DESC),
   {
     id: 'hbox', cat: 'hamburg', name: 'ハンバーグBOX', sub: 'ごはん付き', desc: 'ソースは4種類から選べます', price: 1170, img: 'tk_box.jpg',
     groups: [
@@ -389,7 +392,7 @@ const DINE_IN = [
    *  ・値段は、テイクアウトと同じにした（マネージの「店内」で直せる）
    *  ・★testOnly：テイクアウトと同じく、まだテスト用アカウントにだけ出す（content.js の applyContent。お客さまに出すときは消す） */
   { name: '期間限定', limited: true, items: [
-    { n: '炭焼ローストチキン', sizes: [['1本', 880], ['2本セット', 1600], ['5本セット', 3800]], testOnly: true, days: CHICKEN_DAYS.slice(), daysOf: ['l_chicken1', 'l_chicken2', 'l_chicken5'] },
+    { n: '炭焼ローストチキン', d: CHICKEN_DESC, sizes: [['1本', 880], ['2本セット', 1600], ['5本セット', 3800]], testOnly: true, days: CHICKEN_DAYS.slice(), daysOf: ['l_chicken1', 'l_chicken2', 'l_chicken5'] },
   ] },
   { name: 'ハンバーグ', note: 'ソースは4種類から：自家製肉ダレ／オニオンソース／ガーリック醤油ソース／大人の刻みワサビと醤油（デミソースハンバーグを除く）', items: [
     { n: '超粗挽き系ハンバーグ', img: 'hb_arabiki.jpg', d: '1個80g。国産牛とオーストラリア産の牛モモ肉で、肉の旨味をしっかり味わえる名物', sizes: [['2個', 1150], ['3個', 1550], ['4個', 1880], ['5個', 2150]] },

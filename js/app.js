@@ -348,7 +348,7 @@ function viewMenu(arg) {
           <h2 class="sec" data-en="${esc(c.en)}">${esc(c.name)}</h2>
           ${c.id === 'hamburg' || c.id === 'teishoku' ? setNote : ''}
           ${c.id === 'side' ? `<p class="cat-note">${esc(SIDE_CAT_NOTE)}</p>` : ''}
-          <div class="items">${shown(c).map(itemRow).join('')}</div>
+          <div class="items">${shown(c).map(i => itemRow(i)).join('')}</div>
         </section>`).join('')}
 `,
     after: () => {
@@ -359,18 +359,21 @@ function viewMenu(arg) {
 }
 
 /* 期間限定の枠（2026-11-19 ko-dai さんの指示「期間限定枠を目立たせて」）。赤い縁・あたたかい色の地・「期間限定」の札。
- *  中の商品の受け取りできる日が同じなら、枠の上に1回だけ出す（商品ごとには出さない）。ちがうときは、商品ごとに出す */
+ *  中の商品の受け取りできる日・説明が同じなら、枠の上に1回だけ出す（商品ごとには出さない）。ちがうときは、商品ごとに出す */
 function limitedSec(c, list) {
-  const keys = list.map(i => (i.days || []).join(',')), same = keys.every(k => k && k === keys[0]);
+  const keys = list.map(i => (i.days || []).join(',')), days = keys.every(k => k && k === keys[0]);
+  const desc = list.every(i => i.desc && i.desc === list[0].desc);
   return `
         <section class="cat-sec is-limited" id="cat-${c.id}">
           <div class="limited-head"><span class="limited-ribbon">${esc(c.name)}</span><span class="limited-en">${esc(c.en)}</span></div>
-          ${same ? `<p class="limited-days">${ICON.cal}<span>受け取りは <b>${esc(daysText(list[0].days))}</b> だけ</span></p>` : ''}
-          <div class="items">${list.map(i => itemRow(i, same)).join('')}</div>
+          ${desc ? `<p class="limited-desc">${esc(list[0].desc)}</p>` : ''}
+          ${days ? `<p class="limited-days">${ICON.cal}<span>受け取りは <b>${esc(daysText(list[0].days))}</b> だけ</span></p>` : ''}
+          <div class="items">${list.map(i => itemRow(i, { days, desc })).join('')}</div>
         </section>`;
 }
 
-function itemRow(i, daysShown = false) {
+/** 商品の行。shown … 枠の上に出したもの（期間限定の枠の、受け取りできる日 days・説明 desc）は、行には出さない */
+function itemRow(i, shown = {}) {
   const from = i.groups.some(g => g.id === 'size');
   // サイド・ドリンクで写真のないものは、小さい絵にして、名前を1行に入れる
   const small = i.cat === 'side' && !i.img;
@@ -380,8 +383,8 @@ function itemRow(i, daysShown = false) {
       <span class="item-txt">
         <b>${esc(i.name)}</b>
         ${i.sub ? `<small>${esc(i.sub)}</small>` : ''}
-        ${i.desc ? `<small class="desc">${esc(i.desc)}</small>` : ''}
-        ${i.days && !daysShown ? `<small class="days-tag">受け取りは ${esc(daysText(i.days))} だけ</small>` : ''}
+        ${i.desc && !shown.desc ? `<small class="desc">${esc(i.desc)}</small>` : ''}
+        ${i.days && !shown.days ? `<small class="days-tag">受け取りは ${esc(daysText(i.days))} だけ</small>` : ''}
         <em>${yen(i.price)}${from ? '〜' : ''}${i.soldOut ? '<span class="out-tag">売り切れ</span>' : ''}${i.testOnly ? '<span class="out-tag test-tag">テスト用だけ</span>' : ''}</em>
       </span>
       <span class="plus">＋</span>
@@ -435,7 +438,7 @@ function openItem(id) {
     <div class="item-head">
       <h2>${esc(item.full || item.name)}</h2>
       ${item.sub ? `<p class="sub">${esc(item.sub)}</p>` : ''}
-      ${item.desc ? `<p class="sub">${esc(item.desc)}</p>` : ''}
+      ${item.desc ? `<p class="sub item-desc">${esc(item.desc)}</p>` : ''}
       ${item.days ? `<p class="item-days">${ICON.cal}<span>受け取りは <b>${esc(daysText(item.days))}</b> だけです</span></p>` : ''}
       <p class="price">${yen(item.price)}${item.groups.some(g => g.id === 'size') ? '〜' : ''}</p>
     </div>
