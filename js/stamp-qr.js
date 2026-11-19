@@ -243,18 +243,29 @@ function openLineMove() {
 /** 紙の LINE 引き継ぎ券（スタンプ台帳の決めごと.md の10節）。券は何度でも使える。1会員1回は受け口が止める。★QRの中身はアドレスにしない。カメラアプリで開くと、ホーム画面のアプリとは別の場所の空の会員に入ってしまうため */
 const ticketFrom = text => (String(text).match(/^BAGURULINE:([0-9A-Z]{16})$/) || [])[1] || '';
 function claimTicket(code) {
-  const before = getStamps().total;
+  const s0 = getStamps(), before = s0.total, wasMoved = !!s0.lineMovedAt;
   busySheet('LINEのポイントを引き継いでいます', 'そのままお待ちください。');
-  stampPost('lineClaim', { code }).then(r => {
+  // 引き継げた画面。登録・ご来店の分と合わせて特典のマスに届いたら、受け口が特典券を出す（got。受け口の版 2026-11-15a から）。合計が15個を越えたら、2枚目に移ったことも出す
+  const moved = (n, got) => {
     lastStampTotal = getStamps().total;
-    // 登録・ご来店の分と合わせて特典のマスに届いたら、受け口が特典券を出す（got。受け口の版 2026-11-15a から）。合計が15個を越えたら、2枚目に移ったことも出す
-    showStamped({ on: r.on, from: stampOnCard(before), got: r.got, moved: true, before, total: lastStampTotal }, `${r.n}ポイント引き継ぎました`);
+    try { showStamped({ on: stampOnCard(lastStampTotal), from: stampOnCard(before), got, moved: true, before, total: lastStampTotal }, `${n}ポイント引き継ぎました`); }
+    catch (e) { closeSheet(); toast(`${n}ポイント引き継ぎました`, 'good'); }   // ★画面を出すところで止まっても、「引き継げませんでした」にしない（引き継ぎは済んでいる）
     render(true);
-  }).catch(e => {
+  };
+  stampPost('lineClaim', { code }).then(r => moved(r.n, r.got), async e => {
     if (e.code === 'line_done') return stampProblem('LINEのポイントは引き継ぎ済みです', '引き継ぎは1回だけです。QRはお店の人に返してください。');
     if (e.code === 'need_register') return stampProblem('先に会員登録をお願いします', STAMP_MSG.need_register);
     if (e.code === 'bad_ticket') return stampProblem('このQRは使えません', '古いQRかもしれません。お店の人に声をかけてください。');
-    stampProblem('引き継げませんでした', stampMessage(e));
+    // ★わけの分からない失敗（受け口から返事が来ない・受け口が途中で止まった）でも、受け口では引き継げていることがある（2026-11-19 ko-dai さんの報告
+    //   「引き継げませんでしたと出た」）。読み直して、引き継げていたら引き継げた画面を出す（失敗と出て、お店で「数を直す」で入れると二重になるため）
+    try {
+      await stampPost('stampRead');
+      const s = getStamps();
+      if (s.total > before && (TEST_MEMBER || (s.lineMovedAt && !wasMoved))) return moved(s.total - before, []);
+    } catch (e2) { /* 読み直せないときは、引き継げなかったものとして知らせる */ }
+    const why = e.code && !STAMP_MSG[e.code] && !ORDER_MSG[e.code] ? `（受け口：${String(e.code).slice(0, 80)}）` : '';   // 次に起きたとき、わけが分かるように
+    const base = e.code === 'busy' ? ORDER_MSG.busy : STAMP_MSG[e.code] || 'つながりませんでした。少し待って、もう一度QRを読んでください';
+    stampProblem('引き継げませんでした', `${base}${why}。何度も出るときは、お店の人に声をかけてください（入っていないかを確かめます）。`);
   });
 }
 
