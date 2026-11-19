@@ -9,7 +9,8 @@
  *  中身の形（content）
  *    news:    [{ date: 'YYYY-MM-DD', title, body }]           … あれば、お知らせをこれに置きかえる（無ければ data.js の NEWS）
  *    notice:  { text, until: 'YYYY-MM-DD' | '' }             … ホームとメニューのいちばん上に出す、お店からの一言（until の日まで）
- *    items:   { 商品id: { price, regular, soldOut, hidden } }   … テイクアウトの商品。regular はアサイーのレギュラーの値段
+ *    items:   { 商品id: { price, regular, soldOut, hidden, days } } … テイクアウトの商品。regular はアサイーのレギュラーの値段。
+ *             days は受け取りできる日（['YYYY-MM-DD'…]。期間限定。空の並びは「いつでも」。無ければ data.js の days。2026-11-19）
  *    choices: { 'グループid/名前': { p, soldOut } }            … ご飯の量・セット・トッピングなど。同じグループを使う商品すべてに効く
  *    dine:    { '見出し/名前': { p, sizes: [値段…], hidden } } … 店内のメニュー（sizes は data.js の sizes と同じ順）
  *    rewards: { マス: { options: [..], title, picks: [..] } }  … スタンプの特典（title・picks はゴールだけ）
@@ -37,7 +38,7 @@ const contentGroups = () => [...new Set(ITEMS.flatMap(i => i.groups || []))].fil
 
 /** data.js の「もと」の値（このファイルを読んだときに控える） */
 const CONTENT_BASE = {
-  items: ITEMS.map(i => ({ price: i.price, regular: i.groups?.find(g => g.id === 'size') ? i.price + i.groups.find(g => g.id === 'size').choices[1].p : null })),
+  items: ITEMS.map(i => ({ price: i.price, regular: i.groups?.find(g => g.id === 'size') ? i.price + i.groups.find(g => g.id === 'size').choices[1].p : null, days: i.days ? i.days.slice() : null })),
   groups: contentGroups().map(g => ({ g, ps: g.choices.map(c => c.p) })),
   dine: DINE_IN.map(cat => cat.items.map(it => ({ p: it.p ?? null, sizes: it.sizes ? it.sizes.map(s => s[1]) : null }))),
   news: NEWS.slice(),
@@ -139,6 +140,9 @@ function applyContent(c) {
     i.price = num(o.price) ?? b.price;
     i.soldOut = o.soldOut === true;
     i.hidden = o.hidden === true || (i.testOnly === true && !CONTENT_TEST);   // testOnly はテスト用アカウントにだけ出す（上の CONTENT_TEST）
+    // 受け取りできる日（期間限定）。マネージで直した分があればそれ（空の並びは「いつでも」＝ null）、無ければ data.js の days
+    const od = Array.isArray(o.days) ? o.days.filter(x => typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x)) : null;
+    i.days = od ? (od.length ? [...new Set(od)].sort().slice(0, 60) : null) : (b.days ? b.days.slice() : null);
     if (b.regular != null) {   // アサイー：ミニ（= price）とレギュラーの値段を、サイズの選ぶものに入れ直す
       const [mini, regular] = i.groups.find(g => g.id === 'size').choices, reg = Math.max(i.price, num(o.regular) ?? b.regular);
       regular.p = reg - i.price;

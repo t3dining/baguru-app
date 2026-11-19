@@ -164,7 +164,7 @@ function drawCart() {
 /** カートの1行が、売り切れ・出さないもの（バグるマネージで止めたもの）か。商品か、選んだものの1つでも売り切れなら true */
 function lineOut(c) {
   const item = ITEM_BY_ID[c.itemId];
-  if (!item || item.hidden || item.soldOut) return true;
+  if (!item || item.hidden || item.soldOut || itemEnded(item)) return true;
   return (item.groups || []).some(g => {
     const v = c.sel[g.id];
     if (g.type === 'one') return typeof v === 'number' && !!g.choices[v]?.soldOut;
@@ -312,12 +312,13 @@ function viewMenu(arg) {
   const first = firstPickup(leadFor(cartMeals()));
   const setNote = `<p class="cat-note">全定食にお得なセット！ ポテトフライ or 唐揚げ（5個）＋${yen(SET.choices[1].p)}／ミニシーザーサラダ ＋${yen(SALAD.choices[1].p)}</p>`;
   // バグるマネージで「出さない」にした商品は並べない（中身が無くなった見出しも出さない）
-  const shown = c => ITEMS.filter(i => i.cat === c.id && !i.hidden);
+  // 受け取りできる日が全部過ぎた商品（期間限定）も並べない（itemEnded）
+  const shown = c => ITEMS.filter(i => i.cat === c.id && !i.hidden && !itemEnded(i));
   const cats = CATEGORIES.filter(c => shown(c).length);
   return {
     tab: 'order', title: 'テイクアウト注文',   // 下のタブの「注文」（2026-11-04 の2回目。前はメニューのタブの中の切りかえ）
     html: `
-      <nav class="cats">${cats.map(c => `<button data-act="cat" data-arg="${c.id}">${esc(c.name)}</button>`).join('')}</nav>
+      <nav class="cats">${cats.map(c => `<button data-act="cat" data-arg="${c.id}"${c.id === 'limited' ? ' class="is-limited"' : ''}>${esc(c.name)}</button>`).join('')}</nav>
       ${ORDER_ONLY ? myOrders().filter(o => ACTIVE.includes(o.status)).map(orderBanner).join('') : ''}
       ${accepting ? '' : '<p class="notice warn">ただいま、アプリからの注文の受付を止めています。お急ぎの方はお電話でどうぞ。</p>'}
       ${noticeHtml()}
@@ -325,7 +326,7 @@ function viewMenu(arg) {
       <!-- 配達・大量注文の入口は、一番早い受け取りのすぐ下に、目立つ形で（2026-11-06 ko-dai さんの指示。前はメニューのいちばん下） -->
       <a class="link-card req-card" href="#request">${ICON.truck}<span><b>配達・大量注文はこちら</b><small>配達は${TAKEOUT.deliveryFreeMin}食以上で無料（原則${TAKEOUT.deliveryKm}km圏内）・${TAKEOUT.deliveryFreeMin}食未満は要相談。大量注文は${TAKEOUT.bulkMin}食以上。申請して、お店が承認したら確定です</small></span><i class="req-go" aria-hidden="true">›</i></a>
       <button class="link-line" data-act="allergy">アレルギーについて ›</button>
-      ${cats.map(c => `
+      ${cats.map(c => c.id === 'limited' ? limitedSec(c, shown(c)) : `
         <section class="cat-sec" id="cat-${c.id}">
           <h2 class="sec" data-en="${esc(c.en)}">${esc(c.name)}</h2>
           ${c.id === 'hamburg' || c.id === 'teishoku' ? setNote : ''}
@@ -340,7 +341,19 @@ function viewMenu(arg) {
   };
 }
 
-function itemRow(i) {
+/* 期間限定の枠（2026-11-19 ko-dai さんの指示「期間限定枠を目立たせて」）。赤い縁・あたたかい色の地・「期間限定」の札。
+ *  中の商品の受け取りできる日が同じなら、枠の上に1回だけ出す（商品ごとには出さない）。ちがうときは、商品ごとに出す */
+function limitedSec(c, list) {
+  const keys = list.map(i => (i.days || []).join(',')), same = keys.every(k => k && k === keys[0]);
+  return `
+        <section class="cat-sec is-limited" id="cat-${c.id}">
+          <div class="limited-head"><span class="limited-ribbon">${esc(c.name)}</span><span class="limited-en">${esc(c.en)}</span></div>
+          ${same ? `<p class="limited-days">${ICON.cal}<span>受け取りは <b>${esc(daysText(list[0].days))}</b> だけ</span></p>` : ''}
+          <div class="items">${list.map(i => itemRow(i, same)).join('')}</div>
+        </section>`;
+}
+
+function itemRow(i, daysShown = false) {
   const from = i.groups.some(g => g.id === 'size');
   // サイド・ドリンクで写真のないものは、小さい絵にして、名前を1行に入れる
   const small = i.cat === 'side' && !i.img;
@@ -351,6 +364,7 @@ function itemRow(i) {
         <b>${esc(i.name)}</b>
         ${i.sub ? `<small>${esc(i.sub)}</small>` : ''}
         ${i.desc ? `<small class="desc">${esc(i.desc)}</small>` : ''}
+        ${i.days && !daysShown ? `<small class="days-tag">受け取りは ${esc(daysText(i.days))} だけ</small>` : ''}
         <em>${yen(i.price)}${from ? '〜' : ''}${i.soldOut ? '<span class="out-tag">売り切れ</span>' : ''}${i.testOnly ? '<span class="out-tag test-tag">テスト用だけ</span>' : ''}</em>
       </span>
       <span class="plus">＋</span>
@@ -405,6 +419,7 @@ function openItem(id) {
       <h2>${esc(item.full || item.name)}</h2>
       ${item.sub ? `<p class="sub">${esc(item.sub)}</p>` : ''}
       ${item.desc ? `<p class="sub">${esc(item.desc)}</p>` : ''}
+      ${item.days ? `<p class="item-days">${ICON.cal}<span>受け取りは <b>${esc(daysText(item.days))}</b> だけです</span></p>` : ''}
       <p class="price">${yen(item.price)}${item.groups.some(g => g.id === 'size') ? '〜' : ''}</p>
     </div>
     ${item.groups.map(groupHtml).join('')}
@@ -538,7 +553,7 @@ function openAllergyList() {
     <button class="sheet-x" data-s="close" aria-label="閉じる">×</button>
     <h2 class="sheet-title">アレルギーの一覧</h2>
     ${ALLERGY.checked ? `<p class="hint">${ALLERGY_ALL.length}品目のうち、入っているもの（${ALLERGY.checked.replace(/-/g, '/')} 時点）。太字は表示が義務の${ALLERGY.major.length}品目です。${esc(ALLERGY.note)}</p>
-      <ul class="al-table">${ITEMS.filter(i => !i.hidden).map(i => `<li><b>${esc(i.full || i.name)}</b><div class="al-list">${allergyKnown(i) ? allergyTags(allergensOf(i).list) : '<span class="al al-none">お問い合わせください</span>'}</div></li>`).join('')}</ul>
+      <ul class="al-table">${ITEMS.filter(i => !i.hidden && !itemEnded(i)).map(i => `<li><b>${esc(i.full || i.name)}</b><div class="al-list">${allergyKnown(i) ? allergyTags(allergensOf(i).list) : '<span class="al al-none">お問い合わせください</span>'}</div></li>`).join('')}</ul>
       ${choices.length ? `<h3 class="sec">選んだときに足されるもの</h3>
         <ul class="al-table">${choices.map(([n, list]) => `<li><b>${esc(n)}</b><div class="al-list">${allergyTags(ALLERGY_ALL.filter(a => list.includes(a)))}</div></li>`).join('')}</ul>` : ''}`
       : allergyAsk()}`);
@@ -564,11 +579,12 @@ function viewCart() {
   return {
     tab: 'order', title: 'カート', back: '#menu',
     html: `
-      ${out.length ? `<p class="notice warn">売り切れになったものがあります。カートから削除してください。</p>` : ''}
+      ${out.length ? `<p class="notice warn">売り切れ・受付終了になったものがあります。カートから削除してください。</p>` : ''}
+      ${limitNote()}
       <div class="lines">${lines.map((l, k) => `
         <div class="line${lineOut(cart[k]) ? ' is-out' : ''}">
           ${photo(l.item, 'thumb sm')}
-          <div class="line-txt"><b>${esc(l.name)}</b>${l.opts.length ? `<small>${esc(l.opts.join(' / '))}</small>` : ''}<em>${yen(l.unit * l.qty)}${lineOut(cart[k]) ? '<span class="out-tag">売り切れ</span>' : ''}</em></div>
+          <div class="line-txt"><b>${esc(l.name)}</b>${l.opts.length ? `<small>${esc(l.opts.join(' / '))}</small>` : ''}<em>${yen(l.unit * l.qty)}${lineOut(cart[k]) ? `<span class="out-tag">${l.item && itemEnded(l.item) ? '受付終了' : '売り切れ'}</span>` : ''}</em></div>
           <span class="stepper"><button data-act="cq" data-arg="${l.key}:-1" aria-label="減らす">${l.qty === 1 ? '<small>削除</small>' : '−'}</button><b>${l.qty}</b><button data-act="cq" data-arg="${l.key}:1" aria-label="増やす">＋</button></span>
         </div>`).join('')}
       </div>
@@ -589,15 +605,54 @@ function viewCart() {
  *  「今から受け取る」（今日いちばん早く。2026-11-06 ko-dai さんの指示で「できしだい」から名前を替えた。注文の印は asap のまま）か「時間を指定」。いちばん早い時間は食数で変わる（TAKEOUT.leadByMeals）
  * --------------------------------------------------------------------- */
 
+/* ---- 受け取りできる日が決まっている商品（期間限定。data.js の days・マネージの「受け取りできる日」。2026-11-19 ko-dai さんの指示
+ *       「期間限定商品は受取日を限定できるように」「12/24と12/25のみ受け取り可能に」「マネージでも直せるように」） ----
+ *  ・カートにそういう商品があるときは、その日だけ受け取れる。「今から受け取る」は、今日がその日のときだけ。
+ *    何品かあるときは、全部に共通の日だけ。共通の日が無いときは、一緒には注文できない（カートと確認の画面で知らせる）
+ *  ・その日は、「時間を指定」の1か月先まで（TAKEOUT.monthsAhead）より先でも選べる（TAKEOUT.limitedDaysAhead 日先まで。受け口は75日先まで受ける）
+ *  ・配達・大量注文の申請も、同じ日だけ（前の日までの申し込みの決まりは、そのまま）
+ *  ・受け取りできる日が全部過ぎた商品は、メニューに出さない。カートに残っていたら「受付終了」 */
+const keyDate = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
+const daysText = keys => keys.map(k => mdw(keyDate(k))).join('・');
+const itemEnded = i => !!i.days && i.days.every(k => k < dateKey(new Date()));
+/** カートで受け取れる日（全部の商品に共通の日。古い順）。日が決まっている商品が無ければ null、共通の日が無ければ [] */
+function cartDayLimit(list = cart) {
+  let out = null;
+  for (const c of list) {
+    const days = ITEM_BY_ID[c.itemId]?.days;
+    if (days) out = out ? out.filter(k => days.includes(k)) : days.slice();
+  }
+  return out;
+}
+/** 決まった日のうち、受け取れる日と時間（pickupDays と同じ形）。from の日より前・定休日・臨時休業・時間の残っていない日は出さない */
+function limitedDays(keys, now = new Date(), lead = 0, from = now) {
+  const first = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  const last = addDays(new Date(now.getFullYear(), now.getMonth(), now.getDate()), TAKEOUT.limitedDaysAhead);
+  const base = from > now ? from : now;
+  return keys.map(keyDate).filter(d => d >= first && d <= last && !isClosedDay(d))
+    .map(d => ({ date: d, slots: pickupSlots(d, base, lead) })).filter(x => x.slots.length);
+}
+/** カート・確認の画面に出す知らせ（日が決まっている商品があるときだけ） */
+function limitNote() {
+  const lim = cartDayLimit();
+  if (!lim) return '';
+  return lim.length
+    ? `<p class="notice limited-note">${ICON.cal}<span>期間限定の商品があるので、受け取りは <b>${esc(daysText(lim))}</b> だけです。</span></p>`
+    : `<p class="notice warn">${ICON.cal}<span>受け取りできる日がちがう期間限定の商品は、一緒に注文できません。分けて注文してください。</span></p>`;
+}
+
 const checkoutLead = () => leadFor(cartMeals());
-const checkoutDays = () => takeoutDays(new Date(), checkoutLead());
+const checkoutDays = () => { const lim = cartDayLimit(); return lim ? limitedDays(lim, new Date(), checkoutLead()) : takeoutDays(new Date(), checkoutLead()); };
+/** 「今から受け取る」の時刻。今日が受け取れない日（期間限定の日でない）・もう時間が無いときは null */
+const checkoutAsap = () => { const lim = cartDayLimit(); return lim && !lim.includes(dateKey(new Date())) ? null : asapTime(new Date(), checkoutLead()); };
+const notTodayMsg = () => { const lim = cartDayLimit(); return lim && !lim.includes(dateKey(new Date())) ? '期間限定の商品があるため、今日は受け取れません' : '今日はもう受け取れません'; };
 
 function viewCheckout() {
   if (!cart.length) { location.replace('#cart'); return null; }
   const meals = cartMeals();
   if (meals >= TAKEOUT.bulkMin) { location.replace('#request'); return null; }
   const lead = checkoutLead();
-  const asap = asapTime(new Date(), lead);
+  const asap = checkoutAsap(), lim = cartDayLimit();
   const days = checkoutDays();
   if (!asap) pick.mode = 'time';
   if (pick.day >= days.length) pick = { ...pick, day: 0, slot: null };
@@ -608,18 +663,19 @@ function viewCheckout() {
     html: `
       ${jstOk() ? '' : `<p class="notice warn">${JST_WARN}</p>`}
       <h2 class="sec">受け取りの時間</h2>
+      ${limitNote()}
       <div class="modes">
         <button class="mode ${pick.mode === 'asap' ? 'on' : ''}" data-act="mode" data-arg="asap" ${asap ? '' : 'disabled'}>
-          <b>今から受け取る</b><small>${asap ? `今日 ${hhmm(asap)}頃（約${lead}分後）` : '今日はもう受け取れません'}</small></button>
+          <b>今から受け取る</b><small>${asap ? `今日 ${hhmm(asap)}頃（約${lead}分後）` : notTodayMsg()}</small></button>
         <button class="mode ${pick.mode === 'time' ? 'on' : ''}" data-act="mode" data-arg="time">
-          <b>時間を指定</b><small>${TAKEOUT.monthsAhead}か月先まで・${TAKEOUT.stepMinutes}分ごと</small></button>
+          <b>時間を指定</b><small>${lim ? '受け取りできる日だけ' : `${TAKEOUT.monthsAhead}か月先まで`}・${TAKEOUT.stepMinutes}分ごと</small></button>
       </div>
       <p class="hint">${meals ? `${meals}食の` : ''}ご注文は、一番早くて${lead}分後に受け取れます（${leadRuleText()}）。</p>
       <div id="timePick" ${pick.mode === 'time' ? '' : 'hidden'}>
         <div class="days">${days.map((d, i) => `
           <button class="chip ${i === pick.day ? 'on' : ''}" data-act="day" data-arg="${i}">${['今日', '明日'].includes(dayLabel(d.date)) ? dayLabel(d.date) : WEEK[d.date.getDay()] + '曜'}<small>${d.date.getMonth() + 1}/${d.date.getDate()}</small></button>`).join('')}
         </div>
-        ${days.length > 4 ? `<p class="hint">日にちは、横に動かすと${TAKEOUT.monthsAhead}か月先（${mdw(days[days.length - 1].date)}）まで選べます。定休日は出ません。</p>` : ''}
+        ${days.length > 4 && !lim ? `<p class="hint">日にちは、横に動かすと${TAKEOUT.monthsAhead}か月先（${mdw(days[days.length - 1].date)}）まで選べます。定休日は出ません。</p>` : ''}
         <div class="slots" id="slots">${slotsHtml(days)}</div>
       </div>
       ${cutleryHtml()}
@@ -821,11 +877,12 @@ function submitOrder(btn) {
   if (!jstOk()) return toast(JST_WARN, 'warn');
   if (cartOut().length) { location.hash = '#cart'; return toast('売り切れになったものがあります。カートから削除してください', 'warn'); }
   if (cartMeals() >= TAKEOUT.bulkMin) { location.hash = '#request'; return; }
-  const lead = checkoutLead();
+  const lim = cartDayLimit();
+  if (lim && !lim.length) { location.hash = '#cart'; return toast('受け取りできる日がちがう期間限定の商品は、一緒に注文できません', 'warn'); }
   let pickupAt;
   if (pick.mode === 'asap') {
-    const t = asapTime(new Date(), lead);
-    if (!t) return toast('今日はもう「今から受け取る」はできません。時間を指定してください', 'warn');
+    const t = checkoutAsap();
+    if (!t) return toast(`${notTodayMsg()}。受け取りの日と時間を指定してください`, 'warn');
     pickupAt = t.toISOString();
   } else {
     if (!pick.slot) {
@@ -856,6 +913,8 @@ function submitOrder(btn) {
  * --------------------------------------------------------------------- */
 
 let req = { kind: '', day: 0, slot: '' };   // 申請の受け取り方・希望の日時（選んでいる途中）
+/** 申請で選べる日。期間限定の商品があれば、その日だけ（前の日までの申し込みの決まりは同じ。上の cartDayLimit） */
+const requestDaysNow = () => { const lim = cartDayLimit(); return lim ? limitedDays(lim, new Date(), 0, addDays(new Date(), TAKEOUT.requestDaysBefore)) : requestDays(); };
 
 function viewRequest() {
   const meals = cartMeals();
@@ -863,7 +922,7 @@ function viewRequest() {
   const free = meals >= TAKEOUT.deliveryFreeMin;   // 無料で配達できる食数か
   if (req.kind && !can[req.kind]) req.kind = '';
   if (!req.kind) req.kind = can.delivery ? 'delivery' : '';
-  const days = requestDays();
+  const days = requestDaysNow(), lim = cartDayLimit();
   if (req.day >= days.length) req = { ...req, day: 0, slot: '' };
   const rules = `
       <ul class="req-rules">
@@ -900,11 +959,12 @@ function viewRequest() {
         ${choice('bulk', 'お店で受け取る（大量注文）', can.bulk ? `${TAKEOUT.bulkMin}食以上` : `${TAKEOUT.bulkMin}食からです。今は${meals}食`)}
       </div>
       <h2 class="sec">ご希望の日時</h2>
+      ${limitNote()}
       ${d ? `<div class="field-row">
         <label class="field"><span>日にち</span><select id="r-day">${days.map((x, i) => `<option value="${i}" ${i === req.day ? 'selected' : ''}>${mdw(x.date)}</option>`).join('')}</select></label>
         <label class="field"><span>時間</span><select id="r-time"><option value="">選ぶ</option>${timeOpts}</select></label>
       </div>
-      <p class="hint">${TAKEOUT.requestDaysBefore === 1 ? '前の日' : `${TAKEOUT.requestDaysBefore}日前`}までにお申し込みください（当日の分は選べません）。${TAKEOUT.requestDaysAhead}日先（定休日を除く）まで選べます。お店の都合で、ご相談のお電話をすることがあります。</p>` : '<p class="hint">選べる日がありません。お電話でご相談ください。</p>'}
+      <p class="hint">${TAKEOUT.requestDaysBefore === 1 ? '前の日' : `${TAKEOUT.requestDaysBefore}日前`}までにお申し込みください（当日の分は選べません）。${lim ? '' : `${TAKEOUT.requestDaysAhead}日先（定休日を除く）まで選べます。`}お店の都合で、ご相談のお電話をすることがあります。</p>` : '<p class="hint">選べる日がありません。お電話でご相談ください。</p>'}
       <div id="r-addrBox" ${req.kind === 'delivery' ? '' : 'hidden'}>
         <h2 class="sec">お届け先</h2>
         <label class="field"><span>ご住所</span><input id="r-addr" autocomplete="street-address" placeholder="例：豊田市若林西町◯◯ 1-2-3"></label>
@@ -934,7 +994,7 @@ function submitRequest(btn) {
   if (kind === 'bulk' && meals < TAKEOUT.bulkMin) return toast(`大量注文は${TAKEOUT.bulkMin}食からです`, 'warn');
   const slot = $('#r-time')?.value;
   if (!slot) { $('#r-time')?.focus(); return toast('ご希望の時間を選んでください', 'warn'); }
-  if (!requestDays().some(d => d.slots.some(t => t.toISOString() === slot))) return toast('その時間はもう選べません。もう一度選んでください', 'warn');
+  if (!requestDaysNow().some(d => d.slots.some(t => t.toISOString() === slot))) return toast('その時間はもう選べません。もう一度選んでください', 'warn');
   const address = kind === 'delivery' ? $('#r-addr').value.trim() : '';
   const address2 = kind === 'delivery' ? $('#r-addr2').value.trim() : '';
   if (kind === 'delivery' && !address) { $('#r-addr').focus(); return toast('お届け先のご住所を入れてください', 'warn'); }
@@ -954,7 +1014,7 @@ document.addEventListener('change', e => {
   }
   if (e.target.id === 'r-day') {
     req = { ...req, day: Number(e.target.value), slot: '' };
-    const d = requestDays()[req.day];
+    const d = requestDaysNow()[req.day];
     $('#r-time').innerHTML = '<option value="">選ぶ</option>' + (d ? d.slots.map(t => `<option value="${t.toISOString()}">${hhmm(t)}</option>`).join('') : '');
   }
   if (e.target.id === 'r-time') req.slot = e.target.value;

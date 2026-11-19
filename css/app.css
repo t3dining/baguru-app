@@ -312,6 +312,29 @@ html.t-editing .t-ed:hover { background-color: rgba(199, 54, 29, .08); }
 .cats button { flex: none; height: 34px; padding: 0 14px; border-radius: 999px; background: var(--paper); border: 1px solid var(--line); font-size: 13px; font-weight: 700; color: var(--coal); }
 .cats button:active { background: var(--brass-soft); }
 .cat-sec { scroll-margin-top: calc(112px + var(--safe-t) + var(--niku-h, 0px)); }
+/* 期間限定の枠（app.js の limitedSec。2026-11-19 ko-dai さんの指示「期間限定枠を目立たせて」）。
+   赤い縁・あたたかい色の地・左上に赤い札。上の分類のボタンも赤。中の受け取りできる日は、白い帯で出す */
+.cats button.is-limited { background: var(--ember); border-color: var(--ember); color: #fff; }
+.cats button.is-limited::before { content: "★"; margin-right: 4px; font-size: 11px; }
+.cat-sec.is-limited { position: relative; margin: 22px -6px 6px; padding: 14px 10px 12px; border: 2px solid var(--ember); border-radius: calc(var(--r) + 4px);
+  background: repeating-linear-gradient(-45deg, rgba(199, 54, 29, .05) 0 12px, transparent 12px 24px), linear-gradient(160deg, #fff3e6, var(--ember-soft));
+  box-shadow: 0 6px 18px rgba(199, 54, 29, .16); scroll-margin-top: calc(100px + var(--safe-t) + var(--niku-h, 0px)); }
+.limited-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 10px; }
+.limited-ribbon { display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px 6px 12px; border-radius: 999px;
+  background: linear-gradient(90deg, #8f220f, var(--ember) 45%, var(--flame)); color: #fff; font-size: 17px; font-weight: 900; letter-spacing: .14em;
+  box-shadow: 0 3px 0 rgba(143, 34, 15, .35); }
+.limited-ribbon::before { content: "★"; font-size: 13px; letter-spacing: 0; }
+.limited-en { font: 600 11px/1 var(--en); letter-spacing: .16em; color: var(--ember); }
+.limited-days { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; padding: 9px 12px; border-radius: 12px; background: #fff; border: 1.5px dashed rgba(199, 54, 29, .45);
+  font-size: 14px; font-weight: 700; color: var(--ink); }
+.limited-days svg { color: var(--ember); flex: none; }
+.limited-days b, .item-days b, .limited-note b { color: var(--ember); }
+.cat-sec.is-limited .item { border-color: rgba(199, 54, 29, .28); }
+.item-txt .days-tag { margin-top: 3px; color: var(--ember); font-size: 11.5px; font-weight: 700; }
+.item-days { display: flex; align-items: center; gap: 6px; margin: 8px 0 0; padding: 7px 10px; border-radius: 10px; background: var(--ember-soft); font-size: 13.5px; font-weight: 700; }
+.item-days svg { width: 18px; height: 18px; color: var(--ember); flex: none; }
+.notice.limited-note { background: var(--ember-soft); border-color: rgba(199, 54, 29, .3); font-weight: 600; }
+.notice.limited-note svg { color: var(--ember); }
 .cat-note { margin: -4px 0 10px; padding: 8px 12px; border-radius: 10px; background: var(--brass-soft); color: var(--brass-dark); font-size: 12.5px; font-weight: 600; }
 
 .items { display: flex; flex-direction: column; gap: 8px; }

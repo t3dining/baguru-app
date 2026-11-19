@@ -96,6 +96,7 @@ const TAKEOUT = {
   deliveryKm: 7,
   requestDaysBefore: 1,         // 申請は、希望の日の何日前までか（1 ＝ 前の日まで。当日の分は受けない）
   requestDaysAhead: 30,         // 申請は何日先まで選べるか（定休日は数えない）
+  limitedDaysAhead: 70,         // 受け取りの日が決まっている商品（期間限定の days）は、この日数先まで選べる（monthsAhead の1か月は使わない。受け口は75日先まで受ける。2026-11-19）
   // キャンセル規定（2026-11-01 ko-dai さんの指示）。お店が受け付けるまではお客さまが画面からキャンセルできる。調理を始めた後はできない。
   // 受け付けた後で調理の前は、画面からはできないのでお電話で（受け口の orderCancel も、受付待ち・申請中だけ通す）
   cancelRules: [
@@ -287,14 +288,18 @@ const drink = (id, name, price, img) => ({ ...side(id, name, price, img, ''), cu
  *    ★サイズの選ぶもの（id 'size'）はアサイーのミニ・レギュラーの2つ専用なので使わない（content.js がレギュラーの値段として読む）
  *  ・1食には数えない（カテゴリーに meal を付けない。受け取りの最短時間・大量注文の食数に入らない）
  *  ・★testOnly：まだお客さまには出さない。テスト用アカウント（バグる Owner・Staff から開いた公式アプリ）にだけ出す（content.js の applyContent）。
- *    Order受付の電話の注文・マネージの「アプリで見る」でも出ない。お客さまに出すときは、この testOnly を消す */
-const limited = (id, name, price) => ({ id, cat: 'limited', name, price, groups: [], testOnly: true });
+ *    Order受付の電話の注文・マネージの「アプリで見る」でも出ない。お客さまに出すときは、この testOnly を消す
+ *  ・days：受け取りできる日（'YYYY-MM-DD'。2026-11-19 ko-dai さんの指示「期間限定商品は受取日を限定できるように」「12/24と12/25のみ」「マネージでも直せるように」）。
+ *    マネージの「テイクアウト」の、商品ごとの「受け取りできる日」で直せる（content の items[id].days。空の並びは「いつでも」）。
+ *    カートにあると、その日だけ受け取れる（app.js の cartDayLimit）。全部の日が過ぎると、メニューに出なくなる（app.js の itemEnded） */
+const CHICKEN_DAYS = ['2026-12-24', '2026-12-25'];
+const limited = (id, name, price, days) => ({ id, cat: 'limited', name, price, groups: [], testOnly: true, days: days.slice() });
 
 const ITEMS = [
   // ★カテゴリーの順（CATEGORIES）と同じ順に並べる（期間限定がいちばん上）。マネージが ITEMS の番号で data.js の値段を引くため
-  limited('l_chicken1', '炭焼ローストチキン（1本）', 880),
-  limited('l_chicken2', '炭焼ローストチキン（2本セット）', 1600),
-  limited('l_chicken5', '炭焼ローストチキン（5本セット）', 3800),
+  limited('l_chicken1', '炭焼ローストチキン（1本）', 880, CHICKEN_DAYS),
+  limited('l_chicken2', '炭焼ローストチキン（2本セット）', 1600, CHICKEN_DAYS),
+  limited('l_chicken5', '炭焼ローストチキン（5本セット）', 3800, CHICKEN_DAYS),
   {
     id: 'hbox', cat: 'hamburg', name: 'ハンバーグBOX', sub: 'ごはん付き', desc: 'ソースは4種類から選べます', price: 1170, img: 'tk_box.jpg',
     groups: [
