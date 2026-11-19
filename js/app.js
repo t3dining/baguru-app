@@ -291,16 +291,33 @@ const menuSwitch = on => (ORDER_ONLY ? '' : `<nav class="menu-switch" aria-label
     <a href="#menu/dine" class="${on === 'dine' ? 'on' : ''}">${ICON.menu}<span><b>店内のメニュー</b><small>お店でお召し上がり</small></span></a>
     <a href="#menu" class="${on === 'takeout' ? 'on' : ''}">${ICON.bag}<span><b>テイクアウト</b><small>「注文」で注文できます</small></span></a>
   </nav>`);
+/** 店内の期間限定の品の日（data.js の DINE_IN の daysOf。テイクアウトの同じ商品の「受け取りできる日」を合わせたもの）。
+ *  テイクアウトの商品が無ければ data.js の days。どれかがいつでも受け取れる（日が無い）ときは null（日を出さない） */
+function dineDays(it) {
+  const tk = (it.daysOf || []).map(id => ITEM_BY_ID[id]).filter(Boolean);
+  if (!tk.length) return it.days || null;
+  return tk.some(i => !i.days) ? null : [...new Set(tk.flatMap(i => i.days))].sort();
+}
+const dineEnded = it => { const d = dineDays(it); return !!d && d.every(k => k < dateKey(new Date())); };
 function viewDine() {
+  // 出さない品（マネージ・testOnly）と、日が全部過ぎた品は並べない。中身の無い見出しも出さない
+  const vis = c => c.items.filter(x => !x.hidden && !dineEnded(x));
+  const lim = DINE_IN.filter(c => c.limited && vis(c).length), rest = DINE_IN.filter(c => !c.limited && vis(c).length);
   return {
     tab: 'menu', title: 'メニュー',
     html: `${menuSwitch('dine')}
       <p class="hint">お店でお召し上がりのメニューです（アプリからは注文できません）。価格は税込です。</p>
-      <div class="dine">${DINE_IN.map((c, i) => `
-        <details ${i === 0 ? 'open' : ''}>
-          <summary>${esc(c.name)}<small>${c.items.filter(x => !x.hidden).length}品</small></summary>
+      ${lim.map(c => `
+        <section class="cat-sec is-limited dine-limited">
+          <div class="limited-head"><span class="limited-ribbon">${esc(c.name)}</span><span class="limited-en">LIMITED</span></div>
           ${c.note ? `<p class="dine-note">${esc(c.note)}</p>` : ''}
-          <ul>${c.items.filter(x => !x.hidden).map(dineItem).join('')}</ul>
+          <ul class="dine-lim">${vis(c).map(dineItem).join('')}</ul>
+        </section>`).join('')}
+      <div class="dine">${rest.map((c, i) => `
+        <details ${i === 0 ? 'open' : ''}>
+          <summary>${esc(c.name)}<small>${vis(c).length}品</small></summary>
+          ${c.note ? `<p class="dine-note">${esc(c.note)}</p>` : ''}
+          <ul>${vis(c).map(dineItem).join('')}</ul>
         </details>`).join('')}
       </div>
       <a class="link-card" href="#reserve">${ICON.cal}<span><b>席のご予約</b><small>ネット予約か、お電話でどうぞ</small></span></a>`,
@@ -1498,7 +1515,11 @@ function dineItem(i) {
     : `<b class="dine-p">${yen(i.p)}</b>`;
   // 写真があるものは、左に小さく（2026-10-30 ホームページと同じ写真）
   const pic = i.img ? `<img class="dine-pic" src="${esc(photoSrc(i.img))}" alt="" loading="lazy">` : '';
-  return `<li class="${pic ? 'has-pic' : ''}">${pic}<div><b>${esc(i.n)}</b>${i.d ? `<small>${esc(i.d)}</small>` : ''}${i.sizes ? price : ''}</div>${i.sizes ? '' : price}</li>`;
+  // 期間限定の品は、売る日を出す（dineDays）。まだお客さまに出していない品（testOnly）には「テスト用だけ」
+  const dd = dineDays(i);
+  const days = dd ? `<span class="dine-days">${ICON.cal}<span><b>${esc(daysText(dd))}</b> だけの販売です</span></span>` : '';
+  const test = i.testOnly ? '<span class="out-tag test-tag">テスト用だけ</span>' : '';
+  return `<li class="${pic ? 'has-pic' : ''}">${pic}<div><b>${esc(i.n)}${test}</b>${days}${i.d ? `<small>${esc(i.d)}</small>` : ''}${i.sizes ? price : ''}</div>${i.sizes ? '' : price}</li>`;
 }
 
 /* ---------------------------------------------------------------------

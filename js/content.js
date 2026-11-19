@@ -163,7 +163,7 @@ function applyContent(c) {
     const di = DINE_BASE.get(it), base = di ? CONTENT_BASE.dine[di[0]][di[1]] : { p: it.p0, sizes: null }, o = obj(dine[contentKey.dine(cat, it)]);
     if (base.p != null) it.p = num(o.p) ?? base.p;
     if (base.sizes) it.sizes.forEach((s, k) => { s[1] = num(Array.isArray(o.sizes) ? o.sizes[k] : null) ?? base.sizes[k]; });
-    it.hidden = o.hidden === true;
+    it.hidden = o.hidden === true || (it.testOnly === true && !CONTENT_TEST);   // testOnly はテスト用アカウントにだけ出す（テイクアウトと同じ）
   }));
   // お知らせ
   const news = Array.isArray(c.news)

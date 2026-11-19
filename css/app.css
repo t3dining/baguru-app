@@ -335,6 +335,17 @@ html.t-editing .t-ed:hover { background-color: rgba(199, 54, 29, .08); }
 .item-days svg { width: 18px; height: 18px; color: var(--ember); flex: none; }
 .notice.limited-note { background: var(--ember-soft); border-color: rgba(199, 54, 29, .3); font-weight: 600; }
 .notice.limited-note svg { color: var(--ember); }
+/* 店内のメニューの期間限定（app.js の viewDine。2026-11-19）。テイクアウトの期間限定の枠と同じ見た目で、いちばん上に、たたまずに出す */
+.cat-sec.is-limited.dine-limited { margin: 12px -6px 16px; }
+.dine-lim { list-style: none; margin: 0; padding: 4px 12px; background: var(--paper); border: 1px solid rgba(199, 54, 29, .28); border-radius: var(--r); }
+.dine-lim li { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px dashed var(--line); font-size: 14px; }
+.dine-lim li:first-child { border-top: 0; }
+.dine-lim li > div { display: flex; flex-direction: column; min-width: 0; }
+.dine-lim li > div > b { font-size: 16px; }
+.dine-lim li small { color: var(--sub); line-height: 1.5; }
+.dine-days { display: flex; align-items: center; gap: 6px; margin: 6px 0 2px; font-size: 13.5px; font-weight: 700; }
+.dine-days svg { width: 18px; height: 18px; color: var(--ember); flex: none; }
+.dine-days b { color: var(--ember); }
 .cat-note { margin: -4px 0 10px; padding: 8px 12px; border-radius: 10px; background: var(--brass-soft); color: var(--brass-dark); font-size: 12.5px; font-weight: 600; }
 
 .items { display: flex; flex-direction: column; gap: 8px; }
