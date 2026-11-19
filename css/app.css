@@ -205,6 +205,10 @@ main { padding: 0 16px; }
 /* 文節で改行（js/content.js の phrased。まとまりのあいだに見えない区切りを入れた字の親）。1つのまとまりが1行に入らないときだけ、途中で折る。
    入力欄は、お客様が打つ字なので、ふつうの改行のまま（word-break は子に引きつがれるため） */
 .t-ph { word-break: keep-all; overflow-wrap: anywhere; }
+/* 商品の名前（app.js の nameHtml）：かっこの前で2つの箱に分け、入らないときは「（2本セット）」ごと次の行に送る。どの端末でも同じ（2026-11-19 ko-dai さんの指示「カッコが変な位置で改行されている」） */
+.nm { display: inline-flex; flex-wrap: wrap; max-width: 100%; }
+.nm > span { min-width: 0; }
+.nw { white-space: nowrap; }   /* 1つの日（12/25（金））の途中で改行しない（app.js の daysHtml） */
 .t-ph :is(textarea, input) { word-break: normal; overflow-wrap: break-word; }
 html.t-editing .t-ed { outline: 1.5px dashed rgba(199, 54, 29, .7); outline-offset: 2px; border-radius: 3px; cursor: pointer; }
 html.t-editing .t-ed:hover { background-color: rgba(199, 54, 29, .08); }
@@ -448,6 +452,7 @@ html.t-editing .t-ed:hover { background-color: rgba(199, 54, 29, .08); }
 .line-txt { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .line-txt small { color: var(--sub); line-height: 1.45; }
 .line-txt em { font-style: normal; font-weight: 800; color: var(--coal); }
+@media (max-width: 359px) { .line { flex-wrap: wrap; } .line .stepper { margin-left: auto; } }   /* 幅320の小さいスマホでは、数のボタンを名前の下に（名前が細かく折れないように。2026-11-19） */
 .add-more { display: block; text-align: center; padding: 12px; margin-top: 8px; color: var(--ember); font-weight: 700; }
 
 .summary { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); padding: 4px 14px; margin-top: 8px; }

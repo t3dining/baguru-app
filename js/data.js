@@ -287,8 +287,9 @@ const drink = (id, name, price, img) => ({ ...side(id, name, price, img, ''), cu
  *  ・1本・2本セット・5本セットは、別々の商品にした（メニューにそれぞれの値段が出る。マネージで値段・売り切れを別々に直せる）。
  *    ★サイズの選ぶもの（id 'size'）はアサイーのミニ・レギュラーの2つ専用なので使わない（content.js がレギュラーの値段として読む）
  *  ・1食には数えない（カテゴリーに meal を付けない。受け取りの最短時間・大量注文の食数に入らない）
- *  ・★testOnly：まだお客さまには出さない。テスト用アカウント（バグる Owner・Staff から開いた公式アプリ）にだけ出す（content.js の applyContent）。
- *    Order受付の電話の注文・マネージの「アプリで見る」でも出ない。お客さまに出すときは、この testOnly を消す
+ *  ・はじめは testOnly（テスト用アカウントにだけ出す。content.js の applyContent）にしていた。
+ *    2026-11-19 ko-dai さんの指示「出して」で、お客さまにも出した（ホームページの期間限定の公開に合わせて。テイクアウトと店内のメニューを一緒に）。
+ *    次にまだ出さない商品を足すときは、商品に testOnly: true を付ける（Order受付の電話の注文・マネージの「アプリで見る」でも出なくなる）
  *  ・days：受け取りできる日（'YYYY-MM-DD'。2026-11-19 ko-dai さんの指示「期間限定商品は受取日を限定できるように」「12/24と12/25のみ」「マネージでも直せるように」）。
  *    マネージの「テイクアウト」の、商品ごとの「受け取りできる日」で直せる（content の items[id].days。空の並びは「いつでも」）。
  *    カートにあると、その日だけ受け取れる（app.js の cartDayLimit）。全部の日が過ぎると、メニューに出なくなる（app.js の itemEnded） */
@@ -296,7 +297,7 @@ const CHICKEN_DAYS = ['2026-12-24', '2026-12-25'];
 // 説明（2026-11-19 ko-dai さんの指示「ローストチキンの全ての箇所に以下説明文を加えて」）。改行のとおりに出す（app.css の white-space: pre-line）。
 // テイクアウトの3つと店内のメニューで同じ文。期間限定の枠では、3つが同じ文なら枠の上に1回だけ出す（app.js の limitedSec）
 const CHICKEN_DESC = '自家製のタレに48時間しっかりつけ込み\n中まで味が染み渡った至高のチキン\n炭火でじっくり焼き上げ、旨みを閉じ込めました\nふっくらジューシーなチキンを\nクリスマスの食卓にお届けいたします';
-const limited = (id, name, price, days, desc) => ({ id, cat: 'limited', name, price, groups: [], testOnly: true, days: days.slice(), ...(desc ? { desc } : {}) });
+const limited = (id, name, price, days, desc) => ({ id, cat: 'limited', name, price, groups: [], days: days.slice(), ...(desc ? { desc } : {}) });
 
 const ITEMS = [
   // ★カテゴリーの順（CATEGORIES）と同じ順に並べる（期間限定がいちばん上）。マネージが ITEMS の番号で data.js の値段を引くため
@@ -390,9 +391,9 @@ const DINE_IN = [
    *  ・日は、テイクアウトの炭焼ローストチキン（daysOf の商品）の「受け取りできる日」を合わせたもの。マネージでテイクアウトの日を直すと、ここも変わる
    *    （テイクアウトの商品が無いときは days）。全部の日が過ぎると出なくなる
    *  ・値段は、テイクアウトと同じにした（マネージの「店内」で直せる）
-   *  ・★testOnly：テイクアウトと同じく、まだテスト用アカウントにだけ出す（content.js の applyContent。お客さまに出すときは消す） */
+   *  ・テイクアウトと一緒に、2026-11-19 にお客さまに出した（ko-dai さんの指示「出して」。前は testOnly） */
   { name: '期間限定', limited: true, items: [
-    { n: '炭焼ローストチキン', d: CHICKEN_DESC, sizes: [['1本', 880], ['2本セット', 1600], ['5本セット', 3800]], testOnly: true, days: CHICKEN_DAYS.slice(), daysOf: ['l_chicken1', 'l_chicken2', 'l_chicken5'] },
+    { n: '炭焼ローストチキン', d: CHICKEN_DESC, sizes: [['1本', 880], ['2本セット', 1600], ['5本セット', 3800]], days: CHICKEN_DAYS.slice(), daysOf: ['l_chicken1', 'l_chicken2', 'l_chicken5'] },
   ] },
   { name: 'ハンバーグ', note: 'ソースは4種類から：自家製肉ダレ／オニオンソース／ガーリック醤油ソース／大人の刻みワサビと醤油（デミソースハンバーグを除く）', items: [
     { n: '超粗挽き系ハンバーグ', img: 'hb_arabiki.jpg', d: '1個80g。国産牛とオーストラリア産の牛モモ肉で、肉の旨味をしっかり味わえる名物', sizes: [['2個', 1150], ['3個', 1550], ['4個', 1880], ['5個', 2150]] },

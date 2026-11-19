@@ -192,7 +192,7 @@ const photo = (i, cls = 'thumb') => i.img
 
 function linesHtml(lines, total) {
   return `<div class="summary">${lines.map(l => `
-      <div><span>${esc(l.name)} <i>×${l.qty}</i>${l.opts.length ? `<small>${esc(l.opts.join(' / '))}</small>` : ''}</span><b>${yen(l.unit * l.qty)}</b></div>`).join('')}
+      <div><span>${nameHtml(l.name)} <i>×${l.qty}</i>${l.opts.length ? `<small>${esc(l.opts.join(' / '))}</small>` : ''}</span><b>${yen(l.unit * l.qty)}</b></div>`).join('')}
       <div class="sum"><span>合計（税込）</span><b>${yen(total)}</b></div>
     </div>`;
 }
@@ -367,9 +367,16 @@ function limitedSec(c, list) {
         <section class="cat-sec is-limited" id="cat-${c.id}">
           <div class="limited-head"><span class="limited-ribbon">${esc(c.name)}</span><span class="limited-en">${esc(c.en)}</span></div>
           ${desc ? `<p class="limited-desc">${esc(list[0].desc)}</p>` : ''}
-          ${days ? `<p class="limited-days">${ICON.cal}<span>受け取りは <b>${esc(daysText(list[0].days))}</b> だけ</span></p>` : ''}
+          ${days ? `<p class="limited-days">${ICON.cal}<span>受け取りは <b>${daysHtml(list[0].days)}</b> だけ</span></p>` : ''}
           <div class="items">${list.map(i => itemRow(i, { days, desc })).join('')}</div>
         </section>`;
+}
+
+/** 商品の名前。終わりのかっこ（「（2本セット）」など）を別の箱にして、行に入らないときは、かっこごと次の行に送る（app.css の .nm）。
+ *  どの端末でも「炭焼ローストチキン（｜2本セット）」のように、かっこの途中で折れない（2026-11-19 ko-dai さんの指示） */
+function nameHtml(name) {
+  const m = String(name ?? '').match(/^(.+?)(（[^（）]+）)$/);
+  return m ? `<span class="nm"><span>${esc(m[1])}</span><span>${esc(m[2])}</span></span>` : esc(name);
 }
 
 /** 商品の行。shown … 枠の上に出したもの（期間限定の枠の、受け取りできる日 days・説明 desc）は、行には出さない */
@@ -381,10 +388,10 @@ function itemRow(i, shown = {}) {
   return `<button class="item${small ? ' item-sm' : ''}${i.soldOut ? ' is-out' : ''}" data-act="item" data-arg="${i.id}" ${i.soldOut ? 'disabled' : ''}>
       ${photo(i, small ? 'thumb sm' : 'thumb')}
       <span class="item-txt">
-        <b>${esc(i.name)}</b>
+        <b>${nameHtml(i.name)}</b>
         ${i.sub ? `<small>${esc(i.sub)}</small>` : ''}
         ${i.desc && !shown.desc ? `<small class="desc">${esc(i.desc)}</small>` : ''}
-        ${i.days && !shown.days ? `<small class="days-tag">受け取りは ${esc(daysText(i.days))} だけ</small>` : ''}
+        ${i.days && !shown.days ? `<small class="days-tag">受け取りは ${daysHtml(i.days)} だけ</small>` : ''}
         <em>${yen(i.price)}${from ? '〜' : ''}${i.soldOut ? '<span class="out-tag">売り切れ</span>' : ''}${i.testOnly ? '<span class="out-tag test-tag">テスト用だけ</span>' : ''}</em>
       </span>
       <span class="plus">＋</span>
@@ -436,10 +443,10 @@ function openItem(id) {
     ${item.photoNote ? `<p class="photo-note">${esc(item.photoNote)}</p>` : ''}
     <button class="sheet-x" data-s="close" aria-label="閉じる">×</button>
     <div class="item-head">
-      <h2>${esc(item.full || item.name)}</h2>
+      <h2>${nameHtml(item.full || item.name)}</h2>
       ${item.sub ? `<p class="sub">${esc(item.sub)}</p>` : ''}
       ${item.desc ? `<p class="sub item-desc">${esc(item.desc)}</p>` : ''}
-      ${item.days ? `<p class="item-days">${ICON.cal}<span>受け取りは <b>${esc(daysText(item.days))}</b> だけです</span></p>` : ''}
+      ${item.days ? `<p class="item-days">${ICON.cal}<span>受け取りは <b>${daysHtml(item.days)}</b> だけです</span></p>` : ''}
       <p class="price">${yen(item.price)}${item.groups.some(g => g.id === 'size') ? '〜' : ''}</p>
     </div>
     ${item.groups.map(groupHtml).join('')}
@@ -604,7 +611,7 @@ function viewCart() {
       <div class="lines">${lines.map((l, k) => `
         <div class="line${lineOut(cart[k]) ? ' is-out' : ''}">
           ${photo(l.item, 'thumb sm')}
-          <div class="line-txt"><b>${esc(l.name)}</b>${l.opts.length ? `<small>${esc(l.opts.join(' / '))}</small>` : ''}<em>${yen(l.unit * l.qty)}${lineOut(cart[k]) ? `<span class="out-tag">${l.item && itemEnded(l.item) ? '受付終了' : '売り切れ'}</span>` : ''}</em></div>
+          <div class="line-txt"><b>${nameHtml(l.name)}</b>${l.opts.length ? `<small>${esc(l.opts.join(' / '))}</small>` : ''}<em>${yen(l.unit * l.qty)}${lineOut(cart[k]) ? `<span class="out-tag">${l.item && itemEnded(l.item) ? '受付終了' : '売り切れ'}</span>` : ''}</em></div>
           <span class="stepper"><button data-act="cq" data-arg="${l.key}:-1" aria-label="減らす">${l.qty === 1 ? '<small>削除</small>' : '−'}</button><b>${l.qty}</b><button data-act="cq" data-arg="${l.key}:1" aria-label="増やす">＋</button></span>
         </div>`).join('')}
       </div>
@@ -634,6 +641,8 @@ function viewCart() {
  *  ・受け取りできる日が全部過ぎた商品は、メニューに出さない。カートに残っていたら「受付終了」 */
 const keyDate = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
 const daysText = keys => keys.map(k => mdw(keyDate(k))).join('・');
+/** 画面に出す日の並び。1つの日（「12/25（金）」）の途中では改行しない（app.css の .nw。2026-11-19 ko-dai さんの指示「どの端末でも綺麗に」） */
+const daysHtml = keys => keys.map(k => `<span class="nw">${esc(mdw(keyDate(k)))}</span>`).join('・');
 const itemEnded = i => !!i.days && i.days.every(k => k < dateKey(new Date()));
 /** カートで受け取れる日（全部の商品に共通の日。古い順）。日が決まっている商品が無ければ null、共通の日が無ければ [] */
 function cartDayLimit(list = cart) {
@@ -657,7 +666,7 @@ function limitNote() {
   const lim = cartDayLimit();
   if (!lim) return '';
   return lim.length
-    ? `<p class="notice limited-note">${ICON.cal}<span>期間限定の商品があるので、受け取りは <b>${esc(daysText(lim))}</b> だけです。</span></p>`
+    ? `<p class="notice limited-note">${ICON.cal}<span>期間限定の商品があるので、受け取りは <b>${daysHtml(lim)}</b> だけです。</span></p>`
     : `<p class="notice warn">${ICON.cal}<span>受け取りできる日がちがう期間限定の商品は、一緒に注文できません。分けて注文してください。</span></p>`;
 }
 
@@ -1520,9 +1529,9 @@ function dineItem(i) {
   const pic = i.img ? `<img class="dine-pic" src="${esc(photoSrc(i.img))}" alt="" loading="lazy">` : '';
   // 期間限定の品は、売る日を出す（dineDays）。まだお客さまに出していない品（testOnly）には「テスト用だけ」
   const dd = dineDays(i);
-  const days = dd ? `<span class="dine-days">${ICON.cal}<span><b>${esc(daysText(dd))}</b> だけの販売です</span></span>` : '';
+  const days = dd ? `<span class="dine-days">${ICON.cal}<span><b>${daysHtml(dd)}</b> だけの販売です</span></span>` : '';
   const test = i.testOnly ? '<span class="out-tag test-tag">テスト用だけ</span>' : '';
-  return `<li class="${pic ? 'has-pic' : ''}">${pic}<div><b>${esc(i.n)}${test}</b>${days}${i.d ? `<small>${esc(i.d)}</small>` : ''}${i.sizes ? price : ''}</div>${i.sizes ? '' : price}</li>`;
+  return `<li class="${pic ? 'has-pic' : ''}">${pic}<div><b>${nameHtml(i.n)}${test}</b>${days}${i.d ? `<small>${esc(i.d)}</small>` : ''}${i.sizes ? price : ''}</div>${i.sizes ? '' : price}</li>`;
 }
 
 /* ---------------------------------------------------------------------

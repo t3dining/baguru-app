@@ -211,7 +211,17 @@ function applyContent(c) {
  *  分け方（phraseCuts。外の部品は使わない、簡単な決まり）：
  *   ・ひらがなのあとに、漢字・カタカナ・英数字が来る所（「炭火で｜焼く｜ハンバーグと」）。ただし「お」「ご」は、あとの字と1つ（「の｜ご飯」「聞ける｜お店」）
  *   ・句読点（、。！？・ など）のあと。閉じ括弧（」など）のあとに漢字などが来る所。開き括弧（「 など）の前
- *   ・句読点・閉じ括弧の前、ことばの途中（漢字・カタカナ・英数字が続く所、ひらがなが続く所、漢字に挟まれた送りがな1字「問い合わせ」）では区切らない */
+ *   ・漢字とカタカナの境目（「炭焼｜ローストチキン」「和牛｜メンチカツ」。2026-11-19。せまい画面で「ローストチキ｜ン」と折れていたため）
+ *   ・句読点・閉じ括弧の前、ことばの途中（漢字・カタカナ・英数字が続く所、ひらがなが続く所、漢字に挟まれた送りがな1字「問い合わせ」）では区切らない
+ *  ★古い iPhone の Safari（WebKit）は、word-break: keep-all のとき見えない区切り（U+200B）で改行しない（WebKit のバグ 248201。2022-11 に直った）。
+ *    そういう端末では、行の端まで来た所で字の途中でも折る（overflow-wrap: anywhere）ので、「炭焼ローストチキン（｜2本セット）」のように、
+ *    開き括弧のあとで改行されていた（2026-11-19 ko-dai さんの報告「カッコが変な位置で改行されている」「どの端末でも綺麗に見えるように」）。
+ *    そこで、はじめに1回だけ、この端末が区切りで改行するかを確かめる（zwBreaks）。改行しない端末では（PH_WBR）、区切りの所で字のかたまりを分けて、
+ *    あいだに <wbr>（改行してよい所の印のタグ。WebKit は古い版でも、字の決まりとは別にここで改行する）を入れる（putText の splitWbr）。区切りで改行する端末は、今までのまま。
+ *    ★マネージの「アプリで見る」「画面で直す」の中では分けない（字のかたまりを1つずつ選んで直すため）。
+ *    ★「つなぐ字」（U+2060・U+FEFF）で、ことばの途中を折らないようにする形と、keep-all をやめてふつうの改行にする形も試したが、
+ *      WebKit はつなぐ字の所でも折り、ふつうの改行では「、」の前や数字の途中でも折ったので、やめた（2026-11-19 に測った）。
+ *    商品の名前は、かっこの所で2つの箱に分けて、どの端末でも「（2本セット）」ごと次の行に送る（app.js の nameHtml） */
 const PHRASE = document.documentElement.hasAttribute('data-phrase');
 const ZW = '\u200B';
 const plainText = s => String(s ?? '').replace(/\u200B/g, '');
@@ -219,11 +229,12 @@ const nodeText = n => plainText(n.nodeValue);
 const PH_JA = /[ぁ-ヿ㐀-鿿々〆ヶ]/;
 /** 字の種類：h ひらがな／w 漢字・カタカナ・英数字（ことばの頭）／o 開き括弧／e 閉じ括弧／p 句読点／s 空白／x そのほか */
 const phKind = c => (/[ぁ-ゟ]/.test(c) ? 'h'
-  : /[、。，．！？!?…‥：；・]/.test(c) ? 'p'
+  : /[、。，．！？!?…‥：；・／]/.test(c) ? 'p'
   : /[「『（(【〈《〔［｛“‘]/.test(c) ? 'o'
   : /[」』）)】〉》〕］｝”’]/.test(c) ? 'e'
   : /\s/.test(c) ? 's'
   : /[゠-ヿ㐀-鿿々〆ヶ０-９Ａ-Ｚａ-ｚ0-9A-Za-z]/.test(c) ? 'w' : 'x');
+const PH_KAN = /[㐀-鿿々〆ヶ]/, PH_KATA = /[゠-ヿ]/;
 /** 区切ってよい所（その字の前）の番号 */
 function phraseCuts(s) {
   const a = [...s], k = a.map(phKind), cuts = new Set();
@@ -233,6 +244,7 @@ function phraseCuts(s) {
     if (p === 'p') { cuts.add(i); continue; }
     if (c === 'o') { if (p !== 'o') cuts.add(i); continue; }
     if (p === 'e') { if (c !== 'h') cuts.add(i); continue; }
+    if (p === 'w' && c === 'w' && PH_KAN.test(a[i - 1]) !== PH_KAN.test(a[i]) && PH_KATA.test(a[i - 1]) !== PH_KATA.test(a[i]) && (PH_KAN.test(a[i - 1]) || PH_KAN.test(a[i]))) { cuts.add(i); continue; }   // 漢字とカタカナの境目
     if (p === 'h' && c === 'w') {
       if (/[おご]/.test(a[i - 1])) { if (i >= 2 && k[i - 2] === 'h') cuts.add(i - 1); }   // 「の｜ご飯」「聞ける｜お店」（文の頭の「お」「ご」は区切らない）
       else if (i >= 2 && k[i - 2] === 'w' && !/[はがをにでとのもへや]/.test(a[i - 1])) { /* 漢字に挟まれた送りがな1字（問い合わせ・受け取り・申し込み）は、ことばの途中 */ }
@@ -242,9 +254,25 @@ function phraseCuts(s) {
   return { a, cuts };
 }
 const phraseMemo = new Map();
+/** この端末は、keep-all のとき見えない区切り（U+200B）で改行するか（上の★）。幅3.5字の箱に「ああ｜あああ」を入れ、区切りのあとの字が2行目に行けば、する */
+function zwBreaks() {
+  try {
+    const el = document.createElement('div');
+    el.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;width:3.5em;font-size:20px;line-height:1;white-space:normal;word-break:keep-all;overflow-wrap:anywhere';
+    el.textContent = 'ああ' + ZW + 'あああ';
+    document.body.appendChild(el);
+    const t = el.firstChild, r = document.createRange();
+    r.setStart(t, 0); r.setEnd(t, 1); const a = r.getBoundingClientRect().top;
+    r.setStart(t, 3); r.setEnd(t, 4); const b = r.getBoundingClientRect().top;
+    el.remove();
+    return b > a + 5;
+  } catch (e) { return true; }   // 確かめられないときは、今までのまま
+}
+let PH_WBR = null;   // true：区切りで改行しない端末（区切りの所に <wbr> を入れる）。はじめて区切るときに1回だけ決める
 /** 画面に出す字（まとまりのあいだに見えない区切りを入れる）。日本語が無い字・区切らないページでは、そのまま */
 function phrased(s) {
   if (!PHRASE || !s || !PH_JA.test(s)) return s;
+  if (PH_WBR === null) { PH_WBR = !zwBreaks(); if (PH_WBR) document.documentElement.classList.add('ph-wbr'); }
   let r = phraseMemo.get(s);
   if (r === undefined) {
     const { a, cuts } = phraseCuts(s);
@@ -365,6 +393,21 @@ function putText(n, r) {
     box.className = 't-br';
     n.parentNode.insertBefore(box, n);
     box.append(n);
+  }
+  if (PH_WBR && z !== r && !TEXT_EDIT && !PREVIEW) splitWbr(n);   // 区切りで改行しない端末（上の zwBreaks）。改行の箱（t-br）に入れたあとで分ける
+}
+/** 区切り（U+200B）の所で字のかたまりを分け、あいだに <wbr> を入れる。分けたかたまりは「もう置きかえた」と覚える（見張りが、もう一度置きかえないように） */
+function splitWbr(n) {
+  const parts = String(n.nodeValue || '').split(ZW);
+  if (parts.length < 2 || !n.parentNode) return;
+  n.nodeValue = parts[0];
+  TEXT_SEEN.set(n, parts[0]);
+  let at = n;
+  for (const p of parts.slice(1)) {
+    const w = document.createElement('wbr'), t = document.createTextNode(p);
+    TEXT_SEEN.set(t, p);
+    at.after(w, t);
+    at = t;
   }
 }
 function textEl(el) {
