@@ -177,6 +177,27 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && cam
 
 const farText = m => m < 1000 ? `${Math.round(m / 10) * 10}m` : `${(m / 1000).toFixed(1)}km`;
 
+/* ---- 読めないときの案内を、原因ごとに分ける（2026-11-22 ko-dai さんの報告「Safariの位置情報をONにしているのにスタンプのQRコードが読み取れないとお客さんに言われました」→「直して」） ----
+ *  ・場所のずれ（accuracy）が大きい … iPhone の「正確な位置情報」がオフ（おおまかな位置。数km ずれる）か、屋内で場所がはっきりしない。
+ *    前は「お店から約◯km離れています」と出て、お店の中にいるお客さまが分からなかった。ずれが GEO_ROUGH より大きくてお店の外と出たときは、そちらの案内を出す
+ *  ・位置情報を許可していない … 端末全体・Safari の Web サイト・そのサイトだけ（Safari の「ぁあ」）の3か所を、順に案内する
+ *  ・LINE・インスタなどの中で開いている … そのアプリの位置情報が使われる（Safari の設定は使われない）ので、Safari で開き直す案内
+ *  ★お店にいるかの決まり（150m・ずれは100mまで大目に見る）は変えていない。案内の文だけ */
+const GEO_ROUGH = 500;   // 位置のずれがこれ（m）より大きいときは「場所がおおまか」とみなす
+/** お店の外と出たとき。ずれが大きければ、正確な位置情報の案内にする */
+function farProblem(far, accuracy, opts = {}) {
+  if (accuracy > GEO_ROUGH) return stampProblem('今の場所がおおまかにしか分かりません', roughHelp(accuracy), { retry: true, ...opts });
+  return stampProblem('お店の外にいるようです', `今の場所は、お店から約${farText(far)}離れています。お店の中（駐車場を含む）で、もう一度読んでください。`, { retry: true, ...opts });
+}
+/** LINE などの中で開いているときの一言（そのアプリの位置情報が使われる） */
+const inAppNote = () => (ENV.inApp ? `\n※いま${ENV.inApp}の中で開いているため、${ENV.inApp}の位置情報が使われています。${ENV.ios ? 'Safari' : 'Chrome'}で開き直すか、ホーム画面のアプリから読んでください。` : '');
+function roughHelp(accuracy) {
+  const how = ENV.ios
+    ? '「設定」→「プライバシーとセキュリティ」→「位置情報サービス」→「Safari の Web サイト」で、「正確な位置情報」をオンにしてください。'
+    : 'スマホの「設定」→「位置情報」で、「位置情報の精度を改善」（Google 位置情報の精度）をオンにしてください。';
+  return `場所のずれが約${farText(accuracy)}あるため、お店の中にいるか確かめられません。\n${how}\nWi-Fi もオンにすると、場所が正確になりやすくなります。${inAppNote()}`;
+}
+
 function claimStamp(token) {
   pendingToken = token;
   if (stampDoneToday()) return stampProblem('今日のスタンプはもらいました', `スタンプは1日${STAMP.perDay}個までです。またのご来店をお待ちしています。`);
@@ -196,13 +217,11 @@ function claimStamp(token) {
     const { latitude: lat, longitude: lng, accuracy } = pos.coords;
     if (STAMPS_ONLINE) return claimOnline(token, lat, lng, accuracy);
     const far = distanceM({ lat, lng }, STAMP.place);
-    if (far > STAMP.place.radius + Math.min(accuracy || 0, STAMP.place.slack)) {
-      return stampProblem('お店の外にいるようです', `今の場所は、お店から約${farText(far)}離れています。お店の中（駐車場を含む）で、もう一度試してください。`, { retry: true, demo: true });
-    }
+    if (far > STAMP.place.radius + Math.min(accuracy || 0, STAMP.place.slack)) return farProblem(far, accuracy, { demo: true });
     giveStamp();
   }, err => {
     if (err.code === err.PERMISSION_DENIED) return stampProblem('位置情報が許可されていません', locationHelp(), { retry: true, demo: true });
-    stampProblem('今の場所が分かりませんでした', 'Wi-Fi と位置情報をオンにして、窓の近くなどで、もう一度試してください。', { retry: true, demo: true });
+    stampProblem('今の場所が分かりませんでした', `Wi-Fi と位置情報をオンにして、窓の近くなどで、もう一度試してください。${ENV.ios ? '\n「設定」→「プライバシーとセキュリティ」→「位置情報サービス」→「Safari の Web サイト」の「正確な位置情報」もオンにしてください。' : ''}${inAppNote()}`, { retry: true, demo: true });
   }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 });
 }
 
@@ -216,7 +235,7 @@ function claimOnline(token, lat, lng, accuracy) {
     render(true);
   }).catch(e => {
     if (e.code === 'far') geoFix = null;   // 「もう一度」では、位置を取り直す
-    if (e.code === 'far') return stampProblem('お店の外にいるようです', `今の場所は、お店から約${farText(e.data.far)}離れています。お店の中（駐車場を含む）で、もう一度読んでください。`, { retry: true });
+    if (e.code === 'far') return farProblem(e.data.far, accuracy);   // ずれが大きいときは「正確な位置情報」の案内（上の farProblem）
     if (e.code === 'today') return stampProblem('今日のスタンプはもらいました', `スタンプは1日${STAMP.perDay}個までです。またのご来店をお待ちしています。`);
     if (e.code === 'bad_qr') return stampProblem('このQRは使えません', '古いQRかもしれません。お店の人に声をかけてください。');
     stampProblem('スタンプを押せませんでした', stampMessage(e), { retry: true });
@@ -270,9 +289,15 @@ function claimTicket(code) {
 }
 
 function locationHelp() {
+  // 2026-11-22：Safari 全体をオンにしていても、そのサイトだけ「許可しない」を覚えていることがあるので、3か所を順に案内する（上の「読めないときの案内」）
   return ENV.ios
-    ? 'お店にいるかを確かめるのに使います。iPhone の「設定」→「プライバシーとセキュリティ」→「位置情報サービス」をオンにし、その中の「Safari の Web サイト」などを「使用中のみ許可」にしてから、もう一度試してください。'
-    : 'お店にいるかを確かめるのに使います。アドレスの左のマーク（またはメニューの「設定」→「サイトの設定」）で、位置情報を「許可」にしてから、もう一度試してください。';
+    ? 'お店にいるかを確かめるのに使います。次を確かめてから、もう一度試してください。\n'
+      + '①「設定」→「プライバシーとセキュリティ」→「位置情報サービス」をオン\n'
+      + '②その中の「Safari の Web サイト」を「このAppの使用中」にし、「正確な位置情報」もオン\n'
+      + '③Safari で開いているときは、アドレスの左の「ぁあ」→「Webサイトの設定」→「位置情報」を「許可」（前に「許可しない」を押すと、そのサイトだけ覚えています）'
+      + inAppNote()
+    : 'お店にいるかを確かめるのに使います。アドレスの左のマーク（またはメニューの「設定」→「サイトの設定」）で、位置情報を「許可」にしてから、もう一度試してください。'
+      + inAppNote();
 }
 
 /** うまくいかなかったとき。retry … もう一度確かめるボタン、demo … 試作だけのボタン */

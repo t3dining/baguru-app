@@ -656,7 +656,7 @@ html.t-editing .t-ed:hover { background-color: rgba(199, 54, 29, .08); }
 @keyframes spin { to { transform: rotate(360deg); } }
 .ng-ic { display: grid; place-items: center; width: 64px; height: 64px; margin: 0 auto 12px; border-radius: 50%; background: var(--brass-soft); color: var(--brass-dark); }
 .ng-ic svg { width: 32px; height: 32px; }
-.stamp-ng > p { margin: 4px 0 18px; line-height: 1.7; text-align: left; }
+.stamp-ng > p { margin: 4px 0 18px; line-height: 1.7; text-align: left; white-space: pre-line; }   /* 案内の手順は、改行のとおりに（2026-11-22） */
 .stamp-ng .btn + .btn { margin-top: 8px; }
 .demo-hint { margin-top: 18px !important; font-size: 12px !important; background: #fff3c4; color: #6b5200 !important; padding: 8px 10px; border-radius: 10px; text-align: center !important; }
 .demo-hint button { text-decoration: underline; font-weight: 700; }
