@@ -29,6 +29,7 @@ const RSV_MSG = {
   need_email: 'メールアドレスを入れてください（確定のお知らせをお送りします）。',
   bad_email: 'メールアドレスの形が違います。',
   too_many_bookings: '同じ電話番号でのご予約・リクエストが多いため、受け付けられませんでした。お電話でどうぞ。',
+  dessert_today: 'デザートプレートは前日までのご予約で承ります。プレートを外すか、明日以降の日を選んでください。',   // 受け口 2026-11-22b から（下の rsvDessertSync）
   busy: 'ただいま混み合っています。少し時間を置いて、もう一度お試しください。',
   offline: 'つながりませんでした。電波の良い所で、もう一度お試しください。',
   no_answer: 'つながりませんでした。時間を置いてもう一度お試しいただくか、お電話でどうぞ。',
@@ -187,6 +188,26 @@ function rsvDayMark(d) {
 }
 const rsvSlotMark = s => s.late ? '－' : !rsvFits(s) ? '×' : rsvPlenty(s) ? '○' : '△';
 
+/* デザートプレートは前日までのご予約で（2026-11-22 ko-dai さんの指示「当日のデザートプレートの予約はできないようにしてください」。
+ *  ネット予約（ホームページ・アプリ）だけ止める。お店が予約ボードで入れるときは入れられる。予約ボードのセッションから頼まれた）
+ *  ・受け口（2026-11-22b から）は、当日にプレートを付けた予約を dessert_today で断り、avail の答えに dessertFrom（プレートを選べるいちばん早い日）を返す
+ *  ・選んだ日が dessertFrom より前なら、「注文する」を押せなくして「注文しない」にし、一言を出す。日を変えたら戻す
+ *  ・dessertFrom が無い（前の受け口）・控えが古いときのため、この端末の明日の日付とくらべて、おそいほうを使う */
+function dessertFrom() {
+  const local = dateKey(addDays(new Date(), 1)), r = rsv.avail?.dessertFrom;
+  return typeof r === 'string' && r > local ? r : local;
+}
+const dessertNg = () => !!rsv.date && rsv.date < dessertFrom();
+function rsvDessertSync() {
+  const yes = $('input[name="r-dessert"][value="yes"]'), no = $('input[name="r-dessert"][value="no"]');
+  if (!yes || !no) return;
+  const ng = dessertNg();
+  yes.disabled = ng;
+  if (ng && yes.checked) { no.checked = true; $('#r-plate-box').hidden = true; }
+  const note = $('#r-dessert-note');
+  if (note) note.hidden = !ng;
+}
+
 /** 選んでいた日・時間に入れなくなったら外す（埋まったとき・人数を変えたとき） */
 function rsvDropUnfit() {
   if (!rsv.avail) return;
@@ -243,13 +264,15 @@ function rsvDraw() {
     ${savedContact(rsvFields(v), rsvSaved(v))}
     <div class="field"><span>デザートプレート（要予約・税込1,100円）</span>
       <div class="r-row"><label class="r-chip"><input type="radio" name="r-dessert" value="no" ${v.dessert ? '' : 'checked'}><span>注文しない</span></label>
-      <label class="r-chip"><input type="radio" name="r-dessert" value="yes" ${v.dessert ? 'checked' : ''}><span>注文する</span></label></div></div>
+      <label class="r-chip"><input type="radio" name="r-dessert" value="yes" ${v.dessert ? 'checked' : ''}><span>注文する</span></label></div>
+      <p class="hint r-dessert-note" id="r-dessert-note" hidden>デザートプレートは前日までのご予約で承ります（当日のご予約には付けられません）。</p></div>
     <label class="field" id="r-plate-box" ${v.dessert ? '' : 'hidden'}><span>プレートに書くメッセージ（30文字まで）</span><input id="r-plate" maxlength="30" value="${esc(v.plateMsg)}" placeholder="例：Happy Birthday たろう"></label>
     <label class="field"><span>ご要望（なくても構いません）</span><textarea id="r-note" rows="2" maxlength="300" placeholder="お祝い・アレルギー・ベビーカーなど">${esc(v.note)}</textarea></label>
     <div class="r-hp" aria-hidden="true"><label>ここには何も入れないでください<input id="r-website" tabindex="-1" autocomplete="off"></label></div>
     <p class="notice warn" id="r-msg" hidden></p>
     ${privacyLink('お預かりする情報の扱いは ')}
     <div class="foot"><button class="btn btn-main btn-block" data-r="next">内容を確認する</button></div>`;
+  rsvDessertSync();   // 選んでいる日が今日なら、プレートを「注文しない」に
 }
 
 // 年月（'2026-10'）を n か月動かす
@@ -326,6 +349,7 @@ function rsvCheck(v) {
   if (!/^0\d{9,10}$/.test(v.tel.replace(/[^\d]/g, ''))) return RSV_MSG.bad_tel;
   if (!v.email) return RSV_MSG.need_email;
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.email)) return RSV_MSG.bad_email;
+  if (v.dessert && dessertNg()) return RSV_MSG.dessert_today;   // 当日はプレートを付けられない（上の rsvDessertSync。押せないので、ふつうはここまで来ない）
   return '';
 }
 
@@ -366,8 +390,8 @@ function rsvDoneHtml() {
 /* ---------- 選ぶ・押す ---------- */
 function rsvChange(e) {
   const t = e.target;
-  if (t.name === 'r-people') { rsv.people = Number(t.value); rsvDropUnfit(); $('#r-days').innerHTML = rsvDaysHtml(); $('#r-times').innerHTML = rsvTimesHtml(); }
-  if (t.name === 'r-date') { rsv.date = t.value; rsv.time = ''; $('#r-times').innerHTML = rsvTimesHtml(); $('#r-times').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+  if (t.name === 'r-people') { rsv.people = Number(t.value); rsvDropUnfit(); $('#r-days').innerHTML = rsvDaysHtml(); $('#r-times').innerHTML = rsvTimesHtml(); rsvDessertSync(); }
+  if (t.name === 'r-date') { rsv.date = t.value; rsv.time = ''; $('#r-times').innerHTML = rsvTimesHtml(); $('#r-times').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); rsvDessertSync(); }
   if (t.name === 'r-time') rsv.time = t.value;
   if (t.name === 'r-dessert') { $('#r-plate-box').hidden = t.value !== 'yes'; if (t.value === 'yes') $('#r-plate').focus(); }
   const m = $('#r-msg');
@@ -427,6 +451,12 @@ function rsvSend() {
         dropAvail();   // 控えは古いので、読み終わるまで待ってもらう
         $('#rsv').innerHTML = '<p class="hint">空き状況を読み込んでいます…</p>';
         rsvStart();
+        return toast(rsvMessage(e), 'warn');
+      }
+      if (e.code === 'dessert_today') {   // 受け口が「当日のプレート」として断ったとき：入力の画面に戻して、プレートを「注文しない」にする
+        if (rsv.avail && typeof e.data?.dessertFrom === 'string') rsv.avail.dessertFrom = e.data.dessertFrom;
+        rsv.step = 'form';
+        rsvDraw();
         return toast(rsvMessage(e), 'warn');
       }
       rsvDraw();
