@@ -766,8 +766,23 @@ function cutleryChosen() {
 const toHalf = s => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/[－ー‐―−]/g, '-');
 
 /** お名前・電話番号・ご要望を読む（足りなければ知らせて null）。p は入れ物の id の頭（f／r） */
+/* 会員登録・会員情報のお名前は「苗字」「名前」の2つの欄（2026-11-25 ko-dai さんの指示「会員登録するときに苗字と名前にスペースを入れてもらわないといけない理由はありますか？」→「分けて」）。
+ *  前は1つの欄で、席の予約で苗字と名前に分けるため、あいだにスペースを入れてもらっていた（reserve.js の twoParts）。
+ *  中では今までどおり「苗字 名前」（半角の空白でつなぐ）で残す。今までの会員・予約ボード・前の会員に戻す（受け口は空白を外してくらべる）は変わらない。
+ *  注文・申請のお名前（受け取りのときに呼ぶお名前）は、1つの欄のまま */
+function nameFields(p, name) {
+  const [sei, mei] = twoParts(name);
+  return `<div class="r-names">
+        <label class="field"><span>苗字</span><input id="${p}-sei" autocomplete="family-name" maxlength="19" value="${esc(sei)}" placeholder="例：豊田"></label>
+        <label class="field"><span>名前</span><input id="${p}-mei" autocomplete="given-name" maxlength="19" value="${esc(mei)}" placeholder="例：太郎"></label>
+      </div>`;
+}
 function readContact(p) {
-  const name = $(`#${p}-name`).value.trim();
+  // 苗字・名前の2つの欄（上の nameFields）があれば、空白を外してから「苗字 名前」にする
+  const seiEl = $(`#${p}-sei`), part = el => el.value.replace(/[\s\u3000]+/g, '');
+  if (seiEl && !part(seiEl)) { seiEl.focus(); toast('苗字を入れてください', 'warn'); return null; }
+  if (seiEl && !part($(`#${p}-mei`))) { $(`#${p}-mei`).focus(); toast('名前を入れてください', 'warn'); return null; }
+  const name = seiEl ? `${part(seiEl)} ${part($(`#${p}-mei`))}` : $(`#${p}-name`).value.trim();
   const tel = toHalf($(`#${p}-tel`).value.trim());
   const memo = $(`#${p}-memo`)?.value.trim() || '';
   const digits = tel.replace(/[^0-9]/g, '');
@@ -840,7 +855,7 @@ function extraFields(p) {
 function readExtra(p, name) {
   if (!MEMBER_PLUS) return {};
   const ng = (id, text) => { $(`#${p}-${id}`).focus(); toast(text, 'warn'); return null; };
-  if (!twoParts(name)[1]) return ng('name', '苗字と名前のあいだにスペースを入れてください');
+  if ($(`#${p}-name`) && !twoParts(name)[1]) return ng('name', '苗字と名前のあいだにスペースを入れてください');   // 1つの欄のときだけ（今は苗字・名前の2つの欄。上の nameFields）
   const sei = toKatakana($(`#${p}-sei-kana`).value), mei = toKatakana($(`#${p}-mei-kana`).value);
   if (!sei) return ng('sei-kana', 'セイを入れてください');
   if (!mei) return ng('mei-kana', 'メイを入れてください');
@@ -866,13 +881,19 @@ function orderRid(o) {
 
 /** 注文（申請）を作って保存し、注文の様子の画面へ。
  *  受け口につなぐとき（ORDERS_ONLINE。js/order-api.js）は、受け口に送ってから。番号と合計は受け口がつけ直す。btn は押したボタン（送っているあいだ止める） */
+/** 注文・即予約に付けるフリガナ（2026-11-25 ko-dai さんの指示「予約ボードや受付アプリではお客様名をカタカナで姓名の間にスペースを入れて表示するように」）。
+ *  会員のフリガナ（「セイ メイ」。会員登録で入れたもの）を、入れたお名前が会員のお名前と同じとき（空白を除いてくらべる）だけ付ける。
+ *  ちがうお名前（ほかの人が受け取るなど）のときは付けない（ちがう読みを出さないため）。お店の画面は、フリガナが無ければ漢字のお名前を出す */
+const noSpace = s => String(s || '').replace(/[\s\u3000]+/g, '');
+const memberKana = name => (ME.registeredAt && ME.kana && noSpace(name) && noSpace(name) === noSpace(ME.name) ? ME.kana : '');
+
 async function placeOrder(fields, btn) {
   if (STAMPS_ONLINE) await memberReady().catch(() => {});   // 注文に会員番号を残す（つながらないときは会員なしで送る）。★お渡し済みでもスタンプは押さない（2026-11-04）
   const now = new Date();
   const lines = cart.map(cartLine).map(l => ({ id: l.item.id, name: l.name, opts: l.opts, unit: l.unit, qty: l.qty }));
   let order = {
     no: nextOrderNo(now), date: dateKey(now), createdAt: now.toISOString(),
-    lines, total: cartTotal(), meals: cartMeals(), member: ME.no, ...fields,
+    lines, total: cartTotal(), meals: cartMeals(), member: ME.no, kana: memberKana(fields.name), ...fields,
     times: { [fields.status]: now.toISOString() },
   };
   order.id = orderRid(order);
@@ -1236,7 +1257,7 @@ function welcomeBox() {
   return `<div class="welcome">
       <div class="w-head">${ICON.gift}<div><b>初めての方へ</b><small>会員登録で <em>${STAMP.welcome.points}ポイント</em> ＋ <em>${esc(couponTitle(STAMP.welcome))}</em> をサービス</small></div></div>
       <p>${MEMBER_PLUS ? '会員情報' : 'お名前と電話番号'}を登録すると、すぐにもらえます。今日お店のQRも読むと、合わせて${STAMP.welcome.points + STAMP.perDay}ポイントになります。</p>
-      <label class="field"><span>お名前</span><input id="w-name" autocomplete="name" value="${esc(ME.name)}" placeholder="例：豊田 太郎"></label>
+      ${nameFields('w', ME.name)}
       <label class="field"><span>電話番号</span><input id="w-tel" type="tel" inputmode="tel" autocomplete="tel" value="${esc(ME.tel)}" placeholder="例：090-1234-5678"></label>
       ${extraFields('w')}
       <button class="btn btn-main btn-block" data-act="register" data-arg="w">登録して${STAMP.welcome.points}ポイントもらう</button>
@@ -1589,7 +1610,7 @@ function viewMe() {
       <div class="member"><img src="img/logo.png" alt=""><div><small>会員番号</small><b>${ME.no}</b></div></div>
       <h2 class="sec">${ME.registeredAt ? (MEMBER_PLUS ? '会員情報' : 'お名前と電話番号') : '会員登録'}</h2>
       <p class="hint">${ME.registeredAt ? `${MEMBER_PLUS ? '席のご予約やテイクアウトの注文の入力を省けます。' : 'テイクアウトの注文のときに、最初から入ります。'}` : `登録すると、スタンプ${STAMP.welcome.points}ポイントと${esc(couponTitle(STAMP.welcome))}のサービス券をお渡しします。${MEMBER_PLUS ? '席のご予約やテイクアウトの注文の入力も省けます。' : 'テイクアウトの注文のときにも、最初から入ります。'}`}</p>
-      <label class="field"><span>お名前</span><input id="m-name" autocomplete="name" value="${esc(ME.name)}"></label>
+      ${nameFields('m', ME.name)}
       <label class="field"><span>電話番号</span><input id="m-tel" type="tel" inputmode="tel" autocomplete="tel" value="${esc(ME.tel)}"></label>
       ${extraFields('m')}
       <button class="btn ${ME.registeredAt ? 'btn-sub' : 'btn-main'}" data-act="register" data-arg="m">${ME.registeredAt ? '保存する' : `登録して${STAMP.welcome.points}ポイントもらう`}</button>

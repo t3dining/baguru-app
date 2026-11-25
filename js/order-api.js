@@ -89,7 +89,7 @@ const oneLine = s => textOf(s, true).replace(/\s*\n\s*/g, ' ');
  *  rid（送り直しで2つにならない印）は、この端末で作った注文の id */
 async function sendOrder(o) {
   const r = await orderPost({
-    action: 'order', kind: o.kind, asap: !!o.asap, pickupAt: o.pickupAt, name: o.name, tel: o.tel, email: o.email || '',   // email：2026-11-08 から（受け口が受付・承認・お断りのメールを送る）
+    action: 'order', kind: o.kind, asap: !!o.asap, pickupAt: o.pickupAt, name: o.name, kana: o.kana || '', tel: o.tel, email: o.email || '',   // kana：会員のフリガナ（2026-11-25 から。app.js の memberKana。受け口が受けるまでは読まれない）   // email：2026-11-08 から（受け口が受付・承認・お断りのメールを送る）
     address: o.address || '', address2: o.address2 || '', meals: o.meals, note: noteOf(o), member: o.member, memberKey: DB.get('memberAuth', null)?.key || '',
     // バグるマネージで名前を直していたら、お店にも直した名前で届くように（js/content.js の textOf）
     lines: o.lines.map(({ id, name, opts, unit, qty }) => ({ id, name: oneLine(name), opts: opts.map(oneLine), unit, qty })),

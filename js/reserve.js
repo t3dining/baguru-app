@@ -654,7 +654,8 @@ function qrSend() {
   qr.busy = true;
   qrDraw();
   const v = qr.v;
-  BaguruApi.post({ action: 'quickReserve', rid: qr.rid, via: 'アプリ', people: v.people, name: v.name, tel: v.tel, email: v.email, website: v.website, ...qrAuth() })
+  // kana：会員のフリガナ（2026-11-25 から。app.js の memberKana。受け口の quickReserve は前から kana を受ける。予約ボードは kana があればカタカナで出す）
+  BaguruApi.post({ action: 'quickReserve', rid: qr.rid, via: 'アプリ', people: v.people, name: v.name, kana: memberKana(v.name), tel: v.tel, email: v.email, website: v.website, ...qrAuth() })
     .then(r => {
       // この端末に控える（マイページ）。id と token は様子を読む鍵。お名前・電話（・メール）は、次に入れる手間を省くため会員の情報に
       DB.set('reserves', [...DB.get('reserves', []), { id: r.id, token: r.token, state: 'ok', quick: true, no: r.no, date: r.date, time: r.time, arriveBy: r.arriveBy, people: r.people, sentAt: new Date().toISOString() }]);
