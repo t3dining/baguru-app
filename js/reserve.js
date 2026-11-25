@@ -568,7 +568,7 @@ function qrDraw() {
 }
 
 function qrFormHtml() {
-  const v = qr.v || { name: ME.name || '', tel: ME.tel || '', email: ME.email || '' };
+  const v = qr.v || { kana: ME.kana || '', tel: ME.tel || '', email: ME.email || '' };
   const people = qrPeople();
   return `<p class="notice warn">${ICON.clock}<span><b>15分以内にお越しになれる方だけ</b><small>送ると、その場でお席を押さえて、予約が確定します（お店の確認はありません）。取り消し・遅れるときは、お電話（${esc(SHOP.tel)}）でお知らせください。</small></span></p>
     <h3 class="nowr-sub">人数</h3>
@@ -576,7 +576,7 @@ function qrFormHtml() {
     ${people.length < qrMax() ? '<p class="hint">今の席の空き方で、入れる人数だけを出しています。</p>' : ''}
     ${(Number(qr.now?.maxPeople) || 0) > RSV_PEOPLE_MAX || qrMax() === RSV_PEOPLE_MAX ? `<p class="hint">${RSV_PEOPLE_MAX + 1}名以上は、<a class="link-inline" href="tel:${SHOP.tel.replace(/-/g, '')}">お電話（${esc(SHOP.tel)}）</a>でお問い合わせください。</p>` : ''}
     <h3 class="nowr-sub">お名前と連絡先</h3>
-    ${savedContact(`<label class="field"><span>お名前</span><input id="q-name" autocomplete="name" maxlength="40" value="${esc(v.name)}" placeholder="例：豊田 太郎"></label>
+    ${savedContact(`${kanaFields('q', v.kana)}
     <label class="field"><span>電話番号</span><input id="q-tel" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" value="${esc(v.tel)}" placeholder="例：090-1234-5678"></label>
     <label class="field"><span>メールアドレス（確定のお知らせをお送りします）</span><input id="q-email" type="email" inputmode="email" autocomplete="email" maxlength="120" value="${esc(v.email)}"></label>
     ${contactNote()}`, qr.v ? [] : savedRows(), 'q')}
@@ -588,12 +588,14 @@ function qrFormHtml() {
       <button class="btn btn-sub btn-block" data-q="close">やめる</button>
     </div>`;
 }
+// お名前はフリガナ「セイ」「メイ」の2つの欄（カタカナ。必須）。name と kana の両方に「セイ メイ」で送る（2026-11-25。js/app.js の kanaFields・readKana）
 function qrValues() {
-  return { people: qr.people, name: $('#q-name').value.trim(), tel: toHalf($('#q-tel').value.trim()), email: $('#q-email').value.trim(), website: $('#q-website').value };
+  const k = readKana('q');
+  return { people: qr.people, name: k.kana || '', kana: k.kana || '', kanaErr: k.err || '', tel: toHalf($('#q-tel').value.trim()), email: $('#q-email').value.trim(), website: $('#q-website').value };
 }
 function qrCheck(v) {
   if (!v.people) return QR_MSG.bad_people;
-  if (!v.name) return RSV_MSG.need_name;
+  if (v.kanaErr) return v.kanaErr;
   if (!/^0\d{9,10}$/.test(v.tel.replace(/[^\d]/g, ''))) return RSV_MSG.bad_tel;
   if (!v.email) return RSV_MSG.need_email;   // 2026-11-08 から必須（受け口 2026-11-08a の quickReserve も必須）
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.email)) return QR_MSG.bad_email;
@@ -654,8 +656,8 @@ function qrSend() {
   qr.busy = true;
   qrDraw();
   const v = qr.v;
-  // kana：会員のフリガナ（2026-11-25 から。app.js の memberKana。受け口の quickReserve は前から kana を受ける。予約ボードは kana があればカタカナで出す）
-  BaguruApi.post({ action: 'quickReserve', rid: qr.rid, via: 'アプリ', people: v.people, name: v.name, kana: memberKana(v.name), tel: v.tel, email: v.email, website: v.website, ...qrAuth() })
+  // kana：入れたフリガナ「セイ メイ」（上の qrValues。受け口の quickReserve は前から kana を受ける。予約ボードは kana があればカタカナで出す）
+  BaguruApi.post({ action: 'quickReserve', rid: qr.rid, via: 'アプリ', people: v.people, name: v.name, kana: v.kana, tel: v.tel, email: v.email, website: v.website, ...qrAuth() })
     .then(r => {
       // この端末に控える（マイページ）。id と token は様子を読む鍵。お名前・電話（・メール）は、次に入れる手間を省くため会員の情報に
       DB.set('reserves', [...DB.get('reserves', []), { id: r.id, token: r.token, state: 'ok', quick: true, no: r.no, date: r.date, time: r.time, arriveBy: r.arriveBy, people: r.people, sentAt: new Date().toISOString() }]);

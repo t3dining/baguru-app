@@ -715,7 +715,7 @@ function viewCheckout() {
       </div>
       ${cutleryHtml()}
       <h2 class="sec">お名前と連絡先</h2>
-      ${contactHtml('f', 'お名前（受け取りのときにお呼びします）', '電話番号')}
+      ${contactHtml('f', '受け取りのときに、このお名前でお呼びします。', '電話番号')}
       <label class="field"><span>ご要望（なくても構いません）</span><textarea id="f-memo" rows="2" placeholder="例：お箸を2膳ください"></textarea></label>
       <h2 class="sec">ご注文の内容</h2>
       ${linesHtml(cart.map(cartLine), cartTotal())}
@@ -777,22 +777,54 @@ function nameFields(p, name) {
         <label class="field"><span>名前</span><input id="${p}-mei" autocomplete="given-name" maxlength="19" value="${esc(mei)}" placeholder="例：太郎"></label>
       </div>`;
 }
+/* 注文・申請・即予約のお名前は、フリガナ「セイ」「メイ」の2つの欄（カタカナ。必須）。
+ *  2026-11-25 ko-dai さんの指示「アプリ、ホームページ、店舗で直接入力全ての場合でフルネームがカタカナで姓名の間にスペースが入って表示されるようにしてください」
+ *  （Order受付のセッションから）。漢字のお名前の欄はやめた（受け取りのときにお呼びするお名前なので、読みだけで足りる。Order受付の予約注文の窓も同じ形）。
+ *  送るときは name と kana の両方に「セイ メイ」（半角の空白）。ひらがな・半角カナで入れても、カタカナに直す（reserve.js の toKatakana）。
+ *  席の予約（reserve.js の rsvFields）は、今までどおり苗字・名前・セイ・メイの4欄 */
+function kanaFields(p, kana) {
+  const [sei, mei] = twoParts(kana);
+  return `<div class="r-names">
+        <label class="field"><span>セイ（カタカナ）</span><input id="${p}-kn-sei" autocomplete="off" maxlength="19" value="${esc(sei)}" placeholder="例：トヨタ"></label>
+        <label class="field"><span>メイ（カタカナ）</span><input id="${p}-kn-mei" autocomplete="off" maxlength="19" value="${esc(mei)}" placeholder="例：タロウ"></label>
+      </div>`;
+}
+/** 上の kanaFields を読む。{ kana } か、足りない・カタカナでなければ { err, id }（id は直してもらう欄） */
+function readKana(p) {
+  const sei = toKatakana($(`#${p}-kn-sei`).value), mei = toKatakana($(`#${p}-kn-mei`).value);
+  if (!sei) return { err: 'セイ（カタカナ）を入れてください', id: `${p}-kn-sei` };
+  if (!mei) return { err: 'メイ（カタカナ）を入れてください', id: `${p}-kn-mei` };
+  if (!/^[\u30a1-\u30f6\u30fc]+$/.test(sei + mei)) return { err: 'お名前はカタカナで入れてください', id: `${p}-kn-sei` };   // 受け口（kanaOf_）と同じ確かめ
+  return { kana: `${sei} ${mei}` };
+}
 function readContact(p) {
+  // フリガナの2つの欄（上の kanaFields）があれば、お名前は「セイ メイ」
+  if ($(`#${p}-kn-sei`)) {
+    const k = readKana(p);
+    if (k.err) { openContact(); $(`#${k.id}`).focus(); toast(k.err, 'warn'); return null; }
+    const c = readTel(p);
+    return c && { name: k.kana, kana: k.kana, ...c };
+  }
   // 苗字・名前の2つの欄（上の nameFields）があれば、空白を外してから「苗字 名前」にする
   const seiEl = $(`#${p}-sei`), part = el => el.value.replace(/[\s\u3000]+/g, '');
   if (seiEl && !part(seiEl)) { seiEl.focus(); toast('苗字を入れてください', 'warn'); return null; }
   if (seiEl && !part($(`#${p}-mei`))) { $(`#${p}-mei`).focus(); toast('名前を入れてください', 'warn'); return null; }
   const name = seiEl ? `${part(seiEl)} ${part($(`#${p}-mei`))}` : $(`#${p}-name`).value.trim();
+  if (!name) { openContact(); $(`#${p}-name`).focus(); toast('お名前を入れてください', 'warn'); return null; }
+  const c = readTel(p);
+  return c && { name, ...c };
+}
+/** 電話番号・メールアドレス・ご要望を読む（足りなければ知らせて null） */
+function readTel(p) {
   const tel = toHalf($(`#${p}-tel`).value.trim());
   const memo = $(`#${p}-memo`)?.value.trim() || '';
   const digits = tel.replace(/[^0-9]/g, '');
   // メールアドレス：欄がある画面（注文・申請・会員情報）では必須（2026-11-08 ko-dai さんの指示「予約も注文も必ずメールが送られるように」）
   const mailEl = $(`#${p}-email`), email = mailEl ? mailEl.value.trim() : '';
-  if (!name) { openContact(); $(`#${p}-name`).focus(); toast('お名前を入れてください', 'warn'); return null; }
   if (digits.length < 10 || digits.length > 11) { openContact(); $(`#${p}-tel`).focus(); toast('電話番号を確かめてください', 'warn'); return null; }
   if (mailEl && !email) { openContact(); mailEl.focus(); toast('メールアドレスを入れてください（受付のお知らせをお送りします）', 'warn'); return null; }
   if (mailEl && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { openContact(); mailEl.focus(); toast('メールアドレスの形を確かめてください', 'warn'); return null; }
-  return { name, tel, memo, ...(mailEl ? { email } : {}) };
+  return { tel, memo, ...(mailEl ? { email } : {}) };
 }
 
 /** 登録した内容が揃っていれば、入力欄をたたんで内容だけ見せる（席の予約・テイクアウトの注文の入力を省く）。fields … 入力欄、rows … 見せる内容 */
@@ -812,9 +844,11 @@ function openContact(key = '') {
  *  ・会員でメールアドレスが無い人は、メールの欄を出して入れてもらい、送れたら会員情報にも残す（keepContact） */
 const contactNote = () => (ME.registeredAt
   ? `<p class="hint">${ME.email ? 'ここで変えた電話番号・メールアドレスは、今回だけに使います（会員情報は、マイページで変えられます）。' : '入れたメールアドレスは、会員情報にも残します（次からは入れなくて済みます）。'}</p>` : '');
-const savedRows = () => (ME.registeredAt && ME.name && ME.tel && ME.email ? [`${ME.name} 様`, ME.tel, ME.email] : []);
-function contactHtml(p, nameLabel, telLabel) {
-  return savedContact(`<label class="field"><span>${nameLabel}</span><input id="${p}-name" autocomplete="name" value="${esc(ME.name)}" placeholder="例：豊田 太郎"></label>
+// たたんで見せるのは、フリガナ（注文・即予約のお名前はフリガナだけ。上の kanaFields）。フリガナが無い会員は、欄を開いて入れてもらう
+const savedRows = () => (ME.registeredAt && ME.kana && ME.tel && ME.email ? [`${ME.kana} 様`, ME.tel, ME.email] : []);
+function contactHtml(p, nameHint, telLabel) {
+  return savedContact(`${kanaFields(p, ME.kana)}
+      <p class="hint name-hint">${nameHint}</p>
       <label class="field"><span>${telLabel}</span><input id="${p}-tel" type="tel" inputmode="tel" autocomplete="tel" value="${esc(ME.tel)}" placeholder="例：090-1234-5678"></label>
       <label class="field"><span>メールアドレス（受付のお知らせをお送りします）</span><input id="${p}-email" type="email" inputmode="email" autocomplete="email" maxlength="120" value="${esc(ME.email || '')}"></label>
       ${contactNote()}`, savedRows());
@@ -824,7 +858,8 @@ function contactHtml(p, nameLabel, telLabel) {
  *  （受け口の memberSave。お名前・電話番号などは会員情報のまま。送れなくても、この端末には残す） */
 function keepContact(c) {
   if (!ME.registeredAt) {
-    Object.assign(ME, { name: c.name, tel: c.tel, ...(c.email ? { email: c.email } : {}), ...(c.kana ? { kana: c.kana } : {}) });
+    // お名前がフリガナだけ（注文・即予約）のときは、漢字のお名前の控えを書きかえない（席の予約の苗字・名前の欄に、カタカナが入らないように）
+    Object.assign(ME, { ...(c.name && c.name !== c.kana ? { name: c.name } : {}), tel: c.tel, ...(c.email ? { email: c.email } : {}), ...(c.kana ? { kana: c.kana } : {}) });
     DB.set('member', ME);
     return;
   }
@@ -893,7 +928,7 @@ async function placeOrder(fields, btn) {
   const lines = cart.map(cartLine).map(l => ({ id: l.item.id, name: l.name, opts: l.opts, unit: l.unit, qty: l.qty }));
   let order = {
     no: nextOrderNo(now), date: dateKey(now), createdAt: now.toISOString(),
-    lines, total: cartTotal(), meals: cartMeals(), member: ME.no, kana: memberKana(fields.name), ...fields,
+    lines, total: cartTotal(), meals: cartMeals(), member: ME.no, ...fields, kana: fields.kana || memberKana(fields.name),   // kana：入れたフリガナ（上の readContact）
     times: { [fields.status]: now.toISOString() },
   };
   order.id = orderRid(order);
@@ -1035,7 +1070,7 @@ function viewRequest() {
       </div>
       ${cutleryHtml()}
       <h2 class="sec">お名前と連絡先</h2>
-      ${contactHtml('r', 'お名前（ご担当の方）', '電話番号（お店から確認のお電話をします）')}
+      ${contactHtml('r', 'ご担当の方のお名前を入れてください。', '電話番号（お店から確認のお電話をします）')}
       <label class="field"><span>ご要望（なくても構いません）</span><textarea id="r-memo" rows="3" placeholder="例：お箸を20膳、領収書の宛名は◯◯株式会社"></textarea></label>
       <h2 class="sec">ご注文の内容（${meals}食）</h2>
       ${linesHtml(cart.map(cartLine), cartTotal())}
